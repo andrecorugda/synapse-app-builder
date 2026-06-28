@@ -103,7 +103,9 @@ class RecordsRelationManager extends RelationManager
             // query only (Record::for($owner)), so it can never reach another
             // table. Safe, scoped, no raw SQL.
             ->filters($this->tableFilters($owner))
-            ->filtersLayout(FiltersLayout::AboveContent)
+            // Collapsible so the query panel sits at the top but doesn't consume
+            // space until the user opens it.
+            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
             ->filtersFormColumns(3)
             ->headerActions([
                 Actions\CreateAction::make()
