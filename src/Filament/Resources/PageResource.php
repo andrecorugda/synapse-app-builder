@@ -102,6 +102,13 @@ class PageResource extends Resource
                             ->height(240)
                             ->helperText('Raw CSS appended to this page. Target your element classes, e.g. .pb-hero__title { letter-spacing: -0.02em; }')
                             ->columnSpanFull(),
+
+                        CodeField::make('custom_js')
+                            ->label('Custom JavaScript')
+                            ->language('javascript')
+                            ->height(240)
+                            ->helperText('Raw JS injected before </body>, after the page renders — an escape hatch for unhandled scenarios. Runs on your own site; no sandboxing.')
+                            ->columnSpanFull(),
                     ]),
             ])
             ->columns(1);

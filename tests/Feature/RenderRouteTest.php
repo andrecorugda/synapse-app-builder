@@ -20,6 +20,18 @@ it('renders a published page at its slug', function (): void {
         ->assertSee('Our launch page', false);
 });
 
+it('injects per-page custom JS into the rendered output', function (): void {
+    Page::factory()->published()->create([
+        'slug' => 'scripted',
+        'html' => '<section class="pb-hero">Hi</section>',
+        'custom_js' => "console.log('pb-custom-js-marker');",
+    ]);
+
+    $this->get('/p/scripted')
+        ->assertOk()
+        ->assertSee('pb-custom-js-marker', false);
+});
+
 it('appends per-page custom CSS to the rendered output', function (): void {
     Page::factory()->published()->create([
         'slug' => 'styled',
