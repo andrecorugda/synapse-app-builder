@@ -200,11 +200,15 @@ class PbModelResource extends Resource
 
         foreach (self::ICONS as $icon) {
             $name = str_replace('heroicon-o-', '', $icon);
+            // Size the glyph with an inline style (not a Tailwind class) so it is
+            // consistent regardless of the surrounding stylesheet, and keep the
+            // option on a single line.
             $glyph = function_exists('svg')
-                ? svg($icon, 'w-5 h-5')->toHtml()
+                ? svg($icon, '', ['style' => 'width:1.15rem;height:1.15rem;flex:0 0 auto;'])->toHtml()
                 : '';
 
-            $options[$icon] = '<span style="display:inline-flex;align-items:center;gap:.5rem">'.$glyph.'<span>'.$name.'</span></span>';
+            $options[$icon] = '<span style="display:inline-flex;align-items:center;gap:.5rem;white-space:nowrap;line-height:1.4;">'
+                .$glyph.'<span>'.$name.'</span></span>';
         }
 
         return $options;
