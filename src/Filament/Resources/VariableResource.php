@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Models\Variable;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
+use Filament\Schemas;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -61,45 +62,53 @@ class VariableResource extends Resource
     {
         return $schema
             ->components([
-                Forms\Components\TextInput::make('key')
-                    ->required()
-                    ->maxLength(120)
-                    ->regex('/^[a-z][a-z0-9_]*$/')
-                    ->unique(ignoreRecord: true)
-                    ->disabled(fn (?Model $record): bool => $record !== null)
-                    ->dehydrated()
-                    ->helperText('Lowercase letter followed by lowercase letters, numbers, or underscores. Cannot be changed after creation.'),
+                Schemas\Components\Section::make('State')
+                    ->compact()
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\TextInput::make('key')
+                            ->required()
+                            ->maxLength(120)
+                            ->regex('/^[a-z][a-z0-9_]*$/')
+                            ->unique(ignoreRecord: true)
+                            ->disabled(fn (?Model $record): bool => $record !== null)
+                            ->dehydrated()
+                            ->helperText('Lowercase; cannot change after creation.'),
 
-                Forms\Components\Select::make('type')
-                    ->required()
-                    ->options([
-                        'string' => 'String',
-                        'number' => 'Number',
-                        'boolean' => 'Boolean',
-                        'json' => 'JSON',
-                    ])
-                    ->default('string')
-                    ->live(),
+                        Forms\Components\Select::make('type')
+                            ->required()
+                            ->options([
+                                'string' => 'String',
+                                'number' => 'Number',
+                                'boolean' => 'Boolean',
+                                'json' => 'JSON',
+                            ])
+                            ->default('string')
+                            ->live(),
 
-                Forms\Components\Textarea::make('value')
-                    ->label(fn (Get $get): string => 'Value ('.Str::headline((string) $get('type')).')')
-                    ->rows(fn (Get $get): int => $get('type') === 'json' ? 6 : 2)
-                    ->nullable()
-                    ->helperText(fn (Get $get): ?string => match ($get('type')) {
-                        'number' => 'A numeric value, e.g. 0.2 or 42.',
-                        'boolean' => 'Use 1/0 or true/false.',
-                        'json' => 'Valid JSON, e.g. {"a":1} or [1,2,3].',
-                        default => null,
-                    }),
+                        Forms\Components\Toggle::make('is_protected')
+                            ->label('Protected')
+                            ->inline(false)
+                            ->helperText('Guard against casual edit/delete.'),
 
-                Forms\Components\Textarea::make('description')
-                    ->rows(2)
-                    ->maxLength(500)
-                    ->nullable(),
+                        Forms\Components\Textarea::make('value')
+                            ->label(fn (Get $get): string => 'Value ('.Str::headline((string) $get('type')).')')
+                            ->rows(fn (Get $get): int => $get('type') === 'json' ? 6 : 2)
+                            ->nullable()
+                            ->helperText(fn (Get $get): ?string => match ($get('type')) {
+                                'number' => 'A numeric value, e.g. 0.2 or 42.',
+                                'boolean' => 'Use 1/0 or true/false.',
+                                'json' => 'Valid JSON, e.g. {"a":1} or [1,2,3].',
+                                default => null,
+                            })
+                            ->columnSpanFull(),
 
-                Forms\Components\Toggle::make('is_protected')
-                    ->label('Protected')
-                    ->helperText('Mark variables that should not be casually edited or deleted.'),
+                        Forms\Components\Textarea::make('description')
+                            ->rows(2)
+                            ->maxLength(500)
+                            ->nullable()
+                            ->columnSpanFull(),
+                    ]),
             ])
             ->columns(1);
     }
