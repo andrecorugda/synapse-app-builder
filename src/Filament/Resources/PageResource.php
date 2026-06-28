@@ -51,7 +51,7 @@ class PageResource extends Resource
             ->components([
                 Schemas\Components\Section::make('Page details')
                     ->compact()
-                    ->columns(3)
+                    ->columns(4)
                     ->schema([
                         Forms\Components\TextInput::make('title')
                             ->required()
