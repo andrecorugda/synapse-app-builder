@@ -354,5 +354,14 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             'panels::body.end',
             static fn (): string => view('ai-page-builder::filament.codeeditor-assets')->render(),
         );
+
+        // The dockable AI chat (floating "Build with AI" companion), available
+        // on every panel page so app-building + refinement follow you around.
+        FilamentView::registerRenderHook(
+            'panels::body.end',
+            static fn (): string => view()->exists('ai-page-builder::filament.ai-chat')
+                ? view('ai-page-builder::filament.ai-chat')->render()
+                : '',
+        );
     }
 }
