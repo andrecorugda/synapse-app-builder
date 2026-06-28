@@ -10,6 +10,11 @@
         /* CSS-based maximize (native fullscreen is unreliable inside the panel). */
         .pb-maximized { position: fixed !important; inset: 0 !important; z-index: 9999 !important; width: 100vw !important; height: 100vh !important; margin: 0 !important; border-radius: 0 !important; }
         .pb-maximized .pb-editor-body { height: 100vh !important; }
+        /* Centre each block's icon + label in the palette. */
+        .gjs-block { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; text-align: center !important; gap: 0.35rem; }
+        .gjs-block__media { display: flex !important; align-items: center; justify-content: center; margin: 0 auto !important; }
+        .gjs-block svg { display: block; margin: 0 auto; }
+        .gjs-block-label { width: 100%; text-align: center; }
     </style>
     <script>
         (function () {

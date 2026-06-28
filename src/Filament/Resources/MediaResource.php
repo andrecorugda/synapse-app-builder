@@ -15,6 +15,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\HtmlString;
 
 class MediaResource extends Resource
 {
@@ -66,11 +67,15 @@ class MediaResource extends Resource
         return $table
             ->defaultSort('id', 'desc')
             ->columns([
-                Tables\Columns\ImageColumn::make('preview')
+                // Render the <img> ourselves with the model's port-safe relative URL.
+                // Filament's ImageColumn rebuilds the src from the disk's APP_URL
+                // config, which is frequently the wrong host/port in dev (-> 404).
+                Tables\Columns\TextColumn::make('preview')
                     ->label('')
-                    ->state(fn (MediaItem $record): string => $record->url())
-                    ->height(64)
-                    ->extraImgAttributes(['style' => 'object-fit:cover;border-radius:0.5rem;']),
+                    ->html()
+                    ->state(fn (MediaItem $record): HtmlString => new HtmlString(
+                        '<img src="'.e($record->url()).'" alt="" style="height:48px;width:64px;object-fit:cover;border-radius:0.5rem;display:block;">'
+                    )),
                 Tables\Columns\TextColumn::make('name')->searchable()->wrap(),
                 Tables\Columns\TextColumn::make('url')
                     ->label('URL')
@@ -111,6 +116,11 @@ class MediaResource extends Resource
                     }),
             ])
             ->recordActions([
+                Actions\Action::make('view')
+                    ->label('View')
+                    ->icon('heroicon-m-eye')
+                    ->color('gray')
+                    ->url(fn (MediaItem $record): string => $record->url(), true),
                 Actions\EditAction::make()
                     ->mutateRecordDataUsing(function (array $data, MediaItem $record): array {
                         $data['url'] = $record->url();
@@ -123,8 +133,7 @@ class MediaResource extends Resource
                 Actions\BulkActionGroup::make([
                     Actions\DeleteBulkAction::make(),
                 ]),
-            ])
-            ->contentGrid(['md' => 2, 'xl' => 3]);
+            ]);
     }
 
     public static function getPages(): array

@@ -75,7 +75,9 @@ class PageResource extends Resource
 
                 GrapesJsField::make('builder')
                     ->label('Page content')
-                    ->dehydrated(false)
+                    // Must stay dehydrated (included in form state) so the page
+                    // mapper can split it into the project_data/html/css columns;
+                    // the mapper unsets 'builder' before the model is saved.
                     ->default(['project_data' => [], 'html' => '', 'css' => ''])
                     ->columnSpanFull(),
 
