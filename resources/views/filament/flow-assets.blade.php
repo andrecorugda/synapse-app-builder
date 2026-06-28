@@ -441,6 +441,114 @@
                 try { return JSON.parse(text); } catch (_) { return fallback; }
             }
 
+            /** Stringify an object/array for a df-* field; '' when empty/blank. */
+            function jsonStr(v) {
+                if (v === undefined || v === null) { return ''; }
+                if (typeof v === 'string') { return v; }
+                try {
+                    if (Array.isArray(v)) { return v.length ? JSON.stringify(v) : ''; }
+                    if (typeof v === 'object') { return Object.keys(v).length ? JSON.stringify(v) : ''; }
+                    return String(v);
+                } catch (_) { return ''; }
+            }
+
+            /**
+             * Inverse of toDefinition's per-type config block: map an engine
+             * node config back to the df-* data Drawflow binds to the inputs.
+             */
+            function configToData(type, config) {
+                config = config || {};
+                switch (type) {
+                    case 'ai_invoke':
+                        return { integration: config.integration || '', output: config.output || '', args: jsonStr(config.args) };
+                    case 'http_request':
+                        return { method: config.method || 'GET', url: config.url || '', headers: jsonStr(config.headers), body: jsonStr(config.body), output: config.output || '' };
+                    case 'function':
+                        return { function: config.function || '', args: jsonStr(config.args), output: config.output || '' };
+                    case 'send_email':
+                        return { to: config.to || '', subject: config.subject || '', template: config.template || '', body: config.body || '', cc: config.cc || '', bcc: config.bcc || '', reply_to: config.reply_to || '', output: config.output || 'email' };
+                    case 'record':
+                        return { model: config.model || '', operation: config.operation || 'list', recid: config.id || '', filter: jsonStr(config.filter), data: jsonStr(config.data), search: config.search || '', sort: config.sort || '', output: config.output || 'records' };
+                    case 'set_variable':
+                        return { key: config.key || '', value: config.value || '', type: config.type || 'string', output: config.output || '' };
+                    case 'condition':
+                        return { left: config.left || '', op: config.op || 'equals', right: config.right || '' };
+                    case 'result':
+                        return { actions: jsonStr(config.actions) };
+                    default:
+                        return {};
+                }
+            }
+
+            /**
+             * Build the canvas from an engine definition ({start, nodes}) when
+             * there is no Drawflow _canvas snapshot — e.g. flows created by the
+             * AI builder or written programmatically (they carry the node graph
+             * but never the editor's positional export). Lays nodes out
+             * left-to-right by BFS depth from the start node, then wires
+             * next / next_true / next_false. Returns true if it built anything.
+             */
+            function reconstructFromDefinition(editor, def) {
+                const nodes = (def && def.nodes) || {};
+                const ids = Object.keys(nodes);
+                if (! ids.length) { return false; }
+
+                // BFS depth from the start so connected nodes fan left → right.
+                const startId = (def.start && nodes[def.start]) ? def.start : ids[0];
+                const depth = {};
+                const queue = [[startId, 0]];
+                depth[startId] = 0;
+                while (queue.length) {
+                    const item = queue.shift();
+                    const n = nodes[item[0]] || {};
+                    const outs = [].concat(n.next || [], n.next_true || [], n.next_false || []);
+                    outs.forEach((t) => {
+                        t = String(t);
+                        if (nodes[t] && depth[t] === undefined) { depth[t] = item[1] + 1; queue.push([t, item[1] + 1]); }
+                    });
+                }
+                // Append any unreachable nodes after the deepest column.
+                let maxD = 0;
+                Object.keys(depth).forEach((k) => { if (depth[k] > maxD) { maxD = depth[k]; } });
+                ids.forEach((id) => { if (depth[id] === undefined) { depth[id] = ++maxD; } });
+
+                // Place each node (depth → column, order-within-depth → row).
+                const rowOf = {};
+                const idMap = {}; // definition id → drawflow id
+                ids.forEach((defId) => {
+                    const n = nodes[defId] || {};
+                    const type = n.type || 'trigger';
+                    const d = depth[defId] || 0;
+                    const row = rowOf[d] || 0; rowOf[d] = row + 1;
+                    const x = 80 + d * 280;
+                    const y = 60 + row * 160;
+                    const data = configToData(type, n.config || {});
+                    idMap[defId] = editor.addNode(type, nodeInputCount(type), nodeOutputCount(type), x, y, type, data, nodeHtml(type), false);
+                });
+
+                // Wire connections using the id map.
+                ids.forEach((defId) => {
+                    const n = nodes[defId] || {};
+                    const from = idMap[defId];
+                    const link = (targets, outClass) => {
+                        (targets || []).forEach((t) => {
+                            const to = idMap[String(t)];
+                            if (from != null && to != null) {
+                                try { editor.addConnection(from, to, outClass, 'input_1'); } catch (_) {}
+                            }
+                        });
+                    };
+                    if ((n.type || '') === 'condition') {
+                        link(n.next_true, 'output_1');
+                        link(n.next_false, 'output_2');
+                    } else {
+                        link(n.next, 'output_1');
+                    }
+                });
+
+                return true;
+            }
+
             /**
              * Convert a Drawflow export into the engine definition format.
              *
@@ -657,6 +765,16 @@
                     if (existing && existing._canvas) {
                         try {
                             editor.import(existing._canvas);
+                        } catch (_) {
+                            editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
+                        }
+                    } else if (existing && existing.nodes && Object.keys(existing.nodes).length) {
+                        // Engine-format flow with no canvas snapshot (AI-built /
+                        // programmatic): rebuild the canvas from the node graph,
+                        // then persist a _canvas so later opens use the fast path.
+                        try {
+                            reconstructFromDefinition(editor, existing);
+                            this.sync();
                         } catch (_) {
                             editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
                         }
