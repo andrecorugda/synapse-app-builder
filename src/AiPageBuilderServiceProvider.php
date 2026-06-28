@@ -5,6 +5,16 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
+use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
+use Andre\AiPageBuilder\Flow\FlowManager;
+use Andre\AiPageBuilder\Flow\FlowRunner;
+use Andre\AiPageBuilder\Flow\GatewayAiInvoker;
+use Andre\AiPageBuilder\Flow\NodeRegistry;
+use Andre\AiPageBuilder\Flow\Nodes\AiInvokeNode;
+use Andre\AiPageBuilder\Flow\Nodes\ConditionNode;
+use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
+use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
+use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Services\MediaLibrary;
 use Andre\AiPageBuilder\Services\PageBuilderManager;
@@ -23,7 +33,13 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->name('ai-page-builder')
             ->hasConfigFile('ai-page-builder')
             ->hasViews('ai-page-builder')
-            ->hasMigrations(['create_pages_table', 'create_page_builder_media_table', 'add_custom_css_to_pages_table'])
+            ->hasMigrations([
+                'create_pages_table',
+                'create_page_builder_media_table',
+                'add_custom_css_to_pages_table',
+                'create_page_builder_flows_table',
+                'create_page_builder_flow_runs_table',
+            ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class);
     }
 
@@ -32,6 +48,21 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->app->singleton(PageRenderer::class);
         $this->app->singleton(PageBuilderManager::class);
         $this->app->singleton(MediaLibrary::class);
+
+        // Flow engine.
+        $this->app->bind(AiInvoker::class, GatewayAiInvoker::class);
+        $this->app->singleton(NodeRegistry::class, function ($app): NodeRegistry {
+            $registry = new NodeRegistry;
+            $registry->register(new TriggerNode);
+            $registry->register($app->make(AiInvokeNode::class));
+            $registry->register(new HttpRequestNode);
+            $registry->register(new ConditionNode);
+            $registry->register(new ResultNode);
+
+            return $registry;
+        });
+        $this->app->singleton(FlowRunner::class);
+        $this->app->singleton(FlowManager::class);
     }
 
     public function packageBooted(): void

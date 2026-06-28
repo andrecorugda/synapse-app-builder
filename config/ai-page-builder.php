@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Andre\AiPageBuilder\Models\Flow;
+use Andre\AiPageBuilder\Models\FlowRun;
 use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
 
@@ -19,6 +21,8 @@ return [
         'tables' => [
             'pages' => 'pages',
             'media' => 'page_builder_media',
+            'flows' => 'page_builder_flows',
+            'flow_runs' => 'page_builder_flow_runs',
         ],
     ],
 
@@ -31,6 +35,21 @@ return [
     'models' => [
         'page' => Page::class,
         'media' => MediaItem::class,
+        'flow' => Flow::class,
+        'flow_run' => FlowRun::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Flow engine
+    |--------------------------------------------------------------------------
+    | The n8n-style orchestration layer. Public (page) triggering is opt-in per
+    | flow and rate-limited.
+    */
+    'flow' => [
+        'run_route_enabled' => env('AI_PAGE_BUILDER_FLOW_ROUTE', true),
+        'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_FLOW_RATE', 30),
+        'max_steps' => 200,
     ],
 
     /*

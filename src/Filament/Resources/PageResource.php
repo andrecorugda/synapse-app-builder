@@ -141,6 +141,7 @@ class PageResource extends Resource
                     ->color('gray')
                     ->visible(fn (Page $record): bool => $record->isPublished() && (bool) config('ai-page-builder.routes.render_enabled', true))
                     ->url(fn (Page $record): string => url((string) config('ai-page-builder.routes.render_prefix', 'p').'/'.$record->slug), true),
+                Actions\DeleteAction::make(),
             ])
             ->toolbarActions([
                 Actions\BulkActionGroup::make([
