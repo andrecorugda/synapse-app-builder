@@ -85,6 +85,8 @@ return [
         'run_route_enabled' => env('AI_PAGE_BUILDER_FLOW_ROUTE', true),
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_FLOW_RATE', 30),
         'max_steps' => 200,
+        // CDN by default (zero-config). To self-host, publish the bundled assets
+        // and override these — see "Self-hosting front-end assets" at the bottom.
         'drawflow_js' => env('AI_PAGE_BUILDER_DRAWFLOW_JS', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js'),
         'drawflow_css' => env('AI_PAGE_BUILDER_DRAWFLOW_CSS', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css'),
 
@@ -147,7 +149,8 @@ return [
     | GrapesJS assets
     |--------------------------------------------------------------------------
     | URLs for the editor JS/CSS. Defaults point at a CDN for zero-config local
-    | dev; publish + self-host for production (override these).
+    | dev; publish + self-host for production (override these env vars — see
+    | "Self-hosting front-end assets" at the bottom of this file).
     */
     'assets' => [
         'grapesjs_css' => env('AI_PAGE_BUILDER_GRAPESJS_CSS', 'https://unpkg.com/grapesjs/dist/css/grapes.min.css'),
@@ -185,7 +188,9 @@ return [
     | pollutes no globals (unlike Monaco's AMD loader, which broke Livewire) and
     | renders robustly inside Livewire/wire:ignore fields (unlike CodeMirror 5,
     | which crashed on every keystroke here). Defaults to a CDN; self-host by
-    | pointing this at your own copy of ace-builds/src-min-noconflict.
+    | pointing this at the published `ace` folder (Ace lazy-loads ace.js plus
+    | its mode/theme/worker files relative to this base, so it must be a
+    | directory). See "Self-hosting front-end assets" at the bottom of this file.
     */
     'editor' => [
         'ace_base' => env('AI_PAGE_BUILDER_ACE_BASE', 'https://cdn.jsdelivr.net/npm/ace-builds@1.36.5/src-min-noconflict'),
@@ -200,5 +205,38 @@ return [
         'navigation_group' => 'Content',
         'navigation_sort' => 10,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Self-hosting front-end assets (offline / air-gapped installs)
+    |--------------------------------------------------------------------------
+    | Every front-end library URL above defaults to a public CDN so a fresh
+    | install works with zero config. For offline, air-gapped, or strict-CSP
+    | deployments, the package bundles vendored copies you can serve yourself.
+    |
+    | 1. Publish the bundled assets into your app's public directory:
+    |
+    |        php artisan vendor:publish --tag=ai-page-builder-assets
+    |
+    |    This copies them to `public/vendor/ai-page-builder/{grapesjs,drawflow,
+    |    alpine,ace}/`.
+    |
+    | 2. Point the asset env vars at the published copies (use asset()/relative
+    |    URLs so they honour your APP_URL / scheme):
+    |
+    |        AI_PAGE_BUILDER_GRAPESJS_JS="/vendor/ai-page-builder/grapesjs/grapes.min.js"
+    |        AI_PAGE_BUILDER_GRAPESJS_CSS="/vendor/ai-page-builder/grapesjs/grapes.min.css"
+    |        AI_PAGE_BUILDER_DRAWFLOW_JS="/vendor/ai-page-builder/drawflow/drawflow.min.js"
+    |        AI_PAGE_BUILDER_DRAWFLOW_CSS="/vendor/ai-page-builder/drawflow/drawflow.min.css"
+    |        AI_PAGE_BUILDER_ALPINE_JS="/vendor/ai-page-builder/alpine/cdn.min.js"
+    |        AI_PAGE_BUILDER_ACE_BASE="/vendor/ai-page-builder/ace"
+    |
+    |    (Equivalently, in code: asset('vendor/ai-page-builder/grapesjs/grapes.min.js').
+    |    The Ace base must stay a directory — Ace appends /ace.js and lazy-loads
+    |    its mode, theme and worker files relative to it.)
+    |
+    | Re-run the publish (add --force) after upgrading the package to refresh the
+    | vendored copies. Leaving the env vars unset keeps the CDN defaults.
+    */
 
 ];

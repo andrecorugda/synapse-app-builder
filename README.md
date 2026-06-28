@@ -58,6 +58,31 @@ When the gateway is present, a pre-configured `page_builder` integration is auto
 php artisan vendor:publish --tag="ai-page-builder-config"
 ```
 
+## Self-hosting front-end assets (offline / air-gapped)
+
+By default the editor loads its front-end libraries (GrapesJS, Drawflow, Alpine, Ace) from public CDNs, so a fresh install works with zero config. For offline, air-gapped, or strict-CSP deployments, the package bundles vendored copies you can serve from your own domain.
+
+1. Publish the bundled assets into your public directory:
+
+   ```bash
+   php artisan vendor:publish --tag="ai-page-builder-assets"
+   ```
+
+   This copies them to `public/vendor/ai-page-builder/{grapesjs,drawflow,alpine,ace}/`.
+
+2. Point the asset URLs at the published copies via env:
+
+   ```dotenv
+   AI_PAGE_BUILDER_GRAPESJS_JS="/vendor/ai-page-builder/grapesjs/grapes.min.js"
+   AI_PAGE_BUILDER_GRAPESJS_CSS="/vendor/ai-page-builder/grapesjs/grapes.min.css"
+   AI_PAGE_BUILDER_DRAWFLOW_JS="/vendor/ai-page-builder/drawflow/drawflow.min.js"
+   AI_PAGE_BUILDER_DRAWFLOW_CSS="/vendor/ai-page-builder/drawflow/drawflow.min.css"
+   AI_PAGE_BUILDER_ALPINE_JS="/vendor/ai-page-builder/alpine/cdn.min.js"
+   AI_PAGE_BUILDER_ACE_BASE="/vendor/ai-page-builder/ace"
+   ```
+
+   `AI_PAGE_BUILDER_ACE_BASE` must stay a **directory** — Ace appends `/ace.js` and lazy-loads its `mode-*`/`theme-*`/`worker-*` files relative to that base. Re-run the publish with `--force` after upgrading the package to refresh the vendored copies. Leaving the env vars unset keeps the CDN defaults.
+
 ## Testing
 
 ```bash

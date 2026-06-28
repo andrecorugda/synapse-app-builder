@@ -101,6 +101,25 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerFilamentAssets();
         $this->autoSeedGatewayIntegration();
         $this->registerRecordObserver();
+        $this->registerPublishableAssets();
+    }
+
+    /**
+     * Make the vendored front-end libraries (GrapesJS, Drawflow, Alpine, Ace)
+     * publishable for offline / air-gapped installs. Publishing copies them to
+     * `public/vendor/ai-page-builder`; point the asset config keys at those
+     * paths (see config/ai-page-builder.php) to self-host instead of the CDN
+     * defaults. Guarded behind console like the package's other publishes.
+     */
+    private function registerPublishableAssets(): void
+    {
+        if (! $this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->publishes([
+            __DIR__.'/../resources/dist' => public_path('vendor/ai-page-builder'),
+        ], 'ai-page-builder-assets');
     }
 
     /**
