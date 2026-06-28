@@ -55,8 +55,32 @@
          x-model; flows push updates via the setState result action. --}}
     <script>
         window.__pbState = @js($state ?? []);
+        window.__pbApiBase = '{{ url(config('ai-page-builder.data.api_prefix', 'api/pb')) }}';
         document.addEventListener('alpine:init', function () {
             window.Alpine.store('app', Object.assign({}, window.__pbState));
+
+            // pbTable — the Data Table block's x-data. Fetches a collection's rows
+            // from the auto REST API (GET {api}/{collection} → {data:[…]}) and
+            // exposes rows/loading/error for x-for / x-show bindings. The block's
+            // static sample rows carry x-show="false" so only real rows render.
+            var API_BASE = window.__pbApiBase;
+            window.Alpine.data('pbTable', function (collection) {
+                return {
+                    rows: [],
+                    loading: true,
+                    error: false,
+                    init: function () {
+                        var self = this;
+                        fetch(API_BASE + '/' + collection, { headers: { Accept: 'application/json' } })
+                            .then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                self.rows = (d && d.data) || [];
+                                self.loading = false;
+                            })
+                            .catch(function () { self.loading = false; self.error = true; });
+                    },
+                };
+            });
         });
     </script>
 </head>

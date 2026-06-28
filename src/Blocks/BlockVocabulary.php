@@ -425,14 +425,77 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block (sections + basics + shapes + components + forms) for the
-     * GrapesJS block manager.
+     * Data-driven blocks — render rows reactively from a collection / State.
+     *
+     * OWNER-authored (trusted) blocks. The published page registers
+     * Alpine.data('pbTable', …) and seeds $store.app, so:
+     *  - the Data Table's root carries x-data="pbTable('<collection>')"; on init
+     *    it fetches GET {api}/{collection} and exposes rows/loading/error. The
+     *    "Collection" trait rewrites the x-data argument.
+     *  - the List repeats over a $store.app array; the "List source" trait
+     *    rewrites the x-for expression.
+     *
+     * Editor-vs-published <template> handling: <template> content is inert in
+     * the GrapesJS canvas (Alpine doesn't run there), so each block ships static
+     * sample rows/items the editor can show. Those samples carry x-show="false"
+     * so Alpine removes them on the published page, leaving only real rows.
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function data(): array
+    {
+        return [
+            self::block('data_table', 'Data Table', 'A table that lists rows from a collection.', <<<'HTML'
+            <table data-pb-block="data_table" class="pb-data-table" x-data="pbTable('leads')" style="width:100%;border-collapse:collapse;font-family:inherit;font-size:0.9375rem;color:#0f172a;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
+              <thead class="pb-data-table__head" style="background:#f8fafc;text-align:left;">
+                <tr>
+                  <th class="pb-data-table__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Name</th>
+                  <th class="pb-data-table__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Email</th>
+                </tr>
+              </thead>
+              <tbody class="pb-data-table__body">
+                <tr class="pb-data-table__loading" x-show="loading" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#64748b;">Loading…</td></tr>
+                <tr class="pb-data-table__error" x-show="error" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#dc2626;">Couldn’t load records.</td></tr>
+                <tr class="pb-data-table__empty" x-show="!loading && !error && rows.length === 0" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#64748b;">No records</td></tr>
+                <template x-for="row in rows" :key="row.id">
+                  <tr class="pb-data-table__row" style="border-top:1px solid #e2e8f0;">
+                    <td class="pb-data-table__td" x-text="row.name" style="padding:0.75rem 1rem;"></td>
+                    <td class="pb-data-table__td" x-text="row.email" style="padding:0.75rem 1rem;"></td>
+                  </tr>
+                </template>
+                <tr class="pb-data-table__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
+                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">Acme Corp</td>
+                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">hello@acme.com</td>
+                </tr>
+                <tr class="pb-data-table__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
+                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">Globex</td>
+                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">contact@globex.com</td>
+                </tr>
+              </tbody>
+            </table>
+            HTML, 'Data'),
+
+            self::block('list', 'List', 'A list that repeats over a State array.', <<<'HTML'
+            <div data-pb-block="list" class="pb-list" x-data style="font-family:inherit;color:#0f172a;display:flex;flex-direction:column;gap:0.5rem;max-width:32rem;">
+              <template x-for="item in $store.app.items" :key="item.id">
+                <div class="pb-list__item" x-text="item.label" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;"></div>
+              </template>
+              <div class="pb-list__sample" x-show="false" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">First item</div>
+              <div class="pb-list__sample" x-show="false" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">Second item</div>
+            </div>
+            HTML, 'Data'),
+        ];
+    }
+
+    /**
+     * Every block (sections + basics + shapes + components + forms + data) for
+     * the GrapesJS block manager.
      *
      * @return array<int,SectionBlock>
      */
     public static function all(): array
     {
-        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms()];
+        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms(), ...self::data()];
     }
 
     /**
