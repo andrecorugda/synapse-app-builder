@@ -546,6 +546,18 @@
                     }
                 });
 
+                // Drawflow computes each connection's curve from the nodes'
+                // rendered geometry; right after addNode the elements aren't
+                // laid out yet, so the paths draw empty and only appear once a
+                // node is dragged. Recompute them once the DOM has settled.
+                const refreshConnections = () => {
+                    ids.forEach((defId) => {
+                        try { editor.updateConnectionNodes('node-' + idMap[defId]); } catch (_) {}
+                    });
+                };
+                try { requestAnimationFrame(refreshConnections); } catch (_) { setTimeout(refreshConnections, 30); }
+                setTimeout(refreshConnections, 80);
+
                 return true;
             }
 
