@@ -317,6 +317,12 @@ class BuildPlanApplier
                 $status = is_string($page['status'] ?? null) ? $page['status'] : 'draft';
                 $kind = is_string($page['kind'] ?? null) ? $page['kind'] : 'page';
 
+                // Safety net: a page used as a send_email template IS an email
+                // template even if the plan forgot to mark it (model variance).
+                if ($kind !== 'email' && in_array($slug, $this->emailTemplateSlugs($build), true)) {
+                    $kind = 'email';
+                }
+
                 Page::query()->updateOrCreate(
                     ['slug' => $slug],
                     [
@@ -332,6 +338,33 @@ class BuildPlanApplier
                 $summary['errors'][] = "pages[{$i}] ('{$slug}'): ".$e->getMessage();
             }
         }
+    }
+
+    /**
+     * Page slugs referenced as the `template` of any send_email flow node —
+     * those pages are email templates regardless of how the plan tagged them.
+     *
+     * @return list<string>
+     */
+    private function emailTemplateSlugs(BuildPlan $build): array
+    {
+        $slugs = [];
+        foreach ($build->flows() as $flow) {
+            $nodes = $flow['definition']['nodes'] ?? null;
+            if (! is_array($nodes)) {
+                continue;
+            }
+            foreach ($nodes as $node) {
+                if (is_array($node) && ($node['type'] ?? null) === 'send_email') {
+                    $tpl = $node['config']['template'] ?? null;
+                    if (is_string($tpl) && $tpl !== '') {
+                        $slugs[] = $tpl;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($slugs));
     }
 
     /**

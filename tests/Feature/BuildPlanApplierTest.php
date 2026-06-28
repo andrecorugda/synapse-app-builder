@@ -252,3 +252,23 @@ it('validates page kind and the home_page setting', function (): void {
     $warn = $v->validate(['settings' => ['home_page' => 'existing-elsewhere']]);
     expect($warn)->toContain("settings.home_page (warning): 'existing-elsewhere' is not a page in this plan — ensure it already exists.");
 });
+
+it('infers kind=email for a page used as a send_email template', function (): void {
+    $plan = [
+        'pages' => [
+            // NOTE: kind omitted on purpose — the applier must infer it.
+            ['slug' => 'welcome-mail', 'title' => 'Welcome', 'status' => 'draft', 'html' => '<p>Hi {{ input.record.name }}</p>'],
+        ],
+        'flows' => [[
+            'slug' => 'on-signup', 'name' => 'On signup', 'trigger_type' => 'collection',
+            'definition' => ['start' => 't', 'nodes' => [
+                't' => ['type' => 'trigger', 'next' => ['m']],
+                'm' => ['type' => 'send_email', 'config' => ['to' => 'x@y.com', 'template' => 'welcome-mail']],
+            ]],
+        ]],
+    ];
+
+    app(BuildPlanApplier::class)->apply($plan);
+
+    expect(Page::query()->where('slug', 'welcome-mail')->value('kind'))->toBe('email');
+});
