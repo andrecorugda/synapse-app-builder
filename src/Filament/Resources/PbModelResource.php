@@ -58,59 +58,57 @@ class PbModelResource extends Resource
         return $schema
             ->components([
                 Schemas\Components\Section::make('Collection')
-                    // Collapse the details on the edit page so the Fields/Records
-                    // tabs (and the records table) get the space.
-                    ->collapsible()
-                    ->collapsed(fn (string $operation): bool => $operation === 'edit')
+                    // Compact (not collapsed): tight padding + a dense 4-column
+                    // grid keep the details visible but small, so the
+                    // Fields/Records tabs get most of the space.
+                    ->compact()
+                    ->columns(4)
                     ->schema([
-                        Schemas\Components\Grid::make(2)->schema([
-                            Forms\Components\TextInput::make('key')
-                                ->required()
-                                ->maxLength(120)
-                                ->regex('/^[a-z][a-z0-9_]*$/')
-                                ->unique(ignoreRecord: true)
-                                ->disabled(fn (string $operation): bool => $operation === 'edit')
-                                ->dehydrated()
-                                ->helperText('Lowercase letter then letters, numbers, underscores. Becomes the physical table name — immutable after creation.'),
+                        Forms\Components\TextInput::make('key')
+                            ->required()
+                            ->maxLength(120)
+                            ->regex('/^[a-z][a-z0-9_]*$/')
+                            ->unique(ignoreRecord: true)
+                            ->disabled(fn (string $operation): bool => $operation === 'edit')
+                            ->dehydrated()
+                            ->helperText('Lowercase; becomes the table name (immutable).'),
 
-                            Forms\Components\TextInput::make('name')
-                                ->required()
-                                ->maxLength(160),
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(160),
 
-                            Forms\Components\TextInput::make('label_singular')
-                                ->maxLength(160)
-                                ->nullable(),
+                        Forms\Components\TextInput::make('label_singular')
+                            ->maxLength(160)
+                            ->nullable(),
 
-                            Forms\Components\TextInput::make('label_plural')
-                                ->maxLength(160)
-                                ->nullable(),
+                        Forms\Components\TextInput::make('label_plural')
+                            ->maxLength(160)
+                            ->nullable(),
 
-                            Forms\Components\Select::make('icon')
-                                ->options(static::iconOptions())
-                                ->searchable()
-                                ->allowHtml()
-                                ->native(false)
-                                ->nullable()
-                                ->placeholder('Choose an icon')
-                                ->helperText('Heroicon shown in navigation and lists.'),
-                        ]),
+                        Forms\Components\Select::make('icon')
+                            ->options(static::iconOptions())
+                            ->searchable()
+                            ->allowHtml()
+                            ->native(false)
+                            ->nullable()
+                            ->placeholder('Choose an icon')
+                            ->columnSpan(2),
+
+                        Forms\Components\Toggle::make('has_timestamps')
+                            ->label('Timestamps')
+                            ->inline(false)
+                            ->default(true),
+
+                        Forms\Components\Toggle::make('has_soft_deletes')
+                            ->label('Soft deletes')
+                            ->inline(false)
+                            ->default(false),
 
                         Forms\Components\Textarea::make('description')
                             ->rows(2)
                             ->maxLength(500)
-                            ->nullable(),
-
-                        Schemas\Components\Grid::make(2)->schema([
-                            Forms\Components\Toggle::make('has_timestamps')
-                                ->label('Timestamps')
-                                ->helperText('Add created_at / updated_at columns.')
-                                ->default(true),
-
-                            Forms\Components\Toggle::make('has_soft_deletes')
-                                ->label('Soft deletes')
-                                ->helperText('Add a deleted_at column.')
-                                ->default(false),
-                        ]),
+                            ->nullable()
+                            ->columnSpanFull(),
                     ]),
             ])
             ->columns(1);
