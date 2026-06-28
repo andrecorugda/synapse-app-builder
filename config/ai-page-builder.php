@@ -152,6 +152,9 @@ return [
     'assets' => [
         'grapesjs_css' => env('AI_PAGE_BUILDER_GRAPESJS_CSS', 'https://unpkg.com/grapesjs/dist/css/grapes.min.css'),
         'grapesjs_js' => env('AI_PAGE_BUILDER_GRAPESJS_JS', 'https://unpkg.com/grapesjs'),
+        // Alpine powers the published page's reactive Store (data binding).
+        // Self-host by publishing this asset and overriding the URL.
+        'alpine_js' => env('AI_PAGE_BUILDER_ALPINE_JS', 'https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js'),
     ],
 
     /*

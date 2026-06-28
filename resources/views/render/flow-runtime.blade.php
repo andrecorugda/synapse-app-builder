@@ -74,7 +74,26 @@
             targets.forEach(function (el) {
                 (action.class || '').split(/\s+/).filter(Boolean).forEach(function (c) { el.classList.remove(c); });
             });
+            return;
         }
+
+        // Reactive Store updates — bound components (x-text/x-show/x-model/x-for
+        // on $store.app.*) re-render automatically.
+        if (type === 'setState') {
+            var store = pbStore();
+            if (store && action.key != null) { store[action.key] = action.value; }
+            return;
+        }
+
+        if (type === 'setStates' && action.values && typeof action.values === 'object') {
+            var s = pbStore();
+            if (s) { Object.keys(action.values).forEach(function (k) { s[k] = action.values[k]; }); }
+        }
+    }
+
+    /** The page's reactive Store (Alpine), or null if Alpine hasn't booted. */
+    function pbStore() {
+        return (window.Alpine && typeof window.Alpine.store === 'function') ? window.Alpine.store('app') : null;
     }
 
     /** Collect form fields nearest to the trigger element as a flat object. */

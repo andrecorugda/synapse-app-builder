@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Services;
 
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Cache;
@@ -24,6 +25,8 @@ class PageRenderer
             'css' => (string) $page->css,
             'customCss' => (string) ($page->custom_css ?? ''),
             'customJs' => (string) ($page->custom_js ?? ''),
+            // Seed the published page's reactive Store from persistent States.
+            'state' => app(VariableStore::class)->all(),
             'meta' => is_array($page->meta) ? $page->meta : [],
             'title' => $page->title,
         ]);

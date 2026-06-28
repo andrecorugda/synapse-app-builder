@@ -3,7 +3,23 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\PageRenderer;
+
+it('boots the reactive Store seeded from State on the published page', function (): void {
+    app(VariableStore::class)->set('greeting', 'Hi there', 'string');
+
+    Page::factory()->published()->create([
+        'slug' => 'reactive',
+        'html' => '<span x-text="$store.app.greeting">placeholder</span>',
+    ]);
+
+    $this->get('/p/reactive')
+        ->assertOk()
+        ->assertSee('alpinejs', false)                 // Alpine loaded
+        ->assertSee("Alpine.store('app'", false)        // store seeded on alpine:init
+        ->assertSee('Hi there', false);                 // State value injected into window.__pbState
+});
 
 it('renders a published page at its slug', function (): void {
     $page = Page::factory()->published()->create([

@@ -23,10 +23,17 @@
         } catch (\Throwable $e) {
             $pbPages = [];
         }
+        try {
+            $pbStates = (config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class))::query()
+                ->orderBy('key')->get()->map(fn ($v) => $v->key)->values()->all();
+        } catch (\Throwable $e) {
+            $pbStates = [];
+        }
     @endphp
     <script>
         window.__pbFlows = @js($pbFlows);
         window.__pbPages = @js($pbPages);
+        window.__pbStates = @js($pbStates);
     </script>
     <style>
         /* CSS-based maximize (native fullscreen is unreliable inside the panel). */
@@ -241,6 +248,19 @@
                                 options: PB_EVENTS.map(([id, name]) => ({ id, name })),
                             });
                             cmp.addTrait({ type: 'select', name: 'data-pb-page', label: 'Link to page', options: pageOptions });
+                        }
+
+                        // Data binding: connect this component to a value in the
+                        // reactive Store. Emits the SAFE Alpine directives
+                        // (x-text/x-show/x-model) referencing $store.app.<key> —
+                        // no executable directives. Updated live by flows (setState).
+                        if (! names.includes('x-text')) {
+                            const stateOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbStates || []).map((k) => ({ id: '$store.app.' + k, name: k }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'x-text', label: 'Bind text → State', options: stateOptions });
+                            cmp.addTrait({ type: 'select', name: 'x-show', label: 'Show when (State)', options: stateOptions });
+                            cmp.addTrait({ type: 'select', name: 'x-model', label: 'Two-way input ↔ State', options: stateOptions });
                         }
                     };
 
