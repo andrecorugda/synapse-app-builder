@@ -1,101 +1,117 @@
-{{-- Loads CodeMirror 5 (stable, no AMD loader / web workers — unlike Monaco,
-     which conflicts with Livewire's bundled deps and SPA navigation) and
-     registers the aiPbCode Alpine component. Injected via a panel render hook. --}}
+{{-- Loads the Ace editor and registers the aiPbCode Alpine component. Ace's
+     src-noconflict build pollutes no globals (unlike Monaco's AMD loader, which
+     broke Livewire) and renders robustly inside Livewire/wire:ignore fields
+     (unlike CodeMirror 5, whose line-measurement crashed on every keystroke
+     here). Linting is server-side (`php -l`) shown via Ace gutter annotations. --}}
 @once
-    @php $cm = rtrim((string) config('ai-page-builder.editor.codemirror_base', 'https://cdn.jsdelivr.net/npm/codemirror@5.65.16'), '/'); @endphp
-    <link rel="stylesheet" href="{{ $cm }}/lib/codemirror.css">
-    <link rel="stylesheet" href="{{ $cm }}/addon/lint/lint.css">
-    <script src="{{ $cm }}/lib/codemirror.js"></script>
-    <script src="{{ $cm }}/addon/lint/lint.js"></script>
-    <script src="{{ $cm }}/addon/edit/closebrackets.js"></script>
-    <script src="{{ $cm }}/addon/edit/matchbrackets.js"></script>
-    <script src="{{ $cm }}/mode/xml/xml.js"></script>
-    <script src="{{ $cm }}/mode/javascript/javascript.js"></script>
-    <script src="{{ $cm }}/mode/css/css.js"></script>
-    <script src="{{ $cm }}/mode/clike/clike.js"></script>
-    <script src="{{ $cm }}/mode/htmlmixed/htmlmixed.js"></script>
-    <script src="{{ $cm }}/mode/php/php.js"></script>
+    @php $aceBase = rtrim((string) config('ai-page-builder.editor.ace_base', 'https://cdn.jsdelivr.net/npm/ace-builds@1.36.5/src-min-noconflict'), '/'); @endphp
+    <script src="{{ $aceBase }}/ace.js"></script>
+    <script>window.__pbAceBase = @js($aceBase);</script>
     <style>
-        .ai-pb-code .CodeMirror { height: auto; border-radius: 0.5rem; font-size: 13px; }
+        .ai-pb-code .ace_editor { border-radius: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     </style>
     @verbatim
     <script>
         (function () {
-            function modeFor(language) {
+            if (window.ace && window.__pbAceBase) {
+                window.ace.config.set('basePath', window.__pbAceBase);
+            }
+
+            function aceMode(language) {
                 switch (language) {
-                    case 'php': return 'application/x-httpd-php';
-                    case 'css': return 'text/css';
-                    case 'json': return { name: 'javascript', json: true };
-                    default: return 'text/javascript';
+                    case 'php': return 'php';
+                    case 'css': return 'css';
+                    case 'json': return 'json';
+                    case 'javascript': return 'javascript';
+                    default: return 'text';
                 }
+            }
+
+            var instances = [];
+            function resizeAll() {
+                instances.forEach(function (i) {
+                    if (i.editor && i.$refs && i.$refs.editor && i.$refs.editor.isConnected) {
+                        try { i.editor.resize(); } catch (e) {}
+                    }
+                });
             }
 
             var factory = function (config) {
                 return {
-                    cm: null,
+                    editor: null,
                     _t: null,
 
                     boot() {
                         var self = this;
-                        if (! window.CodeMirror) { return setTimeout(function () { self.boot(); }, 50); }
+                        if (! window.ace) { return setTimeout(function () { self.boot(); }, 50); }
                         this.mount();
                     },
 
                     mount() {
-                        if (this.cm) { return; }
+                        if (this.editor) { return; }
+                        var el = this.$refs.editor;
+                        if (! el) { return; }
                         var self = this;
+
+                        var ed = window.ace.edit(el);
+                        ed.setTheme('ace/theme/monokai');
+                        ed.session.setMode('ace/mode/' + aceMode(config.language));
                         var initial = this.$wire.get(config.statePath);
-                        var opts = {
-                            value: initial == null ? '' : String(initial),
-                            mode: modeFor(config.language),
-                            lineNumbers: true,
+                        ed.setValue(initial == null ? '' : String(initial), -1);
+                        ed.setOptions({
+                            fontSize: '13px',
+                            showPrintMargin: false,
+                            useWorker: false,
                             tabSize: 2,
-                            indentUnit: 2,
-                            autoCloseBrackets: true,
-                            matchBrackets: true,
-                            viewportMargin: Infinity,
-                        };
-                        if (config.lintUrl) {
-                            opts.gutters = ['CodeMirror-lint-markers'];
-                            opts.lint = { async: true, getAnnotations: function (text, cb) { self.lint(text, cb); } };
-                        }
-                        this.cm = window.CodeMirror(this.$refs.editor, opts);
-                        this.cm.setSize('100%', (config.height || 260) + 'px');
-                        this.cm.on('change', function () {
-                            self.$wire.set(config.statePath, self.cm.getValue(), false);
+                            useSoftTabs: true,
+                            wrap: false,
+                            highlightActiveLine: true,
                         });
+                        this.editor = ed;
+                        instances.push(this);
+
+                        ed.session.on('change', function () {
+                            self.$wire.set(config.statePath, ed.getValue(), false);
+                            if (config.lintUrl) { self.lintDebounced(); }
+                        });
+                        if (config.lintUrl) { this.lintDebounced(); }
                     },
 
-                    lint(text, cb) {
-                        if (! config.lintUrl) { return cb([]); }
+                    lintDebounced() {
+                        var self = this;
                         clearTimeout(this._t);
-                        this._t = setTimeout(function () {
-                            fetch(config.lintUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrf },
-                                body: JSON.stringify({ code: text }),
+                        this._t = setTimeout(function () { self.lint(); }, 500);
+                    },
+
+                    lint() {
+                        if (! config.lintUrl || ! this.editor) { return; }
+                        var self = this;
+                        fetch(config.lintUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrf },
+                            body: JSON.stringify({ code: this.editor.getValue() }),
+                        })
+                            .then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                var ann = (d.errors || []).map(function (e) {
+                                    return { row: (e.line || 1) - 1, column: 0, text: e.message || 'Syntax error', type: 'error' };
+                                });
+                                self.editor.session.setAnnotations(ann);
                             })
-                                .then(function (r) { return r.json(); })
-                                .then(function (d) {
-                                    var ann = (d.errors || []).map(function (e) {
-                                        var ln = (e.line || 1) - 1;
-                                        return {
-                                            message: e.message || 'Syntax error',
-                                            severity: 'error',
-                                            from: window.CodeMirror.Pos(ln, 0),
-                                            to: window.CodeMirror.Pos(ln, 200),
-                                        };
-                                    });
-                                    cb(ann);
-                                })
-                                .catch(function () { cb([]); });
-                        }, 500);
+                            .catch(function () {});
                     },
                 };
             };
 
             var register = function () { window.Alpine.data('aiPbCode', factory); };
             if (window.Alpine) { register(); } else { document.addEventListener('alpine:init', register); }
+
+            // Resize editors after Livewire DOM updates so they re-layout cleanly.
+            var hookLivewire = function () {
+                if (! window.Livewire || ! window.Livewire.hook) { return; }
+                window.Livewire.hook('morph.updated', function () { setTimeout(resizeAll, 0); });
+            };
+            if (window.Livewire) { hookLivewire(); } else { document.addEventListener('livewire:init', hookLivewire); }
         })();
     </script>
     @endverbatim

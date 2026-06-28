@@ -143,13 +143,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Code editor (CodeMirror)
+    | Code editor (Ace)
     |--------------------------------------------------------------------------
-    | Base URL for the CodeMirror editor used by code fields (highlighting +
-    | linting). Defaults to a CDN; self-host by pointing this at your assets.
+    | Base URL for the Ace editor used by code fields (syntax highlighting +
+    | server-side `php -l` linting). We use Ace's src-noconflict build: it
+    | pollutes no globals (unlike Monaco's AMD loader, which broke Livewire) and
+    | renders robustly inside Livewire/wire:ignore fields (unlike CodeMirror 5,
+    | which crashed on every keystroke here). Defaults to a CDN; self-host by
+    | pointing this at your own copy of ace-builds/src-min-noconflict.
     */
     'editor' => [
-        'codemirror_base' => env('AI_PAGE_BUILDER_CODEMIRROR_BASE', 'https://cdn.jsdelivr.net/npm/codemirror@5.65.16'),
+        'ace_base' => env('AI_PAGE_BUILDER_ACE_BASE', 'https://cdn.jsdelivr.net/npm/ace-builds@1.36.5/src-min-noconflict'),
     ],
 
     /*
