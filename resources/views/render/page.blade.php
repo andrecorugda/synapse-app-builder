@@ -59,6 +59,27 @@
         document.addEventListener('alpine:init', function () {
             window.Alpine.store('app', Object.assign({}, window.__pbState));
 
+            // End-user identity → component visibility. $store.app.$user is null
+            // when signed out (use x-show="$store.app.$user" to react). Elements
+            // tagged data-pb-auth show only when logged in; data-pb-roles="a,b"
+            // show only for those role slugs (admins always pass). Server-side
+            // data is already secured by the permission engine — this is UX.
+            window.Alpine.store('app').$user = null;
+            fetch('{{ url('pb-auth/me') }}', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    var u = (d && d.user) ? d.user : null;
+                    window.Alpine.store('app').$user = u;
+                    document.querySelectorAll('[data-pb-auth]').forEach(function (el) {
+                        if (! u) { el.style.display = 'none'; }
+                    });
+                    document.querySelectorAll('[data-pb-roles]').forEach(function (el) {
+                        var allowed = (el.getAttribute('data-pb-roles') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+                        if (! (u && (u.is_admin || allowed.indexOf(u.role) !== -1))) { el.style.display = 'none'; }
+                    });
+                })
+                .catch(function () {});
+
             // pbTable — the Data Table block's x-data. Fetches a collection's rows
             // from the auto REST API (GET {api}/{collection} → {data:[…]}) and
             // exposes rows/loading/error for x-for / x-show bindings. The block's
