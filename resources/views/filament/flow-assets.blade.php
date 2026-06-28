@@ -27,7 +27,7 @@
         try {
             $varClass = config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class);
             $pbVariables = $varClass::query()->orderBy('key')->get()
-                ->map(fn ($v) => ['key' => $v->key, 'name' => $v->key])->values()->all();
+                ->map(fn ($v) => ['key' => $v->key, 'name' => $v->key, 'type' => $v->type])->values()->all();
         } catch (\Throwable $e) {
             $pbVariables = [];
         }
@@ -156,6 +156,10 @@
             color: #e0e7ff;
         }
         .ai-pb-palette .ai-pb-palette-spacer { flex: 1 1 auto; }
+        .ai-pb-palette select.ai-pb-state-picker {
+            padding: 0.2rem 0.6rem; border-radius: 0.3rem; font-size: 0.72rem; font-weight: 500;
+            border: 1px solid #2dd4bf66; background: #0f172a; color: #5eead4; cursor: pointer; line-height: 1.4; max-width: 200px;
+        }
         .ai-pb-palette button.ai-pb-fullscreen-btn {
             background: transparent;
             border-color: #475569;
@@ -604,6 +608,34 @@
                     // Apply operation-based field visibility to restored record nodes.
                     const self = this;
                     setTimeout(() => self.refreshRecordNodes(), 0);
+
+                    // Remember the last-focused node field so the States picker can
+                    // insert a reference at the caret.
+                    el.addEventListener('focusin', function (e) {
+                        const t = e.target;
+                        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && t.closest('.ai-pb-node')) {
+                            self._lastField = t;
+                        }
+                    });
+                },
+
+                /**
+                 * Insert a {{ states.<key> }} reference at the caret of the last
+                 * focused node field (or append if none focused yet).
+                 */
+                insertState(key) {
+                    if (! key) { return; }
+                    const f = this._lastField;
+                    if (! f || ! f.isConnected) { return; }
+                    const token = '{{ states.' + key + ' }}';
+                    const start = (f.selectionStart != null) ? f.selectionStart : f.value.length;
+                    const end = (f.selectionEnd != null) ? f.selectionEnd : start;
+                    f.value = f.value.slice(0, start) + token + f.value.slice(end);
+                    const pos = start + token.length;
+                    try { f.setSelectionRange(pos, pos); } catch (e) {}
+                    f.dispatchEvent(new Event('input', { bubbles: true }));
+                    f.focus();
+                    this.sync();
                 },
             });
 
