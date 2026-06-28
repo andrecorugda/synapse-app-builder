@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder\Filament\Resources;
 
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\Pages;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\FieldsRelationManager;
+use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\RecordsRelationManager;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Filament\Actions;
@@ -234,6 +235,7 @@ class PbModelResource extends Resource
     {
         return [
             FieldsRelationManager::class,
+            RecordsRelationManager::class,
         ];
     }
 
