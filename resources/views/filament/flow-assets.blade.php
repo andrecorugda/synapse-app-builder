@@ -204,6 +204,22 @@
                 return html;
             }
 
+            /**
+             * Show only the Collection-node fields relevant to the selected
+             * operation. Each conditional group carries data-ops="op1,op2".
+             * Called inline on change and re-applied after add / import.
+             */
+            window.__pbRecordOp = function (sel) {
+                var node = sel && sel.closest ? sel.closest('.ai-pb-node') : null;
+                if (! node) { return; }
+                var op = sel.value;
+                var groups = node.querySelectorAll('[data-ops]');
+                for (var i = 0; i < groups.length; i++) {
+                    var ops = (groups[i].getAttribute('data-ops') || '').split(',');
+                    groups[i].style.display = (ops.indexOf(op) === -1) ? 'none' : '';
+                }
+            };
+
             /** Build the inner HTML for a Drawflow node by type. */
             function nodeHtml(type) {
                 switch (type) {
@@ -257,27 +273,36 @@
                             + '</div>';
 
                     case 'record':
+                        // Fields wrapped in [data-ops] are shown only for the
+                        // matching operation(s) — toggled by __pbRecordOp on
+                        // change and re-applied after add / import.
                         return '<div class="ai-pb-node" data-node-type="record">'
                             + '<div class="ai-pb-node-title">&#128451; Collection</div>'
                             + '<label class="ai-pb-node-label">Collection</label>'
                             + '<select df-model>' + optionList(window.__pbCollections, 'key', '— select collection —') + '</select>'
                             + '<label class="ai-pb-node-label">Operation</label>'
-                            + '<select df-operation>'
+                            + '<select df-operation onchange="window.__pbRecordOp && window.__pbRecordOp(this)">'
                             + '<option value="list">List / search</option>'
                             + '<option value="get">Get by id</option>'
                             + '<option value="create">Create</option>'
                             + '<option value="update">Update</option>'
                             + '<option value="delete">Delete</option>'
                             + '</select>'
-                            + '<label class="ai-pb-node-label">Record id (get / update / delete)</label>'
+                            + '<div data-ops="get,update,delete">'
+                            + '<label class="ai-pb-node-label">Record id</label>'
                             + '<input type="text" df-recid placeholder="{{input.id}}" />'
-                            + '<label class="ai-pb-node-label">Filter (JSON, for list)</label>'
+                            + '</div>'
+                            + '<div data-ops="list">'
+                            + '<label class="ai-pb-node-label">Filter (JSON)</label>'
                             + '<textarea df-filter placeholder=\'{"status":{"eq":"open"}}\'></textarea>'
-                            + '<label class="ai-pb-node-label">Search / sort (for list)</label>'
+                            + '<label class="ai-pb-node-label">Search / sort</label>'
                             + '<input type="text" df-search placeholder="search term" />'
                             + '<input type="text" df-sort placeholder="-created_at" />'
-                            + '<label class="ai-pb-node-label">Data (JSON, create / update)</label>'
+                            + '</div>'
+                            + '<div data-ops="create,update">'
+                            + '<label class="ai-pb-node-label">Data (JSON)</label>'
                             + '<textarea df-data placeholder=\'{"name":"{{input.name}}"}\'></textarea>'
+                            + '</div>'
                             + '<label class="ai-pb-node-label">Output variable</label>'
                             + '<input type="text" df-output placeholder="e.g. records" />'
                             + '</div>';
@@ -473,6 +498,15 @@
                     this.fullscreen = ! this.fullscreen;
                 },
 
+                /** Re-apply operation-based field visibility to every record node. */
+                refreshRecordNodes() {
+                    var root = this.$refs.canvas || document;
+                    var sels = root.querySelectorAll('.ai-pb-node[data-node-type="record"] select[df-operation]');
+                    for (var i = 0; i < sels.length; i++) {
+                        if (window.__pbRecordOp) { window.__pbRecordOp(sels[i]); }
+                    }
+                },
+
                 addNode(type) {
                     if (! this.editor) { return; }
                     // Cascade new nodes in a grid so they never pile on top of each
@@ -483,6 +517,10 @@
                     const x = 120 + col * 300;
                     const y = 60 + row * 300;
                     this.editor.addNode(type, nodeInputCount(type), nodeOutputCount(type), x, y, type, {}, nodeHtml(type), false);
+                    if (type === 'record') {
+                        var self = this;
+                        setTimeout(function () { self.refreshRecordNodes(); }, 0);
+                    }
                 },
 
                 sync() {
@@ -527,6 +565,10 @@
                     editor.on('connectionCreated', syncBound);
                     editor.on('connectionRemoved', syncBound);
                     editor.on('nodeDataChanged', syncBound);
+
+                    // Apply operation-based field visibility to restored record nodes.
+                    const self = this;
+                    setTimeout(() => self.refreshRecordNodes(), 0);
                 },
             });
 
