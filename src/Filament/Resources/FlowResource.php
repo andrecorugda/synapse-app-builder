@@ -72,13 +72,15 @@ class FlowResource extends Resource
                             Forms\Components\Toggle::make('is_active')
                                 ->label('Active')
                                 ->inline(false)
-                                ->default(false),
+                                ->default(false)
+                                ->extraFieldWrapperAttributes(['style' => 'display:flex;flex-direction:column;align-items:center;text-align:center;']),
 
                             Forms\Components\Toggle::make('is_public')
                                 ->label('Public')
                                 ->inline(false)
                                 ->default(false)
-                                ->helperText('Allow unauthenticated public trigger.'),
+                                ->helperText('Allow unauthenticated public trigger.')
+                                ->extraFieldWrapperAttributes(['style' => 'display:flex;flex-direction:column;align-items:center;text-align:center;']),
                         ]),
 
                         // Row 2 — rate limit · trigger type · (collection when applicable)
@@ -122,9 +124,6 @@ class FlowResource extends Resource
                                     'deleted' => 'Deleted',
                                 ])
                                 ->columns(3)
-                                // Group the options in the centre instead of
-                                // spreading them edge-to-edge across the row.
-                                ->extraAttributes(['style' => 'max-width:30rem;margin-inline:auto;'])
                                 ->required(fn (Get $get): bool => $get('trigger_type') === 'collection'),
 
                             Forms\Components\Repeater::make('trigger_config.criteria')
