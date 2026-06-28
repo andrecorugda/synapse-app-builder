@@ -69,18 +69,20 @@ class FlowResource extends Resource
                                 ->required()
                                 ->maxLength(200),
 
-                            Forms\Components\Toggle::make('is_active')
+                            Forms\Components\Select::make('is_active')
                                 ->label('Active')
-                                ->inline(false)
-                                ->default(false)
-                                ->extraFieldWrapperAttributes(['style' => 'display:flex;flex-direction:column;align-items:center;text-align:center;']),
+                                ->options(['1' => 'Active', '0' => 'Inactive'])
+                                ->default('0')
+                                ->selectablePlaceholder(false)
+                                ->formatStateUsing(fn ($state): string => $state ? '1' : '0'),
 
-                            Forms\Components\Toggle::make('is_public')
+                            Forms\Components\Select::make('is_public')
                                 ->label('Public')
-                                ->inline(false)
-                                ->default(false)
-                                ->helperText('Allow unauthenticated public trigger.')
-                                ->extraFieldWrapperAttributes(['style' => 'display:flex;flex-direction:column;align-items:center;text-align:center;']),
+                                ->options(['1' => 'Public', '0' => 'Private'])
+                                ->default('0')
+                                ->selectablePlaceholder(false)
+                                ->formatStateUsing(fn ($state): string => $state ? '1' : '0')
+                                ->helperText('Public allows unauthenticated trigger.'),
                         ]),
 
                         // Row 2 — rate limit · trigger type · (collection when applicable)
