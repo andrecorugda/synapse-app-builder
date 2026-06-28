@@ -114,10 +114,16 @@ return [
         'render_middleware' => ['web'],
 
         // Serve the configured home page at the site root (GET /) as well as at
-        // the render-prefix root. Opt-in (default off): turning this on makes
-        // the package own `/`, which would shadow the host app's own home
-        // route — only enable it when this builder *is* the site. The WHICH
-        // page is home is chosen in the Settings screen, not here.
+        // the render-prefix root. Opt-in (default off). NOTE: this only takes
+        // effect when the host app has NO `/` route of its own — Laravel matches
+        // the first-registered route, and a package cannot override the app's
+        // own `/`. If your app keeps a `/` route (e.g. the default welcome
+        // route), point it at the home controller instead:
+        //
+        //     use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
+        //     Route::get('/', [RenderPageController::class, 'home']);
+        //
+        // The WHICH page is home is chosen in the Settings screen, not here.
         'home_at_root' => (bool) env('AI_PAGE_BUILDER_HOME_AT_ROOT', false),
 
         // Authenticated, in-panel endpoints (media upload, etc.). Use the same

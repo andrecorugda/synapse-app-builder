@@ -215,14 +215,14 @@ class PageBuilderSettings extends FilamentPage
     private function homeHelpText(): string
     {
         $prefix = trim((string) config('ai-page-builder.routes.render_prefix', 'p'), '/');
-        $atRoot = (bool) config('ai-page-builder.routes.home_at_root', false);
 
-        $base = "Served at /{$prefix}.";
-        $base .= $atRoot
-            ? ' Also served at the site root / (AI_PAGE_BUILDER_HOME_AT_ROOT is on).'
-            : ' To also serve it at the site root /, set AI_PAGE_BUILDER_HOME_AT_ROOT=true.';
-
-        return $base;
+        // The prefix root always works. The SITE root (/) belongs to the host
+        // app — a package can't override the app's own `/` route — so serving
+        // there needs the host to yield it. Be explicit so nobody expects the
+        // env flag alone to win against an existing welcome route.
+        return "Always served at /{$prefix}. To serve it at the site root (/), point your app's root route at the home controller — "
+            ."Route::get('/', [\\Andre\\AiPageBuilder\\Http\\Controllers\\RenderPageController::class, 'home']); — "
+            .'in routes/web.php (remove the default welcome route first). If your app has no own / route, set AI_PAGE_BUILDER_HOME_AT_ROOT=true to register one.';
     }
 
     private function homeUrlPreview(mixed $slug): string
