@@ -50,6 +50,8 @@ return [
         'run_route_enabled' => env('AI_PAGE_BUILDER_FLOW_ROUTE', true),
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_FLOW_RATE', 30),
         'max_steps' => 200,
+        'drawflow_js' => env('AI_PAGE_BUILDER_DRAWFLOW_JS', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js'),
+        'drawflow_css' => env('AI_PAGE_BUILDER_DRAWFLOW_CSS', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css'),
     ],
 
     /*
@@ -68,6 +70,9 @@ return [
         // guard/middleware your Filament panel uses.
         'panel_prefix' => env('AI_PAGE_BUILDER_PANEL_PREFIX', 'ai-page-builder'),
         'panel_middleware' => ['web', 'auth'],
+
+        // Public flow-run endpoint prefix (stateless, rate-limited).
+        'flow_prefix' => env('AI_PAGE_BUILDER_FLOW_PREFIX', 'pb-flow'),
     ],
 
     /*

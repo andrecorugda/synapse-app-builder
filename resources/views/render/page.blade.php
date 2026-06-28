@@ -70,5 +70,8 @@
             els.forEach(function (el) { io.observe(el); });
         })();
     </script>
+
+    {{-- Flow trigger runtime: components with data-pb-flow run a flow on click. --}}
+    @include('ai-page-builder::render.flow-runtime')
 </body>
 </html>

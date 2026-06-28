@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament;
 
+use Andre\AiPageBuilder\Filament\Resources\FlowResource;
 use Andre\AiPageBuilder\Filament\Resources\MediaResource;
 use Andre\AiPageBuilder\Filament\Resources\PageResource;
 use Filament\Contracts\Plugin;
@@ -35,6 +36,7 @@ class AiPageBuilderPlugin implements Plugin
         $panel->resources([
             PageResource::class,
             MediaResource::class,
+            FlowResource::class,
         ]);
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder;
 
+use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowManager;
@@ -40,7 +41,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_flows_table',
                 'create_page_builder_flow_runs_table',
             ])
-            ->hasCommand(SeedPageBuilderIntegrationCommand::class);
+            ->hasCommand(SeedPageBuilderIntegrationCommand::class)
+            ->hasCommand(RunCronFlowsCommand::class);
     }
 
     public function packageRegistered(): void
@@ -69,8 +71,27 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     {
         $this->registerRenderRoutes();
         $this->registerPanelRoutes();
+        $this->registerFlowRoutes();
         $this->registerFilamentAssets();
         $this->autoSeedGatewayIntegration();
+    }
+
+    /**
+     * Public, stateless flow-run endpoint (opt-in per flow, rate-limited in the
+     * controller). No web/CSRF middleware — it's called from rendered pages.
+     */
+    private function registerFlowRoutes(): void
+    {
+        if (! (bool) config('ai-page-builder.flow.run_route_enabled', true)) {
+            return;
+        }
+
+        Route::group([
+            'prefix' => (string) config('ai-page-builder.routes.flow_prefix', 'pb-flow'),
+            'middleware' => ['api'],
+        ], function (): void {
+            $this->loadRoutesFrom(__DIR__.'/../routes/flow.php');
+        });
     }
 
     /**
@@ -143,6 +164,12 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         FilamentView::registerRenderHook(
             'panels::body.end',
             static fn (): string => view('ai-page-builder::filament.grapesjs-assets')->render(),
+        );
+
+        // The Drawflow flow-editor library + Alpine component.
+        FilamentView::registerRenderHook(
+            'panels::body.end',
+            static fn (): string => view('ai-page-builder::filament.flow-assets')->render(),
         );
     }
 }

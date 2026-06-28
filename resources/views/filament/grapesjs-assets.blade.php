@@ -198,6 +198,11 @@
                             cmp.addTrait({ type: 'select', name: 'data-pb-anim', label: 'Animation', options: PB_ANIMS.map(([id, name]) => ({ id, name })) });
                             cmp.addTrait({ type: 'text', name: 'data-pb-anim-delay', label: 'Anim delay (ms)', placeholder: '0' });
                         }
+                        // Interaction: on click, run a flow (the published-page runtime
+                        // reads data-pb-flow and POSTs to the flow run endpoint).
+                        if (! names.includes('data-pb-flow')) {
+                            cmp.addTrait({ type: 'text', name: 'data-pb-flow', label: 'On click → flow (slug)', placeholder: 'e.g. subscribe' });
+                        }
                     };
 
                     // Load canonical GrapesJS state if present; otherwise fall
