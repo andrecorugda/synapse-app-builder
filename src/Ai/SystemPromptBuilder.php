@@ -262,6 +262,8 @@ final class SystemPromptBuilder
         - Reference only collections and states that already exist or are defined in the same plan.
         - Pages use `data-pb-block` blocks with inline styles and DECLARATIVE Alpine bindings (x-text/x-show/x-model/x-for) over `$store.app.<state>` only — never @click/x-on/x-init.
         - Data tables bind with `x-data="pbTable('<collection key>')"`.
+        - When the request names a home / landing / main page (or implies one), set `settings.home_page` to that page's slug, and give that page `status:"published"`.
+        - A page whose html is the body of a `send_email` node MUST have `kind:"email"`.
         - Prefer the smallest plan that satisfies the request.
         TXT;
     }
