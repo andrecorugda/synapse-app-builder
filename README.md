@@ -1,28 +1,68 @@
-# Synapse — App Builder
+<p align="center">
+  <img src="art/cover.png" alt="Synapse — the AI app builder for Laravel + Filament" width="100%">
+</p>
 
-**Build real web apps visually — pages, data, automations and live UI — inside your own Laravel + Filament admin.** Drag components onto a page, define your own data tables, wire up automations that react to clicks and data changes, and bind components to live state. Everything runs on your server; nothing leaves your app.
+<h1 align="center">Synapse — App Builder</h1>
 
-> **Status: v1 (no-AI baseline).** This is the complete builder *without* the AI layer — saved as the private baseline before the AI-orchestration phase. Working name **Synapse — App Builder**; the Composer package is currently `andrecorugda/ai-page-builder` (renamed at public release).
+<p align="center">
+  <strong>Describe an app. Watch it get built. Then refine it by chatting.</strong><br>
+  A full-stack, low-code app builder for Laravel + Filament — pages, real data, automations, auth and live UI — with AI as your companion. Free, open, and entirely self-hosted.
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="#what-you-can-build">What you can build</a> ·
+  <a href="#the-ai-layer">The AI layer</a>
+</p>
 
 ---
 
-## What is this? (the plain version)
+## Why Synapse
 
-Think of it as a **visual app builder you host yourself**, made of five pieces that click together:
+Building an internal tool, a SaaS UI, or a marketing site usually means stitching together a CMS, a database admin, a workflow tool, an auth system and a front-end — then wiring them all up by hand.
 
-- **Pages** — design pages by dragging blocks (a GrapesJS visual editor).
-- **Components** — a UI kit: buttons, modals, drawers, tabs, forms, and a **data table** — like Material UI, but drag-and-drop.
-- **Collections** — define your own data (e.g. *Leads*, *Orders*); each becomes a real database table with an instant REST API and an admin to browse rows.
-- **Flows** — the "brain": automations on a visual canvas. *When a button is clicked / a record is created → do these steps.*
-- **States** — app-wide values (e.g. a cart total) that components bind to and **update live**, like a front-end store.
+**Synapse is all of that, in one package, inside the Laravel + Filament admin you already run.** Drag pages together, define your own data tables, wire automations that react to clicks and data changes, gate it behind your own users and roles — and when you'd rather just *say what you want*, the built-in AI generates the whole thing and keeps refining it as you chat.
 
-Put together: a visitor clicks a button → a **flow** runs → it reads/writes a **collection** and sets a **state** → bound **components** re-render instantly. No page reload, no separate front-end app.
+Nothing leaves your server. There's no SaaS, no per-seat pricing, no lock-in. It's MIT-licensed and yours.
 
-### What you can build
-- A lead-capture site whose form writes straight into a *Leads* collection.
-- An internal dashboard with a filterable **data table** of records.
-- A small CRUD app: define a collection, drop a form + a table, wire a flow — done.
-- Any marketing site, with reactive widgets driven by your own data.
+> **You bring the idea. Synapse brings the pages, the database, the logic, the login screen — and an AI that builds alongside you.**
+
+---
+
+## What's inside
+
+| Pillar | What it gives you |
+|---|---|
+| 🧩 **Pages & components** | A GrapesJS visual builder + a real UI kit (cards, modals, drawers, tabs, forms, **data tables**), per-page CSS/JS, SEO, a cached public render route, and a pickable **home page**. |
+| 🗄️ **Collections (data)** | Define your own models → **real database tables** (`pb_<key>`, Directus-style) with typed fields, schema sync, an instant **REST API** (filter/sort/search/paginate) and a records browser. |
+| ⚡ **Flows (the brain)** | An n8n-style visual canvas. Triggers (a click, a record event, cron, an API call) run nodes: CRUD, HTTP, AI invoke, functions, conditions, set-state, **send email**, page actions. |
+| ƒ **Functions & States** | Reusable logic (expression / callable / PHP) and a persistent, app-wide **reactive store** that components bind to and flows update live. |
+| 🔐 **Auth & permissions** | The built app's **own** users, roles and permissions — a static login, per-page gating, opt-in per-collection CRUD rules, **row-level security**, and component visibility by role. Optional: a public site ignores it entirely. |
+| ✉️ **Email** | An isolated SMTP transport (configured in Settings) + a `send_email` flow node that uses any page as an interpolated **email template**. |
+| ✦ **AI generation** | Describe an app in plain language → review a validated plan → apply it. A **floating chat** follows you across the admin to refine what you've built. Powered by the [AI OpenRouter Gateway](https://github.com/andrecorugda/ai-openrouter-gateway). |
+
+---
+
+## See it
+
+| Describe → review → apply | Refine by chatting, anywhere |
+|---|---|
+| ![Build with AI](art/screenshots/build-with-ai.png) | ![AI chat](art/screenshots/ai-chat.png) |
+
+| Your app's login | App users & roles |
+|---|---|
+| ![Login](art/screenshots/login.png) | ![App users](art/screenshots/app-users.png) |
+
+---
+
+## What you can build
+
+- **An internal CRUD tool** — define collections, drop a form + a data table, gate it behind a login with per-role, row-level access (users see only their own rows).
+- **A lead-capture or feedback site** — a public page whose form writes straight into a collection, with a flow that emails a templated confirmation on every submission.
+- **A reactive dashboard** — components bound to live state, updated by flows as data changes, no page reload.
+- **A marketing site** — pick a home page, design freely, publish to a cached route.
+- **…or just describe it** — *"a waitlist app that emails a welcome on signup and has a landing page"* → Synapse builds the collection, the page, the email template and the flow, and you tweak it from the chat.
 
 ---
 
@@ -30,56 +70,41 @@ Put together: a visitor clicks a button → a **flow** runs → it reads/writes 
 
 ```mermaid
 flowchart TD
-    Author["🧑‍💻 You — build in the admin"]
+    You["🧑‍💻 You — build in the admin, or just describe it"]
+    AI["✦ AI — generates a validated Build Plan"]
 
     subgraph Build["Build surfaces (Filament admin)"]
-        Pages["📄 Pages · visual builder"]
-        Comp["🧩 Components · UI kit / forms / data table"]
-        Coll[("🗄️ Collections · your data tables")]
-        Fns["ƒ Functions · reusable logic"]
-        State["{ } States · app-wide values"]
-        Flows["⚡ Flows — the automation brain"]
+        Pages["📄 Pages"]
+        Coll[("🗄️ Collections")]
+        Flows["⚡ Flows"]
+        Fns["ƒ Functions"]
+        State["{ } States"]
+        Auth["🔐 Users · Roles · Permissions"]
     end
 
-    Author --> Build
-    Build --> Pub["🌐 Published page"]
-    Pub --> Visitor["👥 Visitor"]
+    You --> Build
+    You -- "describe / refine" --> AI
+    AI -- "apply (idempotent)" --> Build
 
-    Visitor -- "clicks · submits · DOM events" --> Flows
+    Build --> Pub["🌐 Published app"]
+    Pub --> Visitor["👥 End-user (optionally logged in)"]
+
+    Visitor -- "clicks · submits · events" --> Flows
     Coll -- "on create / update / delete" --> Flows
-    Flows -- "read / write rows" --> Coll
-    Flows -- "setState" --> State
-    State -- "reactive bind (x-text/x-for/x-model)" --> Pub
-    Flows -- "HTTP · AI step · functions" --> Ext["🔌 External services"]
-    Coll -- "auto REST API /api/pb/{collection}" --> Pub
+    Flows -- "read / write (row-level secured)" --> Coll
+    Flows -- "setState · send email · HTTP" --> Ext["🔌 Email · external services"]
+    State -- "reactive bind" --> Pub
+    Auth -- "gates pages · data · components" --> Pub
 ```
 
-**The loop in one line:** *event → flow → read/write data + set state → bound components re-render.*
-
----
-
-## The pieces in detail
-
-| Piece | What it does |
-|---|---|
-| **Pages & visual builder** | GrapesJS editor with section blocks + primitives, responsive devices, animations, per-page custom CSS **and** custom JS, SEO meta, duplicate, publish → cached front-end route. |
-| **Component library** | *UI kit:* card, banner, modal, drawer, tabs, accordion, tooltip, dropdown menu. *Forms:* text/email/textarea/select/checkbox/radio + submit, and a Form container that **creates a record or runs a flow** on submit. *Data:* a **Data Table** (fetches a collection over REST and renders rows) and a **List/Repeater**. |
-| **Collections (data)** | Define a model and its fields → a **real database table** (`pb_<key>`), Directus-style. Typed fields, schema sync, an auto **REST API** (`/api/pb/{model}` with filter/sort/search/paginate), and a **records browser** (Fields │ Records tabs, with a scoped query panel). |
-| **Flows (automation)** | A visual node canvas (dark, fullscreen). Nodes: Trigger, AI Invoke, HTTP Request, Function, **Collection CRUD**, Condition, **Set State**, Result actions. Triggers: a component DOM event, a **collection event** (create/update/delete + criteria), cron, or a public API call. Every run is recorded. |
-| **Functions** | Reusable logic callable from a flow: a sandboxed **expression**, a registered **callable**, or **raw PHP** (gated). Edited in an Ace editor with linting; can read app **State**. |
-| **States** | Persistent, app-wide key→value store (typed). Read as `{{ states.x }}` in flows, `state('x')` in expressions, `$states['x']` in PHP — and seeds a **reactive page store** that components bind to. |
-| **Data binding** | Components bind to State on the published page via Alpine directives (`x-text`, `x-show`, `x-model`, `x-for`); flows push updates with `setState` and the UI re-renders live. |
+**The loop in one line:** *event → flow → read/write data + set state → bound components re-render — and AI can build or change any of it.*
 
 ---
 
 ## Quick start
 
-### Requirements
-- PHP 8.2+
-- Laravel 11, 12, or 13
-- Filament 4 or 5 (for the admin UI)
+**Requirements:** PHP 8.2+ · Laravel 11/12/13 · Filament 4/5
 
-### Install
 ```bash
 composer require andrecorugda/ai-page-builder
 php artisan vendor:publish --tag="ai-page-builder-migrations"
@@ -87,6 +112,7 @@ php artisan migrate
 ```
 
 Register the plugin on your Filament panel:
+
 ```php
 use Andre\AiPageBuilder\Filament\AiPageBuilderPlugin;
 
@@ -96,57 +122,53 @@ public function panel(Panel $panel): Panel
 }
 ```
 
-A **Content** group appears in the admin with **Pages**, **Media**, **Flows**, **Functions**, **Collections** and **States**. Create a collection, build a page, drop a form/table, wire a flow, publish.
+A **Content** group appears with Pages, Media, Flows, Functions, Collections, States, App Users, Roles and Settings. Create a collection, build a page, wire a flow, publish.
 
-### Configuration (optional)
+**To unlock AI generation**, install the gateway and add your OpenRouter key — the `app_builder` integration self-seeds:
+
 ```bash
-php artisan vendor:publish --tag="ai-page-builder-config"
+composer require andrecorugda/ai-openrouter-gateway
+# set OPENROUTER_INTEGRATION_KEY (or OPENROUTER_API_KEY) in .env
 ```
+
+Then open **Build with AI**, or tap the ✦ chat orb on any admin page.
+
+📖 **Full documentation:** [`docs/`](docs/README.md) — installation, architecture, every subsystem, and the complete config reference.
 
 ---
 
-## How it works (for developers)
+## The AI layer
 
-- **`Page`** stores the canonical GrapesJS `project_data` + a compiled `html`/`css` snapshot + SEO `meta`; served at `/{prefix}/{slug}` (cached), or render `Page->html`/`css` from your own routing (`config('ai-page-builder.routes.render_enabled')`).
-- **Collections** = `PbModel`/`PbField` metadata → `SchemaSynchronizer` creates/maintains the real `pb_<key>` table; a dynamic `Record` Eloquent model binds to it; **`RecordQuery`** is the single source of truth (Directus-style filtering + validation + column whitelisting) behind the REST API, the flow Collection node, and the Filament records browser.
-- **Flows** = a `definition` graph (`{start, nodes}`) run by `FlowRunner`/`FlowManager`; node handlers live in `src/Flow/Nodes`; `FlowDispatcher` + a `RecordObserver` fire `collection` triggers; results are recorded as `FlowRun`s.
-- **States** = `Variable`/`VariableStore`; injected into the published page and seeded into an Alpine `$store.app` on `alpine:init`.
-- **Components** = blocks in `BlockVocabulary` (Sections · Basic · Shapes · Components · Forms · Data); overlays/forms/tables use Alpine directives that run on the published page (Alpine is shipped/vendored).
-- **Front-end libraries** (GrapesJS, Drawflow, Ace, Alpine) load from a CDN by default and are **vendored** for offline self-hosting (below).
+AI is **optional and additive** — the builder is fully usable by hand. When the [AI OpenRouter Gateway](https://github.com/andrecorugda/ai-openrouter-gateway) is installed:
+
+- **You describe; it plans.** The model returns a structured **Build Plan** (collections, states, functions, flows, pages, settings) — never opaque files. You review it before anything is created.
+- **Applied as data.** A deterministic, idempotent engine writes the plan through the same services the admin uses, so AI-built artifacts behave exactly like hand-built ones — and "refine" just means re-applying a plan that references existing items.
+- **A companion, not a wizard.** The floating chat is thread-aware and context-aware; build on one page, refine on another.
+- **Safe by construction.** AI-authored HTML is sanitized (declarative bindings kept, executable directives stripped); applying is always human-in-the-loop; generation is metered and cost-capped by the gateway.
 
 ---
 
 ## Self-hosting front-end assets (offline / air-gapped)
 
-By default the editor loads GrapesJS, Drawflow, Alpine and Ace from public CDNs, so a fresh install works with zero config. For offline, air-gapped, or strict-CSP deployments, the package bundles vendored copies:
+The editor loads GrapesJS, Drawflow, Alpine and Ace from a CDN by default (zero-config). For offline / strict-CSP installs, vendored copies ship in the box:
 
 ```bash
 php artisan vendor:publish --tag="ai-page-builder-assets"
 # → public/vendor/ai-page-builder/{grapesjs,drawflow,alpine,ace}/
 ```
 
-Then point the asset URLs at the published copies via env:
-```dotenv
-AI_PAGE_BUILDER_GRAPESJS_JS="/vendor/ai-page-builder/grapesjs/grapes.min.js"
-AI_PAGE_BUILDER_GRAPESJS_CSS="/vendor/ai-page-builder/grapesjs/grapes.min.css"
-AI_PAGE_BUILDER_DRAWFLOW_JS="/vendor/ai-page-builder/drawflow/drawflow.min.js"
-AI_PAGE_BUILDER_DRAWFLOW_CSS="/vendor/ai-page-builder/drawflow/drawflow.min.css"
-AI_PAGE_BUILDER_ALPINE_JS="/vendor/ai-page-builder/alpine/cdn.min.js"
-AI_PAGE_BUILDER_ACE_BASE="/vendor/ai-page-builder/ace"
-```
-
-`AI_PAGE_BUILDER_ACE_BASE` must stay a **directory** — Ace appends `/ace.js` and lazy-loads its `mode-*`/`theme-*` files relative to it. Re-run the publish with `--force` after upgrading. Leaving the vars unset keeps the CDN defaults.
+Point the asset env vars at the published copies (see [`docs/installation.md`](docs/installation.md)). `AI_PAGE_BUILDER_ACE_BASE` must stay a **directory**.
 
 ---
 
-## What's next (the AI layer)
+## Testing & quality
 
-This baseline is intentionally **AI-free**. The next phase wires AI *on top* — generating collections, flows, functions and UI from a description, and binding data — with human-in-the-loop approval, metered through an OpenRouter gateway, via the flow's existing **AI Invoke** node. (When AI generates HTML, it passes through a sanitizer that allows the declarative binding directives but strips executable ones — owner-authored components are unaffected.)
-
-## Testing
 ```bash
-composer test
+composer test       # Pest
+composer lint       # Pint
+composer analyse    # PHPStan (larastan)
 ```
 
 ## License
-MIT. See [LICENSE](LICENSE).
+
+MIT © Andre Corugda. See [LICENSE](LICENSE).
