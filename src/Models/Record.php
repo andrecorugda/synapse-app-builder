@@ -31,9 +31,9 @@ final class Record extends Model
     {
         $pb = $model instanceof PbModel
             ? $model
-            : static::resolvePbModel($model);
+            : self::resolvePbModel($model);
 
-        $instance = new static;
+        $instance = new self;
         $instance->setConnection(Schema::connection());
         $instance->setTable($pb->table_name);
         $instance->timestamps = (bool) $pb->has_timestamps;
