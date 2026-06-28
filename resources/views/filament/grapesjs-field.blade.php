@@ -27,12 +27,12 @@
         x-init="boot()"
         style="border:1px solid rgb(0 0 0 / 0.1);border-radius:0.75rem;overflow:hidden;background:#fff;"
     >
-        <div style="display:flex;align-items:stretch;min-height:{{ (int) $height }}px;">
+        <div style="display:flex;align-items:stretch;height:{{ (int) $height }}px;">
             {{-- Block palette --}}
-            <div x-ref="blocks" style="width:13rem;flex:0 0 13rem;border-right:1px solid rgb(0 0 0 / 0.08);overflow:auto;background:#f8fafc;"></div>
-            {{-- Editor canvas --}}
-            <div style="flex:1 1 auto;min-width:0;">
-                <div x-ref="canvas"></div>
+            <div x-ref="blocks" style="width:13rem;flex:0 0 13rem;border-right:1px solid rgb(0 0 0 / 0.08);overflow:auto;background:#f8fafc;height:100%;"></div>
+            {{-- Editor canvas (fills the container height) --}}
+            <div style="flex:1 1 auto;min-width:0;height:100%;">
+                <div x-ref="canvas" style="height:100%;"></div>
             </div>
         </div>
     </div>

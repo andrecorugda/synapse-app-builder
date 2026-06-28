@@ -54,7 +54,20 @@ class MediaItem extends Model
 
     public function url(): string
     {
-        return Storage::disk($this->disk)->url($this->path());
+        $raw = Storage::disk($this->disk)->url($this->path());
+
+        // Local disks build their URL from APP_URL, which is frequently wrong in
+        // development (e.g. missing the dev server port). Return a root-relative
+        // URL in that case so the browser resolves it against the current origin
+        // (correct host:port). Genuinely remote URLs (S3 / CDN) are left intact.
+        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+        $rawHost = parse_url($raw, PHP_URL_HOST);
+
+        if ($rawHost === null || $rawHost === $appHost) {
+            return parse_url($raw, PHP_URL_PATH) ?: $raw;
+        }
+
+        return $raw;
     }
 
     /**

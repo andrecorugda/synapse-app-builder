@@ -52,6 +52,12 @@ class MediaResource extends Resource
         return $schema->components([
             Forms\Components\TextInput::make('name')->required()->maxLength(255),
             Forms\Components\TextInput::make('alt')->label('Alt text')->maxLength(255),
+            Forms\Components\TextInput::make('url')
+                ->label('URL')
+                ->readOnly()
+                ->dehydrated(false)
+                ->helperText('Click to copy.')
+                ->extraInputAttributes(['data-ai-pb-copy' => 'input', 'style' => 'cursor:pointer']),
         ]);
     }
 
@@ -105,7 +111,12 @@ class MediaResource extends Resource
                     }),
             ])
             ->recordActions([
-                Actions\EditAction::make(),
+                Actions\EditAction::make()
+                    ->mutateRecordDataUsing(function (array $data, MediaItem $record): array {
+                        $data['url'] = $record->url();
+
+                        return $data;
+                    }),
                 Actions\DeleteAction::make(),
             ])
             ->toolbarActions([

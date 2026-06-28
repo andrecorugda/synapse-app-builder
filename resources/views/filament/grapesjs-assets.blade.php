@@ -46,12 +46,31 @@
 
                     const editor = window.grapesjs.init({
                         container: this.$refs.canvas,
-                        height: config.height + 'px',
+                        height: '100%',
                         width: 'auto',
                         fromElement: false,
                         storageManager: false,
                         blockManager: { appendTo: this.$refs.blocks },
                         assetManager,
+                        // A pragmatic style manager. The Background sector's
+                        // background-image is a `file` property → clicking it opens
+                        // the media picker, so any selected component can take a CSS
+                        // background image (and gradients/colour) just like in CSS.
+                        styleManager: {
+                            sectors: [
+                                { name: 'Layout', open: false, properties: ['display', 'width', 'height', 'max-width', 'margin', 'padding'] },
+                                { name: 'Typography', open: false, properties: ['color', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align'] },
+                                { name: 'Background', open: false, properties: [
+                                    { property: 'background-color', type: 'color' },
+                                    { property: 'background-image', type: 'file' },
+                                    { property: 'background-size', type: 'select', defaults: 'auto', options: [{ value: 'auto' }, { value: 'cover' }, { value: 'contain' }] },
+                                    { property: 'background-position', type: 'text' },
+                                    { property: 'background-repeat', type: 'select', defaults: 'no-repeat', options: [{ value: 'no-repeat' }, { value: 'repeat' }, { value: 'repeat-x' }, { value: 'repeat-y' }] },
+                                ] },
+                                { name: 'Border', open: false, properties: ['border-radius', 'border', 'box-shadow'] },
+                                { name: 'Extra', open: false, properties: ['opacity'] },
+                            ],
+                        },
                     });
                     this.editor = editor;
 
@@ -145,6 +164,25 @@
 
             const register = () => window.Alpine.data('aiPageBuilderEditor', factory);
             if (window.Alpine) { register(); } else { document.addEventListener('alpine:init', register); }
+
+            // Delegated copy-to-clipboard for read-only URL fields (the media edit
+            // form). The button carries data-ai-pb-copy; value "input" copies the
+            // sibling input's value, otherwise the attribute value itself.
+            if (! window.__aiPbCopyBound) {
+                window.__aiPbCopyBound = true;
+                document.addEventListener('click', function (e) {
+                    const btn = e.target.closest('[data-ai-pb-copy]');
+                    if (! btn) { return; }
+                    e.preventDefault();
+                    let val = btn.getAttribute('data-ai-pb-copy');
+                    if (val === 'input' || val === '') {
+                        const wrp = btn.closest('.fi-input-wrp') || btn.closest('.fi-fo-field-wrp');
+                        const input = wrp && wrp.querySelector('input, textarea');
+                        val = input ? input.value : '';
+                    }
+                    if (val && navigator.clipboard) { navigator.clipboard.writeText(val).catch(function () {}); }
+                });
+            }
         })();
     </script>
 @endonce
