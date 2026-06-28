@@ -1,0 +1,81 @@
+{
+    "name": "andrecorugda/ai-page-builder",
+    "description": "An AI-driven GrapesJS landing-page builder for Laravel + Filament — generate, refine, and visually edit pages with AI, self-hosted. Pairs with the AI OpenRouter Gateway or any OpenRouter key.",
+    "keywords": [
+        "laravel",
+        "filament",
+        "grapesjs",
+        "page-builder",
+        "ai",
+        "landing-page",
+        "openrouter",
+        "cms"
+    ],
+    "homepage": "https://github.com/andrecorugda/ai-page-builder",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Andre Corugda",
+            "email": "andre.alarcon.corugda@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "spatie/laravel-package-tools": "^1.16"
+    },
+    "require-dev": {
+        "filament/filament": "^4.0|^5.0",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0",
+        "laravel/pint": "^1.17",
+        "larastan/larastan": "^3.0"
+    },
+    "suggest": {
+        "filament/filament": "Required to use the bundled Filament admin UI (^4.0 or ^5.0).",
+        "andrecorugda/ai-openrouter-gateway": "Optimized AI path — metered, versioned prompt, cost caps. Auto-detected when installed."
+    },
+    "autoload": {
+        "psr-4": {
+            "Andre\\AiPageBuilder\\": "src/",
+            "Andre\\AiPageBuilder\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Andre\\AiPageBuilder\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0.x-dev"
+        },
+        "laravel": {
+            "providers": [
+                "Andre\\AiPageBuilder\\AiPageBuilderServiceProvider"
+            ],
+            "aliases": {
+                "PageBuilder": "Andre\\AiPageBuilder\\Facades\\PageBuilder"
+            }
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "lint": "vendor/bin/pint",
+        "lint:test": "vendor/bin/pint --test",
+        "analyse": "vendor/bin/phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Andre\AiPageBuilder\Tests;
+
+use Andre\AiPageBuilder\AiPageBuilderServiceProvider;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Orchestra\Testbench\TestCase as Orchestra;
+
+abstract class TestCase extends Orchestra
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        (require __DIR__.'/../database/migrations/create_pages_table.php')->up();
+    }
+
+    /**
+     * @param  Application  $app
+     * @return array<int,class-string>
+     */
+    protected function getPackageProviders($app): array
+    {
+        return [
+            AiPageBuilderServiceProvider::class,
+        ];
+    }
+
+    /**
+     * @param  Application  $app
+     */
+    protected function getEnvironmentSetUp($app): void
+    {
+        $app['config']->set('database.default', 'testing');
+        $app['config']->set('database.connections.testing', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]);
+
+        $app['config']->set('cache.default', 'array');
+
+        // The render route runs through the `web` middleware group, whose
+        // cookie encryption needs an app key under Testbench.
+        $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('a', 32)));
+    }
+}

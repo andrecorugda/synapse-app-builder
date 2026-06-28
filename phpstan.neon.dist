@@ -1,0 +1,23 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - src
+    excludePaths:
+        # The Filament UI (resource, field, plugin) leans on Filament's fluent
+        # builders that larastan can't fully type across FL4/5; exercised by tests.
+        - src/Filament/*
+        # The seeder deliberately pokes the OPTIONAL AI Gateway via string-literal
+        # class names (guarded by class_exists); larastan can't resolve them and
+        # shouldn't try — it's exercised by IntegrationSeederTest.
+        - src/Seeders/*
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # larastan can't resolve the package's namespaced Blade views
+        # (ai-page-builder::*) at analysis time; they exist at runtime.
+        - message: '#expects view-string\|null, string given#'
+          paths:
+              - src/Services/PageRenderer.php
+              - src/AiPageBuilderServiceProvider.php
