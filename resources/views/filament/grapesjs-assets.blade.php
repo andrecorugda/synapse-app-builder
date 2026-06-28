@@ -25,7 +25,7 @@
         }
         try {
             $pbStates = (config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class))::query()
-                ->orderBy('key')->get()->map(fn ($v) => $v->key)->values()->all();
+                ->orderBy('key')->get()->map(fn ($v) => ['key' => $v->key, 'type' => $v->type])->values()->all();
         } catch (\Throwable $e) {
             $pbStates = [];
         }
@@ -256,7 +256,7 @@
                         // no executable directives. Updated live by flows (setState).
                         if (! names.includes('x-text')) {
                             const stateOptions = [{ id: '', name: '— none —' }].concat(
-                                (window.__pbStates || []).map((k) => ({ id: '$store.app.' + k, name: k }))
+                                (window.__pbStates || []).map((s) => ({ id: '$store.app.' + s.key, name: s.key + ' · ' + (s.type || 'string') }))
                             );
                             cmp.addTrait({ type: 'select', name: 'x-text', label: 'Bind text → State', options: stateOptions });
                             cmp.addTrait({ type: 'select', name: 'x-show', label: 'Show when (State)', options: stateOptions });
