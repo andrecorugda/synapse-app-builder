@@ -30,16 +30,17 @@ class FlowContext
         $this->vars[$key] = $value;
     }
 
-    /** Resolve a dotted path like `input.brief`, `vars.ai`, or `globals.tax_rate`. */
+    /** Resolve a dotted path like `input.brief`, `vars.ai`, or `states.tax_rate`. */
     public function get(string $path): mixed
     {
         [$root, $rest] = array_pad(explode('.', $path, 2), 2, null);
         $base = match ($root) {
             'input' => $this->input,
             'vars' => $this->vars,
-            // Persistent, app-wide globals. Resolved lazily so reading the
-            // store (and thus hitting the DB) only happens when referenced.
-            'globals' => app(VariableStore::class)->all(),
+            // Persistent, app-wide States (a.k.a. globals — kept as an alias for
+            // backward compatibility). Resolved lazily so reading the store (and
+            // thus hitting the DB) only happens when referenced.
+            'states', 'globals' => app(VariableStore::class)->all(),
             default => null,
         };
 

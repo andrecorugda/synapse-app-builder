@@ -64,13 +64,18 @@ class FunctionNode implements FlowNodeHandler
 
             if ($fn !== null) {
                 if ($fn->runtime === 'expression') {
+                    // `states` is the primary name; `globals` is kept as an
+                    // identical alias for backward compatibility.
+                    $states = app(VariableStore::class)->all();
+
                     $result = $this->evaluator->evaluate(
                         (string) $fn->body,
                         [
                             'input' => $context->input,
                             'vars' => $context->vars,
                             'args' => $args,
-                            'globals' => app(VariableStore::class)->all(),
+                            'states' => $states,
+                            'globals' => $states,
                         ]
                     );
                 } elseif ($fn->runtime === 'callable') {
@@ -96,8 +101,8 @@ class FunctionNode implements FlowNodeHandler
      * already has full code/server access), so this is intentional power — but
      * it executes arbitrary PHP, so it's gated behind a config flag that a
      * cautious deployer can switch off. The body runs in an isolated static
-     * closure with $args / $input / $vars / $globals available and should
-     * `return` a value.
+     * closure with $args / $input / $vars / $states (and $globals, an identical
+     * alias) available and should `return` a value.
      *
      * @param  array<string,mixed>  $args
      */
@@ -108,11 +113,15 @@ class FunctionNode implements FlowNodeHandler
         }
 
         try {
-            $exec = static function (array $args, array $input, array $vars, array $globals) use ($body) {
+            $exec = static function (array $args, array $input, array $vars, array $states, array $globals) use ($body) {
                 return eval($body);
             };
 
-            return $exec($args, $context->input, $context->vars, app(VariableStore::class)->all());
+            // `$states` is the primary name; `$globals` is kept as an identical
+            // alias for backward compatibility.
+            $states = app(VariableStore::class)->all();
+
+            return $exec($args, $context->input, $context->vars, $states, $states);
         } catch (\Throwable $e) {
             Log::warning('[ai-page-builder] php function failed: '.$e->getMessage());
 

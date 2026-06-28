@@ -318,9 +318,9 @@
 
                     case 'set_variable':
                         return '<div class="ai-pb-node" data-node-type="set_variable">'
-                            + '<div class="ai-pb-node-title">&#128190; Set Variable</div>'
-                            + '<label class="ai-pb-node-label">Variable</label>'
-                            + '<select df-key>' + optionList(window.__pbVariables, 'key', '— select variable —') + '</select>'
+                            + '<div class="ai-pb-node-title">&#128190; Set State</div>'
+                            + '<label class="ai-pb-node-label">State</label>'
+                            + '<select df-key>' + optionList(window.__pbVariables, 'key', '— select state —') + '</select>'
                             + '<label class="ai-pb-node-label">Value</label>'
                             + '<input type="text" df-value placeholder="{{vars.result}}" />'
                             + '<label class="ai-pb-node-label">Type</label>'

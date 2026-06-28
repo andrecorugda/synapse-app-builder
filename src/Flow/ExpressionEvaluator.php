@@ -26,13 +26,14 @@ class ExpressionEvaluator
     {
         $this->el = new ExpressionLanguage;
 
-        // `global('key')` reads a persistent app-wide variable from the store,
-        // e.g. global('tax_rate'). Returns null for unknown keys.
-        $this->el->register(
-            'global',
-            fn (string $key): string => sprintf('app(\Andre\AiPageBuilder\Services\Data\VariableStore::class)->get(%s)', $key),
-            fn (array $arguments, string $key): mixed => app(VariableStore::class)->get($key),
-        );
+        // `state('key')` reads a persistent app-wide State from the store,
+        // e.g. state('tax_rate'). Returns null for unknown keys. `global('key')`
+        // is kept as an identical alias for backward compatibility.
+        $reader = fn (array $arguments, string $key): mixed => app(VariableStore::class)->get($key);
+        $compiler = fn (string $key): string => sprintf('app(\Andre\AiPageBuilder\Services\Data\VariableStore::class)->get(%s)', $key);
+
+        $this->el->register('state', $compiler, $reader);
+        $this->el->register('global', $compiler, $reader);
     }
 
     /**

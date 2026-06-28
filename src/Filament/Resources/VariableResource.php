@@ -28,7 +28,17 @@ class VariableResource extends Resource
 
     public static function getModelLabel(): string
     {
-        return 'variable';
+        return 'state';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'States';
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return 'States';
     }
 
     public static function getNavigationGroup(): ?string

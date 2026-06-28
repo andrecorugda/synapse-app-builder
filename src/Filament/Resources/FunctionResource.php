@@ -89,7 +89,7 @@ class FunctionResource extends Resource
                     ->label('Expression')
                     ->language('javascript')
                     ->height(120)
-                    ->helperText('Symfony ExpressionLanguage over input/vars/args, e.g. args["price"] * 1.2')
+                    ->helperText('Symfony ExpressionLanguage over input/vars/args, e.g. args["price"] * 1.2. Read app State with state(\'key\') or states[\'key\'].')
                     ->visible(fn (Get $get): bool => $get('runtime') === 'expression'),
 
                 Forms\Components\Select::make('body')
@@ -108,7 +108,7 @@ class FunctionResource extends Resource
                     ->label('PHP script')
                     ->language('php')
                     ->height(360)
-                    ->helperText('Runs as PHP. $args, $input and $vars are available; end with `return <value>;`. ⚠ Executes arbitrary code on your server — only for trusted authors (your own app).')
+                    ->helperText('Runs as PHP. $args, $input and $vars are available; end with `return <value>;`. Read State via $states[\'key\']; write with app(\Andre\AiPageBuilder\Services\Data\VariableStore::class)->set(\'key\', $value). ⚠ Executes arbitrary code on your server — only for trusted authors (your own app).')
                     ->visible(fn (Get $get): bool => $get('runtime') === 'php'),
             ])
             ->columns(1);

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Andre\AiPageBuilder\Flow\ExpressionEvaluator;
 use Andre\AiPageBuilder\Flow\FlowContext;
+use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
+use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 
 // ---------------------------------------------------------------------------
@@ -115,6 +117,61 @@ it('exposes globals via the global() expression function', function (): void {
     $result = app(ExpressionEvaluator::class)->evaluate("global('vat')");
 
     expect($result)->toBe(19);
+});
+
+// ---------------------------------------------------------------------------
+// States: the primary alias for globals (additive — globals stays working)
+// ---------------------------------------------------------------------------
+
+it('interpolates {{ states.x }} in a FlowContext template', function (): void {
+    app(VariableStore::class)->set('tax_rate', '0.2', 'string');
+
+    $ctx = new FlowContext;
+
+    expect($ctx->interpolate('rate is {{ states.tax_rate }}'))->toBe('rate is 0.2');
+});
+
+it('exposes states via the state() expression function', function (): void {
+    app(VariableStore::class)->set('vat', 19, 'number');
+
+    $result = app(ExpressionEvaluator::class)->evaluate("state('vat')");
+
+    expect($result)->toBe(19);
+});
+
+it('exposes $states[] in a php function body', function (): void {
+    config()->set('ai-page-builder.flow.allow_php_functions', true);
+    app(VariableStore::class)->set('multiplier', 3, 'number');
+
+    FlowFunction::create([
+        'slug' => 'use_state', 'name' => 'Use State', 'runtime' => 'php',
+        'body' => 'return (int) $args["n"] * (int) $states["multiplier"];',
+    ]);
+
+    $ctx = new FlowContext;
+    app(FunctionNode::class)->run(
+        ['type' => 'function', 'config' => ['function' => 'use_state', 'args' => ['n' => '4'], 'output' => 'out'], 'next' => []],
+        $ctx,
+    );
+
+    expect($ctx->vars['out'])->toBe(12);
+});
+
+it('exposes states[] in an expression function body', function (): void {
+    app(VariableStore::class)->set('rate', 2, 'number');
+
+    FlowFunction::create([
+        'slug' => 'expr_state', 'name' => 'Expr State', 'runtime' => 'expression',
+        'body' => 'states["rate"] * args["n"]',
+    ]);
+
+    $ctx = new FlowContext;
+    app(FunctionNode::class)->run(
+        ['type' => 'function', 'config' => ['function' => 'expr_state', 'args' => ['n' => 5], 'output' => 'out'], 'next' => []],
+        $ctx,
+    );
+
+    expect($ctx->vars['out'])->toBe(10);
 });
 
 // ---------------------------------------------------------------------------
