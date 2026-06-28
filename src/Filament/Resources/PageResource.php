@@ -82,6 +82,10 @@ class PageResource extends Resource
                             ->regex('/^[a-z0-9\-_]+$/')
                             ->unique(ignoreRecord: true)
                             ->helperText('Lowercase letters, numbers, dashes — the page URL.'),
+                        Forms\Components\Toggle::make('requires_auth')
+                            ->label('Requires login')
+                            ->helperText('Only logged-in app users can view this page (guests are sent to the login page).')
+                            ->columnSpan(2),
                     ]),
 
                 GrapesJsField::make('builder')
