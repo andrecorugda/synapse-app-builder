@@ -74,7 +74,15 @@
 
                         var ed = window.ace.edit(el);
                         ed.setTheme('ace/theme/monokai');
-                        ed.session.setMode('ace/mode/' + aceMode(config.language));
+                        // Ace's PHP mode is HTML-embedded: it only highlights PHP
+                        // inside <?php ?> tags. Function bodies are bare PHP (no open
+                        // tag), so use the mode's `inline` option to tokenize the whole
+                        // buffer as PHP — otherwise it renders as uncolored HTML text.
+                        if (config.language === 'php') {
+                            ed.session.setMode({ path: 'ace/mode/php', inline: true });
+                        } else {
+                            ed.session.setMode('ace/mode/' + aceMode(config.language));
+                        }
                         var initial = this.$wire.get(config.statePath);
                         ed.setValue(initial == null ? '' : String(initial), -1);
                         ed.setOptions({
