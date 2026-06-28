@@ -15,7 +15,7 @@ function fakeAi(): void
             return true;
         }
 
-        public function invoke(string $integration, array $args = []): string
+        public function invoke(string $integration, array $args = [], array $messages = [], array $opts = []): string
         {
             return 'AI['.$integration.']:'.($args['brief'] ?? '');
         }

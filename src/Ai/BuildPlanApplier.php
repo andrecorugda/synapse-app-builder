@@ -12,8 +12,6 @@ use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
-use Andre\AiPageBuilder\Support\Schema;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -25,8 +23,9 @@ use Throwable;
  * Guarantees:
  *  - Idempotent: collections/states/functions/flows/pages upsert by key/slug.
  *  - Safe HTML: page html is run through HtmlSanitizer (AI output is untrusted).
- *  - Atomic where feasible: the whole apply runs in a DB transaction; any
- *    failure rolls back and is reported per-item in the summary.
+ *  - Best-effort: each artifact is applied independently and per-item failures
+ *    are reported in the summary (no global transaction — collection DDL
+ *    auto-commits on MySQL; re-applying the plan completes anything missed).
  *  - dryRun: reports what WOULD be created without writing.
  */
 class BuildPlanApplier
@@ -63,22 +62,16 @@ class BuildPlanApplier
             return $summary;
         }
 
-        $connection = Schema::connection();
-
-        try {
-            DB::connection($connection)->transaction(function () use ($build, &$summary): void {
-                $this->applyCollections($build, $summary);
-                $this->applyStates($build, $summary);
-                $this->applyFunctions($build, $summary);
-                $this->applyFlows($build, $summary);
-                $this->applyPages($build, $summary);
-            });
-        } catch (Throwable $e) {
-            $summary['errors'][] = 'apply aborted (transaction rolled back): '.$e->getMessage();
-            $summary['created'] = [
-                'collections' => [], 'states' => [], 'functions' => [], 'flows' => [], 'pages' => [],
-            ];
-        }
+        // No global transaction: creating a collection runs DDL (Schema::create),
+        // which auto-commits on MySQL and ends any open transaction — so wrapping
+        // apply in one transaction breaks there. Instead apply is best-effort +
+        // idempotent: each artifact upserts independently, per-item failures are
+        // recorded, and re-applying the plan safely completes anything missed.
+        $this->applyCollections($build, $summary);
+        $this->applyStates($build, $summary);
+        $this->applyFunctions($build, $summary);
+        $this->applyFlows($build, $summary);
+        $this->applyPages($build, $summary);
 
         return $summary;
     }
@@ -153,8 +146,6 @@ class BuildPlanApplier
                 $summary['created']['collections'][] = $key;
             } catch (Throwable $e) {
                 $summary['errors'][] = "collections[{$i}] ('{$key}'): ".$e->getMessage();
-
-                throw $e;
             }
         }
     }
@@ -235,8 +226,6 @@ class BuildPlanApplier
                 $summary['created']['states'][] = $key;
             } catch (Throwable $e) {
                 $summary['errors'][] = "states[{$i}] ('{$key}'): ".$e->getMessage();
-
-                throw $e;
             }
         }
     }
@@ -267,8 +256,6 @@ class BuildPlanApplier
                 $summary['created']['functions'][] = $slug;
             } catch (Throwable $e) {
                 $summary['errors'][] = "functions[{$i}] ('{$slug}'): ".$e->getMessage();
-
-                throw $e;
             }
         }
     }
@@ -300,8 +287,6 @@ class BuildPlanApplier
                 $summary['created']['flows'][] = $slug;
             } catch (Throwable $e) {
                 $summary['errors'][] = "flows[{$i}] ('{$slug}'): ".$e->getMessage();
-
-                throw $e;
             }
         }
     }
@@ -335,8 +320,6 @@ class BuildPlanApplier
                 $summary['created']['pages'][] = $slug;
             } catch (Throwable $e) {
                 $summary['errors'][] = "pages[{$i}] ('{$slug}'): ".$e->getMessage();
-
-                throw $e;
             }
         }
     }

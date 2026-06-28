@@ -90,6 +90,10 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->app->singleton(SchemaSynchronizer::class);
         $this->app->singleton(RecordQuery::class);
         $this->app->singleton(VariableStore::class);
+
+        // AI app builder (gateway-backed; emits a validated Build Plan).
+        $this->app->singleton(\Andre\AiPageBuilder\Ai\AppBuilderService::class);
+        $this->app->singleton(\Andre\AiPageBuilder\Ai\BuildPlanApplier::class);
     }
 
     public function packageBooted(): void
@@ -208,6 +212,10 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
         try {
             $this->app->make(PageBuilderIntegrationSeeder::class)->run();
+            // Self-healing: re-seeds the bundled app_builder integration if it
+            // was deleted, so the AI app-builder feature can't be broken by
+            // removing it. Idempotent; never clobbers a tuned prompt version.
+            $this->app->make(\Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder::class)->run();
         } catch (\Throwable $e) {
             Log::warning('[ai-page-builder] gateway integration auto-seed skipped: '.$e->getMessage());
         }

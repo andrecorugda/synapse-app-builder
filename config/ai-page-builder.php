@@ -173,6 +173,9 @@ return [
         'default_model' => env('AI_PAGE_BUILDER_AI_MODEL', 'anthropic/claude-sonnet-4'),
         'auto_seed' => env('AI_PAGE_BUILDER_AI_AUTO_SEED', true),
         'gateway_slug' => 'page_builder',
+        // The bundled, self-healing integration for AI app generation (emits a
+        // validated Build Plan). Seeded into the gateway on boot; do not delete.
+        'app_builder_slug' => 'app_builder',
         'openrouter' => [
             'api_key' => env('AI_PAGE_BUILDER_OPENROUTER_KEY', env('OPENROUTER_API_KEY')),
             'base_url' => env('AI_PAGE_BUILDER_OPENROUTER_URL', 'https://openrouter.ai/api/v1'),
