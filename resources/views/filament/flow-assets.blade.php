@@ -141,6 +141,32 @@
         .ai-pb-node[data-node-type="http_request"] .ai-pb-node-title { color: #0284c7; }
         .ai-pb-node[data-node-type="condition"] .ai-pb-node-title { color: #d97706; }
         .ai-pb-node[data-node-type="result"] .ai-pb-node-title { color: #db2777; }
+        /* ── Neutralise Drawflow's default node chrome so only our card shows ──
+           (otherwise the library's box draws a second border around the card and
+           clamps it to ~160px, clipping the content). */
+        .ai-pb-flow-wrap .drawflow .drawflow-node {
+            background: transparent;
+            border: 0;
+            padding: 0;
+            box-shadow: none;
+            width: auto;
+            min-width: 230px;
+            border-radius: 0.5rem;
+        }
+        .ai-pb-flow-wrap .drawflow .drawflow-node.selected {
+            box-shadow: 0 0 0 2px #6366f1;
+        }
+        .ai-pb-flow-wrap .drawflow .drawflow-node .ai-pb-node {
+            width: 100%;
+            min-width: 230px;
+            box-sizing: border-box;
+        }
+        /* keep the connection ports visible against the white card */
+        .ai-pb-flow-wrap .drawflow .drawflow-node .input,
+        .ai-pb-flow-wrap .drawflow .drawflow-node .output {
+            background: #fff;
+            border: 2px solid #6366f1;
+        }
     </style>
     {{-- The script below is wrapped so Blade does not parse literal braces in JS. --}}
     @verbatim
@@ -352,12 +378,14 @@
 
                 addNode(type) {
                     if (! this.editor) { return; }
-                    const inputs = nodeInputCount(type);
-                    const outputs = nodeOutputCount(type);
-                    // Position offset from current scroll so nodes don't stack at 0,0
-                    const x = 150 + Math.random() * 200;
-                    const y = 100 + Math.random() * 200;
-                    this.editor.addNode(type, inputs, outputs, x, y, type, {}, nodeHtml(type), false);
+                    // Cascade new nodes in a grid so they never pile on top of each
+                    // other (3 per row, generous spacing for the tallest cards).
+                    this._n = (this._n || 0) + 1;
+                    const col = this._n % 3;
+                    const row = Math.floor(this._n / 3);
+                    const x = 120 + col * 300;
+                    const y = 60 + row * 300;
+                    this.editor.addNode(type, nodeInputCount(type), nodeOutputCount(type), x, y, type, {}, nodeHtml(type), false);
                 },
 
                 sync() {
