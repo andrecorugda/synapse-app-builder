@@ -14,6 +14,8 @@ use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbSetting;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Variable;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Session\Middleware\StartSession;
 
 return [
 
@@ -81,7 +83,15 @@ return [
     'data' => [
         'table_prefix' => env('AI_PAGE_BUILDER_DATA_PREFIX', 'pb_'),
         'api_prefix' => env('AI_PAGE_BUILDER_DATA_API_PREFIX', 'api/pb'),
-        'api_middleware' => ['api'],
+        // Cookie + session are prepended so the built app's logged-in end-user
+        // (the `pb` guard) is recognised on same-origin XHR — that's what lets
+        // permission + row-level rules apply. No CSRF is added, so stateless
+        // writes keep working; unrestricted collections stay fully open.
+        'api_middleware' => [
+            EncryptCookies::class,
+            StartSession::class,
+            'api',
+        ],
         // Drop real columns when their field definition is removed. Off by
         // default so a mis-edit can't destroy data; turn on for true sync.
         'allow_destructive_sync' => (bool) env('AI_PAGE_BUILDER_DATA_DESTRUCTIVE', false),

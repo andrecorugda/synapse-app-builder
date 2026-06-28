@@ -31,6 +31,7 @@ use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
+use Andre\AiPageBuilder\Services\AccessControl;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
@@ -108,6 +109,9 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
         // Builder configuration (home page, email/SMTP transport, …).
         $this->app->singleton(Settings::class);
+
+        // End-user permission engine (built-app auth).
+        $this->app->singleton(AccessControl::class);
 
         // AI app builder (gateway-backed; emits a validated Build Plan).
         $this->app->singleton(AppBuilderService::class);
