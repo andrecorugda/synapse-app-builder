@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Flow\ExpressionEvaluator;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Models\FlowFunction;
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -69,6 +70,7 @@ class FunctionNode implements FlowNodeHandler
                             'input' => $context->input,
                             'vars' => $context->vars,
                             'args' => $args,
+                            'globals' => app(VariableStore::class)->all(),
                         ]
                     );
                 } elseif ($fn->runtime === 'callable') {
@@ -94,7 +96,8 @@ class FunctionNode implements FlowNodeHandler
      * already has full code/server access), so this is intentional power — but
      * it executes arbitrary PHP, so it's gated behind a config flag that a
      * cautious deployer can switch off. The body runs in an isolated static
-     * closure with $args / $input / $vars available and should `return` a value.
+     * closure with $args / $input / $vars / $globals available and should
+     * `return` a value.
      *
      * @param  array<string,mixed>  $args
      */
@@ -105,11 +108,11 @@ class FunctionNode implements FlowNodeHandler
         }
 
         try {
-            $exec = static function (array $args, array $input, array $vars) use ($body) {
+            $exec = static function (array $args, array $input, array $vars, array $globals) use ($body) {
                 return eval($body);
             };
 
-            return $exec($args, $context->input, $context->vars);
+            return $exec($args, $context->input, $context->vars, app(VariableStore::class)->all());
         } catch (\Throwable $e) {
             Log::warning('[ai-page-builder] php function failed: '.$e->getMessage());
 

@@ -18,8 +18,12 @@ use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
 use Andre\AiPageBuilder\Flow\Nodes\RecordNode;
 use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
+use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
+use Andre\AiPageBuilder\Services\Data\RecordQuery;
+use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\MediaLibrary;
 use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
@@ -46,6 +50,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_functions_table',
                 'create_page_builder_models_table',
                 'create_page_builder_fields_table',
+                'create_page_builder_variables_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class);
@@ -69,6 +74,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             $registry->register(new ResultNode);
             $registry->register($app->make(FunctionNode::class));
             $registry->register($app->make(RecordNode::class));
+            $registry->register($app->make(SetVariableNode::class));
 
             return $registry;
         });
@@ -76,8 +82,9 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->app->singleton(FlowManager::class);
 
         // Data layer (user-defined models / collections).
-        $this->app->singleton(\Andre\AiPageBuilder\Services\Data\SchemaSynchronizer::class);
-        $this->app->singleton(\Andre\AiPageBuilder\Services\Data\RecordQuery::class);
+        $this->app->singleton(SchemaSynchronizer::class);
+        $this->app->singleton(RecordQuery::class);
+        $this->app->singleton(VariableStore::class);
     }
 
     public function packageBooted(): void

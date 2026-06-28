@@ -1,0 +1,93 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Andre\AiPageBuilder\Models;
+
+use Andre\AiPageBuilder\Support\Schema;
+use Illuminate\Database\Eloquent\Model;
+
+/**
+ * A persistent, app-wide key→value pair (a "global"). Distinct from a flow
+ * run's ephemeral FlowContext.vars: these survive across runs and are readable
+ * /writable from flows, functions, and the Filament admin.
+ *
+ * The raw `value` is always stored as a string; `type` records how to cast it
+ * back when read (see typedValue / castForStorage).
+ *
+ * @property int $id
+ * @property string $key
+ * @property string $type 'string'|'number'|'boolean'|'json'
+ * @property string|null $value
+ * @property string|null $description
+ * @property bool $is_protected
+ */
+class Variable extends Model
+{
+    protected $guarded = [];
+
+    protected $casts = [
+        'is_protected' => 'boolean',
+    ];
+
+    public function getConnectionName(): ?string
+    {
+        return Schema::connection();
+    }
+
+    public function getTable(): string
+    {
+        return Schema::table('variables');
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'key';
+    }
+
+    /**
+     * The stored string `value` cast back to its declared `type`.
+     */
+    public function typedValue(): mixed
+    {
+        $raw = $this->value;
+
+        if ($raw === null) {
+            return null;
+        }
+
+        return match ($this->type) {
+            'number' => $this->castNumber($raw),
+            'boolean' => filter_var($raw, FILTER_VALIDATE_BOOLEAN),
+            'json' => json_decode($raw, true),
+            default => $raw,
+        };
+    }
+
+    /**
+     * Serialize a value for storage in the string `value` column per `type`.
+     */
+    public static function castForStorage(mixed $value, string $type): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($type === 'json') {
+            return (string) json_encode($value);
+        }
+
+        if ($type === 'boolean') {
+            return $value ? '1' : '0';
+        }
+
+        return (string) $value;
+    }
+
+    private function castNumber(string $raw): int|float
+    {
+        return str_contains($raw, '.') || str_contains($raw, 'e') || str_contains($raw, 'E')
+            ? (float) $raw
+            : (int) $raw;
+    }
+}

@@ -158,6 +158,7 @@
         .ai-pb-node[data-node-type="http_request"] .ai-pb-node-title { color: #38bdf8; }
         .ai-pb-node[data-node-type="function"] .ai-pb-node-title { color: #f59e0b; }
         .ai-pb-node[data-node-type="record"] .ai-pb-node-title { color: #2dd4bf; }
+        .ai-pb-node[data-node-type="set_variable"] .ai-pb-node-title { color: #e879f9; }
         .ai-pb-node[data-node-type="condition"] .ai-pb-node-title { color: #fbbf24; }
         .ai-pb-node[data-node-type="result"] .ai-pb-node-title { color: #f472b6; }
         /* ── Neutralise Drawflow's default node chrome so only our card shows ── */
@@ -307,6 +308,24 @@
                             + '<input type="text" df-output placeholder="e.g. records" />'
                             + '</div>';
 
+                    case 'set_variable':
+                        return '<div class="ai-pb-node" data-node-type="set_variable">'
+                            + '<div class="ai-pb-node-title">&#128190; Set Variable</div>'
+                            + '<label class="ai-pb-node-label">Variable key</label>'
+                            + '<input type="text" df-key placeholder="e.g. last_run_at" />'
+                            + '<label class="ai-pb-node-label">Value</label>'
+                            + '<input type="text" df-value placeholder="{{vars.result}}" />'
+                            + '<label class="ai-pb-node-label">Type</label>'
+                            + '<select df-type>'
+                            + '<option value="string">string</option>'
+                            + '<option value="number">number</option>'
+                            + '<option value="boolean">boolean</option>'
+                            + '<option value="json">json</option>'
+                            + '</select>'
+                            + '<label class="ai-pb-node-label">Output variable (optional)</label>'
+                            + '<input type="text" df-output placeholder="e.g. saved" />'
+                            + '</div>';
+
                     case 'condition':
                         return '<div class="ai-pb-node" data-node-type="condition">'
                             + '<div class="ai-pb-node-title">&#10067; Condition</div>'
@@ -420,6 +439,14 @@
                                 search: data.search || '',
                                 sort: data.sort || '',
                                 output: data.output || 'records',
+                            };
+                            break;
+                        case 'set_variable':
+                            config = {
+                                key: data.key || '',
+                                value: data.value || '',
+                                type: data.type || 'string',
+                                output: data.output || '',
                             };
                             break;
                         case 'condition':
