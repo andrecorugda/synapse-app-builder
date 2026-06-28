@@ -10,8 +10,14 @@
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
     {{-- The aiPbCode Alpine component + Ace are loaded in the panel layout
          (codeeditor-assets.blade via render hook). This view only mounts an editor. --}}
+    {{-- Distinct wire:key per (statePath, language). The expression / callable /
+         php variants of a Function body all share the SAME statePath, so without
+         this Livewire's morph reuses one editor's DOM node (kept alive by
+         wire:ignore) for another runtime — the new editor inherits the stale
+         language/theme and never re-styles. The key forces a clean replace. --}}
     <div
         wire:ignore
+        wire:key="apb-code-{{ $statePath }}-{{ $language }}"
         class="ai-pb-code"
         x-data="aiPbCode({
             statePath: @js($statePath),
