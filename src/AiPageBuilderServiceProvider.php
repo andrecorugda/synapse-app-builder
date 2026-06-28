@@ -7,6 +7,7 @@ namespace Andre\AiPageBuilder;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
+use Andre\AiPageBuilder\Flow\FlowDispatcher;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
@@ -20,6 +21,8 @@ use Andre\AiPageBuilder\Flow\Nodes\RecordNode;
 use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
 use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
+use Andre\AiPageBuilder\Flow\RecordObserver;
+use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
@@ -45,6 +48,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_pages_table',
                 'create_page_builder_media_table',
                 'add_custom_css_to_pages_table',
+                'add_custom_js_to_pages_table',
                 'create_page_builder_flows_table',
                 'create_page_builder_flow_runs_table',
                 'create_page_builder_functions_table',
@@ -80,6 +84,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         });
         $this->app->singleton(FlowRunner::class);
         $this->app->singleton(FlowManager::class);
+        $this->app->singleton(FlowDispatcher::class);
 
         // Data layer (user-defined models / collections).
         $this->app->singleton(SchemaSynchronizer::class);
@@ -95,6 +100,23 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerDataApiRoutes();
         $this->registerFilamentAssets();
         $this->autoSeedGatewayIntegration();
+        $this->registerRecordObserver();
+    }
+
+    /**
+     * Wire collection-event flow triggers: observe the dynamic Record model so
+     * every collection write fans out to matching `collection`-triggered flows
+     * via FlowDispatcher. All record writes go through Record::for(...), so a
+     * single observer on the base class covers every collection.
+     *
+     * Registered here in packageBooted (which runs once per app boot) rather
+     * than behind a process-level static guard: Eloquent ties observers to the
+     * model's event dispatcher, and a rebuilt application (e.g. between tests)
+     * gets a fresh dispatcher — so the observer must re-attach on each boot.
+     */
+    private function registerRecordObserver(): void
+    {
+        Record::observe(RecordObserver::class);
     }
 
     /**

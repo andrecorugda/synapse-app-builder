@@ -7,10 +7,12 @@ namespace Andre\AiPageBuilder\Filament\Resources;
 use Andre\AiPageBuilder\Filament\Forms\Components\FlowCanvasField;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource\Pages;
 use Andre\AiPageBuilder\Models\Flow;
+use Andre\AiPageBuilder\Models\PbModel;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -67,12 +69,14 @@ class FlowResource extends Resource
 
                     Forms\Components\Select::make('trigger_type')
                         ->required()
+                        ->live()
                         ->options([
                             'manual' => 'Manual',
                             'component' => 'Component',
                             'form' => 'Form',
                             'cron' => 'Cron',
                             'api' => 'API',
+                            'collection' => 'Collection event',
                         ])
                         ->default('manual')
                         ->columnSpan(1),
@@ -95,6 +99,49 @@ class FlowResource extends Resource
                             ->default(false)
                             ->helperText('Allow unauthenticated trigger via the public API endpoint.'),
                     ])->columnSpan(1),
+
+                    // Collection-event trigger config: fire this flow when a
+                    // record in a collection is created/updated/deleted.
+                    Schemas\Components\Group::make([
+                        Forms\Components\Select::make('trigger_config.collection')
+                            ->label('Collection')
+                            ->options(fn (): array => PbModel::query()->orderBy('name')->pluck('name', 'key')->all())
+                            ->searchable()
+                            ->required(fn (Get $get): bool => $get('trigger_type') === 'collection')
+                            ->helperText('Which data model\'s records this flow listens to.'),
+
+                        Forms\Components\CheckboxList::make('trigger_config.events')
+                            ->label('Events')
+                            ->options([
+                                'created' => 'Created',
+                                'updated' => 'Updated',
+                                'deleted' => 'Deleted',
+                            ])
+                            ->columns(3)
+                            ->required(fn (Get $get): bool => $get('trigger_type') === 'collection'),
+
+                        Forms\Components\Repeater::make('trigger_config.criteria')
+                            ->label('Criteria (optional)')
+                            ->helperText('All rows must match for the flow to fire. Leave empty to fire on every event.')
+                            ->schema([
+                                Forms\Components\TextInput::make('field')
+                                    ->required(),
+                                Forms\Components\Select::make('op')
+                                    ->options([
+                                        'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
+                                        'lt' => '<', 'lte' => '<=', 'like' => 'contains',
+                                        'in' => 'in', 'nin' => 'not in', 'null' => 'is null', 'nnull' => 'is not null',
+                                    ])
+                                    ->default('eq')
+                                    ->required(),
+                                Forms\Components\TextInput::make('value'),
+                            ])
+                            ->columns(3)
+                            ->addActionLabel('Add criterion')
+                            ->default([]),
+                    ])
+                        ->columnSpanFull()
+                        ->visible(fn (Get $get): bool => $get('trigger_type') === 'collection'),
                 ]),
 
                 FlowCanvasField::make('definition')
@@ -125,6 +172,7 @@ class FlowResource extends Resource
                         'form' => 'success',
                         'cron' => 'warning',
                         'api' => 'primary',
+                        'collection' => 'danger',
                         default => 'gray',
                     }),
 
@@ -148,6 +196,7 @@ class FlowResource extends Resource
                         'form' => 'Form',
                         'cron' => 'Cron',
                         'api' => 'API',
+                        'collection' => 'Collection event',
                     ]),
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Active'),
@@ -161,6 +210,66 @@ class FlowResource extends Resource
                     Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Convert the criteria Repeater's row list (`[{field, op, value}]`) into the
+     * `{ field: { op: value } }` shape FlowDispatcher matches against. No-op for
+     * non-collection triggers.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array<string,mixed>
+     */
+    public static function normalizeTriggerConfig(array $data): array
+    {
+        if (($data['trigger_type'] ?? null) !== 'collection') {
+            return $data;
+        }
+
+        $rows = $data['trigger_config']['criteria'] ?? [];
+        $criteria = [];
+
+        foreach ((array) $rows as $row) {
+            $field = $row['field'] ?? null;
+            $op = $row['op'] ?? 'eq';
+
+            if ($field === null || $field === '') {
+                continue;
+            }
+
+            $criteria[$field][$op] = $row['value'] ?? null;
+        }
+
+        $data['trigger_config']['criteria'] = $criteria;
+
+        return $data;
+    }
+
+    /**
+     * Inverse of normalizeTriggerConfig: expand stored `{ field: { op: value } }`
+     * criteria back into Repeater rows for editing.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array<string,mixed>
+     */
+    public static function denormalizeTriggerConfig(array $data): array
+    {
+        if (($data['trigger_type'] ?? null) !== 'collection') {
+            return $data;
+        }
+
+        $criteria = $data['trigger_config']['criteria'] ?? [];
+        $rows = [];
+
+        foreach ((array) $criteria as $field => $conditions) {
+            foreach ((array) $conditions as $op => $value) {
+                $rows[] = ['field' => $field, 'op' => $op, 'value' => $value];
+            }
+        }
+
+        $data['trigger_config']['criteria'] = $rows;
+
+        return $data;
     }
 
     public static function getPages(): array
