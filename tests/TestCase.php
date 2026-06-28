@@ -19,6 +19,7 @@ abstract class TestCase extends Orchestra
 
         (require __DIR__.'/../database/migrations/create_pages_table.php')->up();
         (require __DIR__.'/../database/migrations/create_page_builder_media_table.php')->up();
+        (require __DIR__.'/../database/migrations/add_custom_css_to_pages_table.php')->up();
     }
 
     /**

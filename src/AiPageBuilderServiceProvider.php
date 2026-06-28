@@ -23,7 +23,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->name('ai-page-builder')
             ->hasConfigFile('ai-page-builder')
             ->hasViews('ai-page-builder')
-            ->hasMigrations(['create_pages_table', 'create_page_builder_media_table'])
+            ->hasMigrations(['create_pages_table', 'create_page_builder_media_table', 'add_custom_css_to_pages_table'])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class);
     }
 

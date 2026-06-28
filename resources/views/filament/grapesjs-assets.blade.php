@@ -62,6 +62,15 @@
                         storageManager: false,
                         blockManager: { appendTo: this.$refs.blocks },
                         assetManager,
+                        // Responsive breakpoints — the Device dropdown switches these
+                        // and per-device edits export proper @media rules in getCss().
+                        deviceManager: {
+                            devices: [
+                                { name: 'Desktop', width: '' },
+                                { name: 'Tablet', width: '768px', widthMedia: '992px' },
+                                { name: 'Mobile', width: '375px', widthMedia: '576px' },
+                            ],
+                        },
                         // A pragmatic style manager. The Background sector's
                         // background-image is a `file` property → clicking it opens
                         // the media picker, so any selected component can take a CSS

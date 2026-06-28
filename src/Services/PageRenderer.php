@@ -22,6 +22,7 @@ class PageRenderer
             'page' => $page,
             'html' => (string) $page->html,
             'css' => (string) $page->css,
+            'customCss' => (string) ($page->custom_css ?? ''),
             'meta' => is_array($page->meta) ? $page->meta : [],
             'title' => $page->title,
         ]);

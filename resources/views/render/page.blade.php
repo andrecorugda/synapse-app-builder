@@ -21,6 +21,8 @@
         *, *::before, *::after { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
         {!! $css !!}
+        {{-- Per-page custom CSS overrides (authored in the builder's Advanced section). --}}
+        {!! $customCss !!}
     </style>
 </head>
 <body>

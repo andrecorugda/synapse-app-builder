@@ -91,6 +91,17 @@ class PageResource extends Resource
                         Forms\Components\Toggle::make('meta.noindex')->label('Discourage search engines (noindex)'),
                     ])
                     ->columns(2),
+
+                Schemas\Components\Section::make('Advanced')
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Textarea::make('custom_css')
+                            ->label('Custom CSS')
+                            ->rows(8)
+                            ->helperText('Raw CSS appended to this page. Target your element classes, e.g. .pb-hero__title { letter-spacing: -0.02em; }')
+                            ->extraInputAttributes(['style' => 'font-family: ui-monospace, monospace;'])
+                            ->columnSpanFull(),
+                    ]),
             ])
             ->columns(1);
     }
@@ -114,6 +125,16 @@ class PageResource extends Resource
             ])
             ->recordActions([
                 Actions\EditAction::make(),
+                Actions\ReplicateAction::make()
+                    ->label('Duplicate')
+                    ->icon('heroicon-m-document-duplicate')
+                    ->color('gray')
+                    ->beforeReplicaSaved(function (Page $replica): void {
+                        $replica->title = $replica->title.' (Copy)';
+                        $replica->slug = Str::slug($replica->title).'-'.Str::lower(Str::random(5));
+                        $replica->status = PageStatus::Draft;
+                        $replica->published_at = null;
+                    }),
                 Actions\Action::make('view_live')
                     ->label('View live')
                     ->icon('heroicon-m-arrow-top-right-on-square')

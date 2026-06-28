@@ -20,6 +20,20 @@ it('renders a published page at its slug', function (): void {
         ->assertSee('Our launch page', false);
 });
 
+it('appends per-page custom CSS to the rendered output', function (): void {
+    Page::factory()->published()->create([
+        'slug' => 'styled',
+        'html' => '<section class="pb-hero">Hi</section>',
+        'css' => '.pb-hero{padding:1rem}',
+        'custom_css' => '.pb-hero{letter-spacing:-0.02em}',
+    ]);
+
+    $this->get('/p/styled')
+        ->assertOk()
+        ->assertSee('.pb-hero{padding:1rem}', false)
+        ->assertSee('letter-spacing:-0.02em', false);
+});
+
 it('404s for a draft page', function (): void {
     $page = Page::factory()->create(['slug' => 'secret']); // draft by default
 
