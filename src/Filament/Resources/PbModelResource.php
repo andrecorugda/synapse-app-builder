@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
-use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\Pages;
+use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\FieldsRelationManager;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -49,6 +48,10 @@ class PbModelResource extends Resource
         return 'key';
     }
 
+    /**
+     * Collection basics only. Fields are managed in a compact table on the edit
+     * page (FieldsRelationManager) so they don't expand into a tall form.
+     */
     public static function form(Schema $schema): Schema
     {
         return $schema
@@ -100,76 +103,6 @@ class PbModelResource extends Resource
                                 ->default(false),
                         ]),
                     ]),
-
-                Schemas\Components\Section::make('Fields')
-                    ->schema([
-                        Forms\Components\Repeater::make('fields')
-                            ->relationship()
-                            ->orderColumn('sort')
-                            ->itemLabel(fn (array $state): ?string => $state['label'] ?? $state['key'] ?? null)
-                            ->collapsible()
-                            ->cloneable()
-                            ->defaultItems(0)
-                            ->addActionLabel('Add field')
-                            ->schema([
-                                Schemas\Components\Grid::make(3)->schema([
-                                    Forms\Components\TextInput::make('key')
-                                        ->required()
-                                        ->maxLength(120)
-                                        ->regex('/^[a-z][a-z0-9_]*$/')
-                                        ->helperText('Column name.'),
-
-                                    Forms\Components\TextInput::make('label')
-                                        ->required()
-                                        ->maxLength(160),
-
-                                    Forms\Components\Select::make('type')
-                                        ->required()
-                                        ->options(collect(FieldType::cases())->mapWithKeys(fn (FieldType $t): array => [$t->value => $t->label()])->all())
-                                        ->default(FieldType::String->value)
-                                        ->live(),
-                                ]),
-
-                                Schemas\Components\Grid::make(2)->schema([
-                                    Forms\Components\Toggle::make('options.required')
-                                        ->label('Required')
-                                        ->default(false),
-
-                                    Forms\Components\Toggle::make('options.unique')
-                                        ->label('Unique')
-                                        ->default(false),
-
-                                    Forms\Components\TextInput::make('options.default')
-                                        ->label('Default value')
-                                        ->maxLength(255)
-                                        ->nullable(),
-
-                                    Forms\Components\TextInput::make('options.length')
-                                        ->label('Max length')
-                                        ->integer()
-                                        ->minValue(1)
-                                        ->maxValue(65535)
-                                        ->nullable()
-                                        ->visible(fn (Get $get): bool => in_array($get('type'), [
-                                            FieldType::String->value,
-                                            FieldType::Select->value,
-                                        ], true)),
-                                ]),
-
-                                Forms\Components\TagsInput::make('options.choices')
-                                    ->label('Choices')
-                                    ->helperText('Allowed values for this select field.')
-                                    ->visible(fn (Get $get): bool => $get('type') === FieldType::Select->value),
-
-                                Forms\Components\Select::make('options.relation_model')
-                                    ->label('Related collection')
-                                    ->options(fn (): array => static::relationModelOptions())
-                                    ->searchable()
-                                    ->helperText('The collection this field belongs to (stored as {key}_id).')
-                                    ->visible(fn (Get $get): bool => $get('type') === FieldType::Relation->value),
-                            ])
-                            ->columnSpanFull(),
-                    ]),
             ])
             ->columns(1);
     }
@@ -178,8 +111,6 @@ class PbModelResource extends Resource
     {
         return $table
             ->defaultSort('updated_at', 'desc')
-            // Compact, sortable list; clicking a row opens the edit drawer.
-            ->recordAction(Actions\EditAction::class)
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
@@ -210,11 +141,7 @@ class PbModelResource extends Resource
                     ->sortable(),
             ])
             ->recordActions([
-                // Edit a collection's fields in a side drawer; sync the real
-                // table once the changes are saved.
-                Actions\EditAction::make()
-                    ->slideOver()
-                    ->after(fn (PbModel $record): mixed => app(SchemaSynchronizer::class)->sync($record)),
+                Actions\EditAction::make(),
                 Actions\DeleteAction::make()
                     ->before(fn (PbModel $record): mixed => app(SchemaSynchronizer::class)->dropTable($record)),
             ])
@@ -236,7 +163,7 @@ class PbModelResource extends Resource
      *
      * @return array<string,string>
      */
-    protected static function relationModelOptions(): array
+    public static function relationModelOptions(): array
     {
         /** @var class-string<PbModel> $modelClass */
         $modelClass = config('ai-page-builder.models.model', PbModel::class);
@@ -247,12 +174,19 @@ class PbModelResource extends Resource
             ->all();
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            FieldsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
-        // Single-page resource: create + edit happen in side-drawer actions on
-        // the list, so there are no separate create/edit routes.
         return [
             'index' => Pages\ListPbModels::route('/'),
+            'create' => Pages\CreatePbModel::route('/create'),
+            'edit' => Pages\EditPbModel::route('/{record}/edit'),
         ];
     }
 }
