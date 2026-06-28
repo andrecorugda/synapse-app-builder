@@ -4,8 +4,19 @@
      (unlike CodeMirror 5, whose line-measurement crashed on every keystroke
      here). Linting is server-side (`php -l`) shown via Ace gutter annotations. --}}
 @once
-    @php $aceBase = rtrim((string) config('ai-page-builder.editor.ace_base', 'https://cdn.jsdelivr.net/npm/ace-builds@1.36.5/src-min-noconflict'), '/'); @endphp
-    <script>window.__pbAceBase = @js($aceBase);</script>
+    @php
+        $aceBase = rtrim((string) config('ai-page-builder.editor.ace_base', 'https://cdn.jsdelivr.net/npm/ace-builds@1.36.5/src-min-noconflict'), '/');
+        try {
+            $pbStates = (config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class))::query()
+                ->orderBy('key')->get()->map(fn ($v) => ['key' => $v->key, 'type' => $v->type])->values()->all();
+        } catch (\Throwable $e) {
+            $pbStates = [];
+        }
+    @endphp
+    <script>
+        window.__pbAceBase = @js($aceBase);
+        window.__pbStates = @js($pbStates);
+    </script>
     <style>
         .ai-pb-code .ace_editor { border-radius: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     </style>
@@ -102,6 +113,25 @@
                             if (config.lintUrl) { self.lintDebounced(); }
                         });
                         if (config.lintUrl) { this.lintDebounced(); }
+                    },
+
+                    /**
+                     * Insert a State reference at the cursor, in the syntax of the
+                     * field's runtime: php → $states['key'], expression
+                     * (javascript) → state('key'), else states['key'].
+                     */
+                    insertState(key) {
+                        if (! key || ! this.editor) { return; }
+                        var ref;
+                        if (config.language === 'php') {
+                            ref = "$states['" + key + "']";
+                        } else if (config.language === 'javascript') {
+                            ref = "state('" + key + "')";
+                        } else {
+                            ref = "states['" + key + "']";
+                        }
+                        this.editor.insert(ref);
+                        this.editor.focus();
                     },
 
                     lintDebounced() {
