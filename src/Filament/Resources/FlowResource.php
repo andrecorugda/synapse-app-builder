@@ -56,19 +56,39 @@ class FlowResource extends Resource
                 Schemas\Components\Section::make('Flow')
                     ->compact()
                     ->schema([
-                        Schemas\Components\Grid::make(3)->schema([
+                        // Row 1 — slug · name · active · public
+                        Schemas\Components\Grid::make(4)->schema([
                             Forms\Components\TextInput::make('slug')
                                 ->required()
                                 ->maxLength(200)
                                 ->regex('/^[a-z0-9\-_]+$/')
                                 ->unique(ignoreRecord: true)
-                                ->helperText('Lowercase letters, numbers, dashes — used as the route key.')
-                                ->columnSpan(1),
+                                ->helperText('Lowercase, numbers, dashes — the route key.'),
 
                             Forms\Components\TextInput::make('name')
                                 ->required()
-                                ->maxLength(200)
-                                ->columnSpan(2),
+                                ->maxLength(200),
+
+                            Forms\Components\Toggle::make('is_active')
+                                ->label('Active')
+                                ->inline(false)
+                                ->default(false),
+
+                            Forms\Components\Toggle::make('is_public')
+                                ->label('Public')
+                                ->inline(false)
+                                ->default(false)
+                                ->helperText('Allow unauthenticated public trigger.'),
+                        ]),
+
+                        // Row 2 — rate limit · trigger type · (collection when applicable)
+                        Schemas\Components\Grid::make(3)->schema([
+                            Forms\Components\TextInput::make('rate_limit_per_minute')
+                                ->label('Rate limit / min')
+                                ->numeric()
+                                ->nullable()
+                                ->minValue(0)
+                                ->placeholder('Global default'),
 
                             Forms\Components\Select::make('trigger_type')
                                 ->required()
@@ -81,71 +101,51 @@ class FlowResource extends Resource
                                     'api' => 'API',
                                     'collection' => 'Collection event',
                                 ])
-                                ->default('manual')
-                                ->columnSpan(1),
+                                ->default('manual'),
 
-                            Forms\Components\TextInput::make('rate_limit_per_minute')
-                                ->numeric()
-                                ->nullable()
-                                ->minValue(0)
-                                ->placeholder('Inherit global default')
-                                ->helperText('Leave blank to use the global default rate limit.')
-                                ->columnSpan(1),
-
-                            Schemas\Components\Grid::make(2)->schema([
-                                Forms\Components\Toggle::make('is_active')
-                                    ->label('Active')
-                                    ->default(false),
-
-                                Forms\Components\Toggle::make('is_public')
-                                    ->label('Public')
-                                    ->default(false)
-                                    ->helperText('Allow unauthenticated trigger via the public API endpoint.'),
-                            ])->columnSpan(1),
-
-                            // Collection-event trigger config: fire this flow when a
-                            // record in a collection is created/updated/deleted.
-                            Schemas\Components\Group::make([
-                                Forms\Components\Select::make('trigger_config.collection')
-                                    ->label('Collection')
-                                    ->options(fn (): array => PbModel::query()->orderBy('name')->pluck('name', 'key')->all())
-                                    ->searchable()
-                                    ->required(fn (Get $get): bool => $get('trigger_type') === 'collection')
-                                    ->helperText('Which data model\'s records this flow listens to.'),
-
-                                Forms\Components\CheckboxList::make('trigger_config.events')
-                                    ->label('Events')
-                                    ->options([
-                                        'created' => 'Created',
-                                        'updated' => 'Updated',
-                                        'deleted' => 'Deleted',
-                                    ])
-                                    ->columns(3)
-                                    ->required(fn (Get $get): bool => $get('trigger_type') === 'collection'),
-
-                                Forms\Components\Repeater::make('trigger_config.criteria')
-                                    ->label('Criteria (optional)')
-                                    ->helperText('All rows must match for the flow to fire. Leave empty to fire on every event.')
-                                    ->schema([
-                                        Forms\Components\TextInput::make('field')
-                                            ->required(),
-                                        Forms\Components\Select::make('op')
-                                            ->options([
-                                                'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
-                                                'lt' => '<', 'lte' => '<=', 'like' => 'contains',
-                                                'in' => 'in', 'nin' => 'not in', 'null' => 'is null', 'nnull' => 'is not null',
-                                            ])
-                                            ->default('eq')
-                                            ->required(),
-                                        Forms\Components\TextInput::make('value'),
-                                    ])
-                                    ->columns(3)
-                                    ->addActionLabel('Add criterion')
-                                    ->default([]),
-                            ])
-                                ->columnSpanFull()
+                            Forms\Components\Select::make('trigger_config.collection')
+                                ->label('Collection')
+                                ->options(fn (): array => PbModel::query()->orderBy('name')->pluck('name', 'key')->all())
+                                ->searchable()
+                                ->required(fn (Get $get): bool => $get('trigger_type') === 'collection')
+                                ->helperText('Records this flow listens to.')
                                 ->visible(fn (Get $get): bool => $get('trigger_type') === 'collection'),
                         ]),
+
+                        // Collection-event details — events + criteria (as-is)
+                        Schemas\Components\Group::make([
+                            Forms\Components\CheckboxList::make('trigger_config.events')
+                                ->label('Events')
+                                ->options([
+                                    'created' => 'Created',
+                                    'updated' => 'Updated',
+                                    'deleted' => 'Deleted',
+                                ])
+                                ->columns(3)
+                                ->required(fn (Get $get): bool => $get('trigger_type') === 'collection'),
+
+                            Forms\Components\Repeater::make('trigger_config.criteria')
+                                ->label('Criteria (optional)')
+                                ->helperText('All rows must match for the flow to fire. Leave empty to fire on every event.')
+                                ->schema([
+                                    Forms\Components\TextInput::make('field')
+                                        ->required(),
+                                    Forms\Components\Select::make('op')
+                                        ->options([
+                                            'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
+                                            'lt' => '<', 'lte' => '<=', 'like' => 'contains',
+                                            'in' => 'in', 'nin' => 'not in', 'null' => 'is null', 'nnull' => 'is not null',
+                                        ])
+                                        ->default('eq')
+                                        ->required(),
+                                    Forms\Components\TextInput::make('value'),
+                                ])
+                                ->columns(3)
+                                ->addActionLabel('Add criterion')
+                                ->default([]),
+                        ])
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => $get('trigger_type') === 'collection'),
                     ]),
 
                 FlowCanvasField::make('definition')
