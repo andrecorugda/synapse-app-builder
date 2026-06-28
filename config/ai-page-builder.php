@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\Variable;
 
 return [
 
@@ -30,6 +31,8 @@ return [
             // Metadata for user-defined data models (the "collections").
             'models' => 'page_builder_models',
             'fields' => 'page_builder_fields',
+            // Persistent, app-wide global variables.
+            'variables' => 'page_builder_variables',
         ],
     ],
 
@@ -47,6 +50,7 @@ return [
         'flow_function' => FlowFunction::class,
         'model' => PbModel::class,
         'field' => PbField::class,
+        'variable' => Variable::class,
     ],
 
     /*

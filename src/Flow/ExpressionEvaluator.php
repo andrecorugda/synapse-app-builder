@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow;
 
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 
@@ -24,6 +25,14 @@ class ExpressionEvaluator
     public function __construct()
     {
         $this->el = new ExpressionLanguage;
+
+        // `global('key')` reads a persistent app-wide variable from the store,
+        // e.g. global('tax_rate'). Returns null for unknown keys.
+        $this->el->register(
+            'global',
+            fn (string $key): string => sprintf('app(\Andre\AiPageBuilder\Services\Data\VariableStore::class)->get(%s)', $key),
+            fn (array $arguments, string $key): mixed => app(VariableStore::class)->get($key),
+        );
     }
 
     /**

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow;
 
+use Andre\AiPageBuilder\Services\Data\VariableStore;
+
 /**
  * Carries state through a flow run: the trigger `input`, accumulated `vars`
  * (set by nodes), and the `actions` returned to the page. Supports `{{...}}`
- * interpolation against input/vars in node configs.
+ * interpolation against input/vars/globals in node configs.
  */
 class FlowContext
 {
@@ -28,13 +30,16 @@ class FlowContext
         $this->vars[$key] = $value;
     }
 
-    /** Resolve a dotted path like `input.brief` or `vars.ai`. */
+    /** Resolve a dotted path like `input.brief`, `vars.ai`, or `globals.tax_rate`. */
     public function get(string $path): mixed
     {
         [$root, $rest] = array_pad(explode('.', $path, 2), 2, null);
         $base = match ($root) {
             'input' => $this->input,
             'vars' => $this->vars,
+            // Persistent, app-wide globals. Resolved lazily so reading the
+            // store (and thus hitting the DB) only happens when referenced.
+            'globals' => app(VariableStore::class)->all(),
             default => null,
         };
 
