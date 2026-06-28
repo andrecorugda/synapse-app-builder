@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Pages;
 
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Services\PageBuilderMailer;
 use Andre\AiPageBuilder\Services\Settings;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -13,6 +14,7 @@ use Filament\Pages\Page as FilamentPage;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Throwable;
 
 /**
  * Builder configuration screen. Today it picks the home page; it is structured
@@ -59,6 +61,15 @@ class PageBuilderSettings extends FilamentPage
 
         $this->form->fill([
             'home_page' => $settings->get('home_page'),
+            // Email transport. The password is never echoed back — leave blank
+            // to keep the stored one (see save()).
+            'mail_host' => $settings->get('mail_host'),
+            'mail_port' => $settings->get('mail_port', 587),
+            'mail_username' => $settings->get('mail_username'),
+            'mail_password' => '',
+            'mail_encryption' => $settings->get('mail_encryption', 'tls'),
+            'mail_from_address' => $settings->get('mail_from_address'),
+            'mail_from_name' => $settings->get('mail_from_name'),
         ]);
     }
 
@@ -83,6 +94,43 @@ class PageBuilderSettings extends FilamentPage
                             ->label('Will be served at')
                             ->content(fn (Get $get): string => $this->homeUrlPreview($get('home_page'))),
                     ]),
+
+                Section::make('Email (SMTP)')
+                    ->description('Transport used by the "Send Email" flow node. Stored encrypted; isolated from the host app\'s mailer.')
+                    ->compact()
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('mail_host')
+                            ->label('SMTP host')
+                            ->placeholder('smtp.example.com'),
+                        Forms\Components\TextInput::make('mail_port')
+                            ->label('Port')
+                            ->numeric()
+                            ->default(587),
+                        Forms\Components\TextInput::make('mail_username')
+                            ->label('Username')
+                            ->autocomplete('off'),
+                        Forms\Components\TextInput::make('mail_password')
+                            ->label('Password')
+                            ->password()
+                            ->revealable()
+                            ->autocomplete('new-password')
+                            ->placeholder(fn (): string => app(Settings::class)->has('mail_password') ? '•••••• (leave blank to keep)' : '')
+                            ->helperText('Leave blank to keep the current password.'),
+                        Forms\Components\Select::make('mail_encryption')
+                            ->label('Encryption')
+                            ->options(['tls' => 'TLS / STARTTLS', 'ssl' => 'SSL', '' => 'None'])
+                            ->default('tls')
+                            ->native(false),
+                        Forms\Components\TextInput::make('mail_from_address')
+                            ->label('From address')
+                            ->email()
+                            ->placeholder('no-reply@example.com'),
+                        Forms\Components\TextInput::make('mail_from_name')
+                            ->label('From name')
+                            ->placeholder('My App')
+                            ->columnSpanFull(),
+                    ]),
             ]);
     }
 
@@ -96,6 +144,26 @@ class PageBuilderSettings extends FilamentPage
                 ->label('Save')
                 ->icon('heroicon-o-check')
                 ->action('save'),
+
+            Action::make('sendTest')
+                ->label('Send test email')
+                ->icon('heroicon-o-paper-airplane')
+                ->color('gray')
+                ->visible(fn (): bool => app(PageBuilderMailer::class)->configured())
+                ->schema([
+                    Forms\Components\TextInput::make('recipient')
+                        ->label('Send to')
+                        ->email()
+                        ->required(),
+                ])
+                ->action(function (array $data): void {
+                    try {
+                        app(PageBuilderMailer::class)->sendTest((string) $data['recipient']);
+                        Notification::make()->success()->title('Test email sent')->send();
+                    } catch (Throwable $e) {
+                        Notification::make()->danger()->title('Could not send')->body($e->getMessage())->send();
+                    }
+                }),
         ];
     }
 
@@ -106,6 +174,18 @@ class PageBuilderSettings extends FilamentPage
 
         $home = $state['home_page'] ?? null;
         $settings->set('home_page', is_string($home) && $home !== '' ? $home : null);
+
+        // Email transport.
+        foreach (['mail_host', 'mail_username', 'mail_encryption', 'mail_from_address', 'mail_from_name'] as $key) {
+            $settings->set($key, isset($state[$key]) && $state[$key] !== '' ? (string) $state[$key] : null);
+        }
+        $settings->set('mail_port', (int) ($state['mail_port'] ?? 587));
+
+        // Only overwrite the password when a new one was entered (blank keeps it).
+        $password = (string) ($state['mail_password'] ?? '');
+        if ($password !== '') {
+            $settings->setEncrypted('mail_password', $password);
+        }
 
         Notification::make()
             ->success()
@@ -125,6 +205,7 @@ class PageBuilderSettings extends FilamentPage
 
         return $model::query()
             ->published()
+            ->pages() // real pages only — not email templates
             ->orderBy('title')
             ->get(['title', 'slug'])
             ->mapWithKeys(fn (Page $p): array => [$p->slug => $p->title.' ('.$p->slug.')'])

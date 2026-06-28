@@ -36,7 +36,7 @@ class BuildPlanValidator
      */
     private const FALLBACK_NODE_TYPES = [
         'trigger', 'condition', 'function', 'http_request',
-        'record', 'result', 'set_variable', 'ai_invoke',
+        'record', 'result', 'set_variable', 'ai_invoke', 'send_email',
     ];
 
     public function __construct(

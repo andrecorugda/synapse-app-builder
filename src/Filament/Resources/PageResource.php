@@ -66,6 +66,16 @@ class PageResource extends Resource
                             ->options(collect(PageStatus::cases())->mapWithKeys(fn (PageStatus $s) => [$s->value => $s->label()])->all())
                             ->default(PageStatus::Draft->value)
                             ->required(),
+                        Forms\Components\Select::make('kind')
+                            ->label('Type')
+                            ->options([
+                                'page' => 'Page',
+                                'email' => 'Email template',
+                            ])
+                            ->default('page')
+                            ->required()
+                            ->native(false)
+                            ->helperText('Email templates are used as the HTML body of emails sent from flows.'),
                         Forms\Components\TextInput::make('slug')
                             ->required()
                             ->maxLength(200)
@@ -125,11 +135,22 @@ class PageResource extends Resource
                     ->badge()
                     ->formatStateUsing(fn (PageStatus $state): string => $state->label())
                     ->color(fn (PageStatus $state): string => $state->color()),
+                Tables\Columns\TextColumn::make('kind')
+                    ->label('Type')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => $state === 'email' ? 'Email template' : 'Page')
+                    ->color(fn (string $state): string => $state === 'email' ? 'warning' : 'gray'),
                 Tables\Columns\TextColumn::make('updated_at')->dateTime()->sortable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options(collect(PageStatus::cases())->mapWithKeys(fn (PageStatus $s) => [$s->value => $s->label()])->all()),
+                Tables\Filters\SelectFilter::make('kind')
+                    ->label('Type')
+                    ->options([
+                        'page' => 'Page',
+                        'email' => 'Email template',
+                    ]),
             ])
             ->recordActions([
                 Actions\EditAction::make(),

@@ -44,6 +44,7 @@ final class SystemPromptBuilder
         'http_request' => 'Call an external endpoint. config: { method, url, headers:{}, body:{}, output }.',
         'ai_invoke' => 'Call an AI integration through the gateway. config: { integration:"<slug>", args:{}, output }.',
         'function' => 'Run a named function. config: { function:"<slug>", args:{}, output }.',
+        'send_email' => 'Send an email. config: { to, subject, template:"<email-template page slug>" (or inline body), cc, bcc, reply_to, output }. The template is a page with kind=email; its html is interpolated against the flow context.',
         'result' => 'Return page actions. config: { actions:[ {type:"setHtml|setText|notify|redirect|addClass|removeClass", ...} ] }.',
     ];
 
