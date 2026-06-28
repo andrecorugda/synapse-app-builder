@@ -546,18 +546,8 @@
                     }
                 });
 
-                // Drawflow computes each connection's curve from the nodes'
-                // rendered geometry; right after addNode the elements aren't
-                // laid out yet, so the paths draw empty and only appear once a
-                // node is dragged. Recompute them once the DOM has settled.
-                const refreshConnections = () => {
-                    ids.forEach((defId) => {
-                        try { editor.updateConnectionNodes('node-' + idMap[defId]); } catch (_) {}
-                    });
-                };
-                try { requestAnimationFrame(refreshConnections); } catch (_) { setTimeout(refreshConnections, 30); }
-                setTimeout(refreshConnections, 80);
-
+                // (Connection curves are redrawn by init() once the DOM settles,
+                // covering both the reconstruct and the _canvas-import paths.)
                 return true;
             }
 
@@ -795,13 +785,33 @@
                         this.sync();
                     }
 
-                    // Wire change events → sync
+                    // Wire change events → sync. nodeMoved is essential: without
+                    // it, dragging a node to re-arrange never updates the form
+                    // state, so the layout reverts to its saved positions on the
+                    // next open.
                     const syncBound = () => this.sync();
                     editor.on('nodeCreated', syncBound);
                     editor.on('nodeRemoved', syncBound);
+                    editor.on('nodeMoved', syncBound);
                     editor.on('connectionCreated', syncBound);
                     editor.on('connectionRemoved', syncBound);
                     editor.on('nodeDataChanged', syncBound);
+
+                    // Redraw every connection once the DOM has settled. Drawflow
+                    // computes a connection's curve from node geometry that isn't
+                    // available the instant nodes are created/imported, so paths
+                    // can render empty until a node is dragged — applies to BOTH
+                    // the import and the reconstruct paths above.
+                    const refreshAllConnections = () => {
+                        try {
+                            const data = editor.export().drawflow.Home.data || {};
+                            Object.keys(data).forEach((id) => {
+                                try { editor.updateConnectionNodes('node-' + id); } catch (_) {}
+                            });
+                        } catch (_) {}
+                    };
+                    try { requestAnimationFrame(refreshAllConnections); } catch (_) { setTimeout(refreshAllConnections, 30); }
+                    setTimeout(refreshAllConnections, 120);
 
                     // Apply operation-based field visibility to restored record nodes.
                     const self = this;
