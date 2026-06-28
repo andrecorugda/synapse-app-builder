@@ -1,6 +1,7 @@
 @php
     $flowBase = url(config('ai-page-builder.routes.flow_prefix', 'pb-flow'));
     $renderBase = url(config('ai-page-builder.routes.render_prefix', 'p'));
+    $apiBase = url(config('ai-page-builder.data.api_prefix', 'api/pb'));
 @endphp
 <script>
 (function () {
@@ -9,6 +10,7 @@
 
     var FLOW_BASE = '{{ $flowBase }}';
     var RENDER_BASE = '{{ $renderBase }}';
+    var API_BASE = '{{ $apiBase }}';
 
     /** Show a lightweight toast notification. */
     function showToast(message) {
@@ -144,8 +146,61 @@
         .catch(function (err) { console.error('[pb-flow] request error', err); });
     }
 
+    /** Submit a [data-pb-record] form: create a record via the auto REST API. */
+    function submitRecord(form, event) {
+        var collection = form.getAttribute('data-pb-record');
+        if (!collection) { return; }
+        if (event) { event.preventDefault(); }
+
+        var fields = collectFormInput(form);
+
+        fetch(API_BASE + '/' + collection, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(fields),
+        })
+        .then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (body) {
+                return { status: res.status, body: body };
+            });
+        })
+        .then(function (result) {
+            if (result.status >= 200 && result.status < 300) {
+                showToast('Saved');
+                form.reset();
+                form.dispatchEvent(new CustomEvent('pb:record-created', { bubbles: true, detail: result.body }));
+                return;
+            }
+            if (result.status === 422) {
+                var errors = result.body && result.body.errors;
+                var first = errors && Object.keys(errors)[0];
+                var msg = (first && errors[first] && errors[first][0]) || (result.body && result.body.message) || 'Please check the form.';
+                showToast(msg);
+                return;
+            }
+            showToast('Something went wrong. Please try again.');
+        })
+        .catch(function (err) {
+            console.error('[pb-record] request error', err);
+            showToast('Something went wrong. Please try again.');
+        });
+    }
+
     /** Bind every [data-pb-flow] element to its chosen event, and page links. */
     function bind() {
+        // Record-create forms. A form bound to a flow (data-pb-flow) is handled
+        // by the flow runtime instead — flow takes precedence, skip it here.
+        var recordForms = document.querySelectorAll('form[data-pb-record]');
+        for (var r = 0; r < recordForms.length; r++) {
+            (function (form) {
+                if (form.__pbRecordBound) { return; }
+                if (!form.getAttribute('data-pb-record')) { return; }
+                if (form.hasAttribute('data-pb-flow')) { return; }
+                form.__pbRecordBound = true;
+                form.addEventListener('submit', function (e) { submitRecord(form, e); }, false);
+            })(recordForms[r]);
+        }
+
         var flowEls = document.querySelectorAll('[data-pb-flow]');
         for (var i = 0; i < flowEls.length; i++) {
             (function (el) {

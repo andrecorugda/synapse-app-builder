@@ -29,11 +29,19 @@
         } catch (\Throwable $e) {
             $pbStates = [];
         }
+        // Collections feed the form "create record in" trait (key => name).
+        try {
+            $pbCollections = (config('ai-page-builder.models.model', \Andre\AiPageBuilder\Models\PbModel::class))::query()
+                ->orderBy('name')->get()->map(fn ($m) => ['key' => $m->key, 'name' => $m->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbCollections = [];
+        }
     @endphp
     <script>
         window.__pbFlows = @js($pbFlows);
         window.__pbPages = @js($pbPages);
         window.__pbStates = @js($pbStates);
+        window.__pbCollections = @js($pbCollections);
     </script>
     <style>
         /* CSS-based maximize (native fullscreen is unreliable inside the panel). */
@@ -261,6 +269,18 @@
                             cmp.addTrait({ type: 'select', name: 'x-text', label: 'Bind text → State', options: stateOptions });
                             cmp.addTrait({ type: 'select', name: 'x-show', label: 'Show when (State)', options: stateOptions });
                             cmp.addTrait({ type: 'select', name: 'x-model', label: 'Two-way input ↔ State', options: stateOptions });
+                        }
+
+                        // Form submit → create record. Populated from the
+                        // collections (key => name). The published-page runtime
+                        // reads data-pb-record off a <form> and POSTs the fields
+                        // to the auto REST API. (Flow-on-submit already works via
+                        // the Run flow + On event=submit traits above.)
+                        if (! names.includes('data-pb-record')) {
+                            const collectionOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'data-pb-record', label: 'On submit → create record in', options: collectionOptions });
                         }
                     };
 

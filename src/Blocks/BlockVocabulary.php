@@ -332,14 +332,107 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block (sections + basics + shapes + components) for the GrapesJS
-     * block manager.
+     * Form building blocks — inputs + a Form container.
+     *
+     * OWNER-authored (trusted) blocks. Each input is a real form control with a
+     * stable `name` attribute so the published-page runtime's collectFormInput()
+     * (and a Form's record-create / flow submit) picks it up. Controls are also
+     * x-model-bindable via the editor's existing x-model trait. Roots carry
+     * data-pb-block="{key}" and use inline styles + pb-{key}__* classes; labels
+     * are tied to controls (for/id) with focus-visible outlines for a11y.
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function forms(): array
+    {
+        return [
+            self::block('text_input', 'Text input', 'Single-line text field with a label.', <<<'HTML'
+            <label data-pb-block="text_input" class="pb-text-input" style="display:block;max-width:24rem;font-family:inherit;">
+              <span class="pb-text-input__label" style="display:block;margin:0 0 0.35rem;font-weight:600;color:#0f172a;font-size:0.9375rem;">Name</span>
+              <input type="text" name="name" placeholder="Your name" class="pb-text-input__control" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:0.5rem;font-size:0.9375rem;color:#0f172a;outline-offset:2px;box-sizing:border-box;">
+            </label>
+            HTML, 'Forms'),
+
+            self::block('email_input', 'Email input', 'Email field with a label.', <<<'HTML'
+            <label data-pb-block="email_input" class="pb-email-input" style="display:block;max-width:24rem;font-family:inherit;">
+              <span class="pb-email-input__label" style="display:block;margin:0 0 0.35rem;font-weight:600;color:#0f172a;font-size:0.9375rem;">Email</span>
+              <input type="email" name="email" placeholder="you@example.com" class="pb-email-input__control" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:0.5rem;font-size:0.9375rem;color:#0f172a;outline-offset:2px;box-sizing:border-box;">
+            </label>
+            HTML, 'Forms'),
+
+            self::block('textarea', 'Textarea', 'Multi-line text field with a label.', <<<'HTML'
+            <label data-pb-block="textarea" class="pb-textarea" style="display:block;max-width:24rem;font-family:inherit;">
+              <span class="pb-textarea__label" style="display:block;margin:0 0 0.35rem;font-weight:600;color:#0f172a;font-size:0.9375rem;">Message</span>
+              <textarea name="message" rows="4" placeholder="Type your message…" class="pb-textarea__control" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:0.5rem;font-size:0.9375rem;color:#0f172a;outline-offset:2px;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
+            </label>
+            HTML, 'Forms'),
+
+            self::block('select', 'Select', 'Dropdown select with a label.', <<<'HTML'
+            <label data-pb-block="select" class="pb-select" style="display:block;max-width:24rem;font-family:inherit;">
+              <span class="pb-select__label" style="display:block;margin:0 0 0.35rem;font-weight:600;color:#0f172a;font-size:0.9375rem;">Choose an option</span>
+              <select name="option" class="pb-select__control" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:0.5rem;font-size:0.9375rem;color:#0f172a;outline-offset:2px;box-sizing:border-box;background:#fff;">
+                <option value="">— select —</option>
+                <option value="one">Option one</option>
+                <option value="two">Option two</option>
+                <option value="three">Option three</option>
+              </select>
+            </label>
+            HTML, 'Forms'),
+
+            self::block('checkbox', 'Checkbox', 'A single labelled checkbox.', <<<'HTML'
+            <label data-pb-block="checkbox" class="pb-checkbox" style="display:flex;align-items:center;gap:0.6rem;max-width:24rem;font-family:inherit;color:#0f172a;font-size:0.9375rem;cursor:pointer;">
+              <input type="checkbox" name="agree" value="yes" class="pb-checkbox__control" style="width:1.1rem;height:1.1rem;outline-offset:2px;cursor:pointer;">
+              <span class="pb-checkbox__label">I agree to the terms</span>
+            </label>
+            HTML, 'Forms'),
+
+            self::block('radio_group', 'Radio group', 'A set of radio buttons sharing one name.', <<<'HTML'
+            <fieldset data-pb-block="radio_group" class="pb-radio-group" style="border:0;padding:0;margin:0;max-width:24rem;font-family:inherit;">
+              <legend class="pb-radio-group__legend" style="padding:0;margin:0 0 0.5rem;font-weight:600;color:#0f172a;font-size:0.9375rem;">Pick one</legend>
+              <label class="pb-radio-group__option" style="display:flex;align-items:center;gap:0.6rem;margin:0 0 0.4rem;color:#0f172a;font-size:0.9375rem;cursor:pointer;">
+                <input type="radio" name="choice" value="a" class="pb-radio-group__control" style="width:1.05rem;height:1.05rem;outline-offset:2px;cursor:pointer;" checked>
+                <span>Option A</span>
+              </label>
+              <label class="pb-radio-group__option" style="display:flex;align-items:center;gap:0.6rem;margin:0 0 0.4rem;color:#0f172a;font-size:0.9375rem;cursor:pointer;">
+                <input type="radio" name="choice" value="b" class="pb-radio-group__control" style="width:1.05rem;height:1.05rem;outline-offset:2px;cursor:pointer;">
+                <span>Option B</span>
+              </label>
+              <label class="pb-radio-group__option" style="display:flex;align-items:center;gap:0.6rem;margin:0;color:#0f172a;font-size:0.9375rem;cursor:pointer;">
+                <input type="radio" name="choice" value="c" class="pb-radio-group__control" style="width:1.05rem;height:1.05rem;outline-offset:2px;cursor:pointer;">
+                <span>Option C</span>
+              </label>
+            </fieldset>
+            HTML, 'Forms'),
+
+            self::block('submit_button', 'Submit button', 'A form submit button.', <<<'HTML'
+            <button type="submit" data-pb-block="submit_button" class="pb-submit-button" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;font-size:0.9375rem;cursor:pointer;outline-offset:2px;font-family:inherit;">Submit</button>
+            HTML, 'Forms'),
+
+            self::block('form', 'Form', 'A form card with fields and a submit button.', <<<'HTML'
+            <form data-pb-block="form" class="pb-form" style="display:flex;flex-direction:column;gap:1rem;max-width:28rem;padding:1.75rem;border:1px solid #e2e8f0;border-radius:0.75rem;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,0.08);font-family:inherit;">
+              <label class="pb-form__field" style="display:block;">
+                <span style="display:block;margin:0 0 0.35rem;font-weight:600;color:#0f172a;font-size:0.9375rem;">Name</span>
+                <input type="text" name="name" placeholder="Your name" required style="width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:0.5rem;font-size:0.9375rem;color:#0f172a;outline-offset:2px;box-sizing:border-box;">
+              </label>
+              <label class="pb-form__field" style="display:block;">
+                <span style="display:block;margin:0 0 0.35rem;font-weight:600;color:#0f172a;font-size:0.9375rem;">Email</span>
+                <input type="email" name="email" placeholder="you@example.com" required style="width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:0.5rem;font-size:0.9375rem;color:#0f172a;outline-offset:2px;box-sizing:border-box;">
+              </label>
+              <button type="submit" class="pb-form__submit" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;font-size:0.9375rem;cursor:pointer;outline-offset:2px;">Submit</button>
+            </form>
+            HTML, 'Forms'),
+        ];
+    }
+
+    /**
+     * Every block (sections + basics + shapes + components + forms) for the
+     * GrapesJS block manager.
      *
      * @return array<int,SectionBlock>
      */
     public static function all(): array
     {
-        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components()];
+        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms()];
     }
 
     /**
