@@ -20,6 +20,7 @@
     <style>
         *, *::before, *::after { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        [x-cloak] { display: none !important; }
 
         /* Section colour overlays (the builder's --pb-overlay style property). */
         [data-pb-block] { position: relative; }
@@ -48,8 +49,18 @@
         {{-- Per-page custom CSS overrides (authored in the builder's Advanced section). --}}
         {!! $customCss !!}
     </style>
+
+    {{-- Reactive Store: seed Alpine's $store.app from this page's persistent
+         States before Alpine boots. Components bind with x-text / x-show /
+         x-model; flows push updates via the setState result action. --}}
+    <script>
+        window.__pbState = @js($state ?? []);
+        document.addEventListener('alpine:init', function () {
+            window.Alpine.store('app', Object.assign({}, window.__pbState));
+        });
+    </script>
 </head>
-<body>
+<body x-data>
     {!! $html !!}
 
     <script>
@@ -74,9 +85,14 @@
     {{-- Flow trigger runtime: components with data-pb-flow run a flow on click. --}}
     @include('ai-page-builder::render.flow-runtime')
 
+    {{-- Alpine powers the reactive Store + data bindings. Loaded before custom
+         JS so the store is initialised and custom JS can read/write it. --}}
+    <script src="{{ config('ai-page-builder.assets.alpine_js') }}"></script>
+
     {{-- Per-page custom JS (authored in the builder's Advanced section) — an
          escape hatch for scenarios the builder doesn't cover. Runs last, after
-         the page DOM and the flow runtime. --}}
+         the page DOM, the flow runtime, and Alpine (so it can use
+         window.Alpine.store('app')). --}}
     @if (! empty($customJs))
         <script>{!! $customJs !!}</script>
     @endif
