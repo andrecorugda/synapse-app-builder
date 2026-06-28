@@ -49,30 +49,30 @@ class PageResource extends Resource
     {
         return $schema
             ->components([
-                Schemas\Components\Grid::make(3)->schema([
-                    Forms\Components\TextInput::make('title')
-                        ->required()
-                        ->maxLength(200)
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(function (string $operation, $state, Set $set): void {
-                            if ($operation === 'create') {
-                                $set('slug', Str::slug((string) $state));
-                            }
-                        })
-                        ->columnSpan(2),
-                    Forms\Components\Select::make('status')
-                        ->options(collect(PageStatus::cases())->mapWithKeys(fn (PageStatus $s) => [$s->value => $s->label()])->all())
-                        ->default(PageStatus::Draft->value)
-                        ->required()
-                        ->columnSpan(1),
-                    Forms\Components\TextInput::make('slug')
-                        ->required()
-                        ->maxLength(200)
-                        ->regex('/^[a-z0-9\-_]+$/')
-                        ->unique(ignoreRecord: true)
-                        ->helperText('Lowercase letters, numbers, dashes — used in the page URL.')
-                        ->columnSpan(3),
-                ]),
+                Schemas\Components\Section::make('Page details')
+                    ->compact()
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\TextInput::make('title')
+                            ->required()
+                            ->maxLength(200)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (string $operation, $state, Set $set): void {
+                                if ($operation === 'create') {
+                                    $set('slug', Str::slug((string) $state));
+                                }
+                            }),
+                        Forms\Components\Select::make('status')
+                            ->options(collect(PageStatus::cases())->mapWithKeys(fn (PageStatus $s) => [$s->value => $s->label()])->all())
+                            ->default(PageStatus::Draft->value)
+                            ->required(),
+                        Forms\Components\TextInput::make('slug')
+                            ->required()
+                            ->maxLength(200)
+                            ->regex('/^[a-z0-9\-_]+$/')
+                            ->unique(ignoreRecord: true)
+                            ->helperText('Lowercase letters, numbers, dashes — the page URL.'),
+                    ]),
 
                 GrapesJsField::make('builder')
                     ->label('Page content')

@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Models\FlowFunction;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
+use Filament\Schemas;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -52,38 +53,44 @@ class FunctionResource extends Resource
     {
         return $schema
             ->components([
-                Forms\Components\TextInput::make('slug')
-                    ->required()
-                    ->maxLength(120)
-                    ->regex('/^[a-z][a-z0-9_-]*$/')
-                    ->unique(ignoreRecord: true)
-                    ->helperText('Lowercase letter followed by lowercase letters, numbers, underscores, or dashes.'),
+                Schemas\Components\Section::make('Function')
+                    ->compact()
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\TextInput::make('slug')
+                            ->required()
+                            ->maxLength(120)
+                            ->regex('/^[a-z][a-z0-9_-]*$/')
+                            ->unique(ignoreRecord: true)
+                            ->helperText('Lowercase, numbers, _ or -.'),
 
-                Forms\Components\TextInput::make('name')
-                    ->required()
-                    ->maxLength(160),
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(160),
 
-                Forms\Components\Textarea::make('description')
-                    ->rows(2)
-                    ->maxLength(500)
-                    ->nullable(),
+                        Forms\Components\Select::make('runtime')
+                            ->required()
+                            ->options(function (): array {
+                                $options = [
+                                    'expression' => 'Expression (sandboxed)',
+                                    'callable' => 'Registered callable',
+                                ];
 
-                Forms\Components\Select::make('runtime')
-                    ->required()
-                    ->options(function (): array {
-                        $options = [
-                            'expression' => 'Expression (safe, sandboxed)',
-                            'callable' => 'Registered callable (developer-registered)',
-                        ];
+                                if ((bool) config('ai-page-builder.flow.allow_php_functions', false)) {
+                                    $options['php'] = 'PHP script (arbitrary PHP)';
+                                }
 
-                        if ((bool) config('ai-page-builder.flow.allow_php_functions', false)) {
-                            $options['php'] = 'PHP script (runs arbitrary PHP)';
-                        }
+                                return $options;
+                            })
+                            ->default('expression')
+                            ->live(),
 
-                        return $options;
-                    })
-                    ->default('expression')
-                    ->live(),
+                        Forms\Components\Textarea::make('description')
+                            ->rows(2)
+                            ->maxLength(500)
+                            ->nullable()
+                            ->columnSpanFull(),
+                    ]),
 
                 CodeField::make('body')
                     ->label('Expression')
