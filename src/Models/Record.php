@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Model;
  * Record::for('leads')->newQuery()->where(...)->get() returns correctly-cast
  * Record rows. Used by the REST API, the Flow Record node, and Functions.
  */
-class Record extends Model
+final class Record extends Model
 {
     protected $guarded = [];
 

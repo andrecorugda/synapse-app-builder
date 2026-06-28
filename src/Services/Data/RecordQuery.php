@@ -6,8 +6,8 @@ namespace Andre\AiPageBuilder\Services\Data;
 
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
