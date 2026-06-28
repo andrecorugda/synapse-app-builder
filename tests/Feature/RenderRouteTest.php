@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\PageRenderer;
+use Andre\AiPageBuilder\Services\Settings;
 
 it('boots the reactive Store seeded from State on the published page', function (): void {
     app(VariableStore::class)->set('greeting', 'Hi there', 'string');
@@ -76,6 +77,30 @@ it('busts the render cache when the page changes', function (): void {
     $page->update(['html' => '<p>cachebust-two</p>']);
 
     $this->get('/p/pricing')->assertSee('cachebust-two', false)->assertDontSee('cachebust-one', false);
+});
+
+it('serves the configured home page at the render-prefix root', function (): void {
+    Page::factory()->published()->create([
+        'slug' => 'welcome',
+        'html' => '<h1>home-page-marker</h1>',
+    ]);
+
+    app(Settings::class)->set('home_page', 'welcome');
+
+    $this->get('/p')->assertOk()->assertSee('home-page-marker', false);
+});
+
+it('404s at the prefix root when no home page is configured', function (): void {
+    app(Settings::class)->forget('home_page');
+
+    $this->get('/p')->assertNotFound();
+});
+
+it('404s at the prefix root when the home page is not published', function (): void {
+    Page::factory()->create(['slug' => 'draft-home', 'html' => '<h1>nope</h1>']); // draft
+    app(Settings::class)->set('home_page', 'draft-home');
+
+    $this->get('/p')->assertNotFound();
 });
 
 it('caches rendered output between requests', function (): void {

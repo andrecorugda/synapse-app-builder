@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder;
 
+use Andre\AiPageBuilder\Ai\AppBuilderService;
+use Andre\AiPageBuilder\Ai\BuildPlanApplier;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
@@ -22,7 +24,9 @@ use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
 use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
+use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
 use Andre\AiPageBuilder\Models\Record;
+use Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
@@ -30,6 +34,7 @@ use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\MediaLibrary;
 use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
+use Andre\AiPageBuilder\Services\Settings;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -55,6 +60,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_models_table',
                 'create_page_builder_fields_table',
                 'create_page_builder_variables_table',
+                'create_page_builder_settings_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class);
@@ -91,9 +97,12 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->app->singleton(RecordQuery::class);
         $this->app->singleton(VariableStore::class);
 
+        // Builder configuration (home page, email/SMTP transport, …).
+        $this->app->singleton(Settings::class);
+
         // AI app builder (gateway-backed; emits a validated Build Plan).
-        $this->app->singleton(\Andre\AiPageBuilder\Ai\AppBuilderService::class);
-        $this->app->singleton(\Andre\AiPageBuilder\Ai\BuildPlanApplier::class);
+        $this->app->singleton(AppBuilderService::class);
+        $this->app->singleton(BuildPlanApplier::class);
     }
 
     public function packageBooted(): void
@@ -215,7 +224,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             // Self-healing: re-seeds the bundled app_builder integration if it
             // was deleted, so the AI app-builder feature can't be broken by
             // removing it. Idempotent; never clobbers a tuned prompt version.
-            $this->app->make(\Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder::class)->run();
+            $this->app->make(AppBuilderIntegrationSeeder::class)->run();
         } catch (\Throwable $e) {
             Log::warning('[ai-page-builder] gateway integration auto-seed skipped: '.$e->getMessage());
         }
@@ -238,6 +247,18 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
         });
+
+        // Opt-in: also serve the configured home page at the site root `/`.
+        // Off by default so the package never shadows the host app's own home
+        // route — enable via config('ai-page-builder.routes.home_at_root').
+        if ((bool) config('ai-page-builder.routes.home_at_root', false)) {
+            Route::group([
+                'middleware' => (array) config('ai-page-builder.routes.render_middleware', ['web']),
+            ], function (): void {
+                Route::get('/', [RenderPageController::class, 'home'])
+                    ->name('ai-page-builder.home-root');
+            });
+        }
     }
 
     /**

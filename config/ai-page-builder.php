@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\PbSetting;
 use Andre\AiPageBuilder\Models\Variable;
 
 return [
@@ -33,6 +34,8 @@ return [
             'fields' => 'page_builder_fields',
             // Persistent, app-wide global variables.
             'variables' => 'page_builder_variables',
+            // Builder configuration (home page, email/SMTP transport, …).
+            'settings' => 'page_builder_settings',
         ],
     ],
 
@@ -51,6 +54,7 @@ return [
         'model' => PbModel::class,
         'field' => PbField::class,
         'variable' => Variable::class,
+        'setting' => PbSetting::class,
     ],
 
     /*
@@ -108,6 +112,13 @@ return [
         'render_enabled' => env('AI_PAGE_BUILDER_RENDER_ENABLED', true),
         'render_prefix' => env('AI_PAGE_BUILDER_RENDER_PREFIX', 'p'),
         'render_middleware' => ['web'],
+
+        // Serve the configured home page at the site root (GET /) as well as at
+        // the render-prefix root. Opt-in (default off): turning this on makes
+        // the package own `/`, which would shadow the host app's own home
+        // route — only enable it when this builder *is* the site. The WHICH
+        // page is home is chosen in the Settings screen, not here.
+        'home_at_root' => (bool) env('AI_PAGE_BUILDER_HOME_AT_ROOT', false),
 
         // Authenticated, in-panel endpoints (media upload, etc.). Use the same
         // guard/middleware your Filament panel uses.
