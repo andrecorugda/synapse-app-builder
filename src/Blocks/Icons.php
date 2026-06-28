@@ -35,6 +35,11 @@ final class Icons
         'columns-3' => '<rect x="3" y="5" width="5" height="14" rx="1"/><rect x="9.5" y="5" width="5" height="14" rx="1"/><rect x="16" y="5" width="5" height="14" rx="1"/>',
         'spacer' => '<line x1="12" y1="4" x2="12" y2="20"/><path d="M8 8l4-4 4 4"/><path d="M8 16l4 4 4-4"/>',
         'divider' => '<line x1="4" y1="12" x2="20" y2="12"/>',
+        // Shape dividers
+        'shape-wave' => '<path d="M3 12c3-4 6 4 9 0s6-4 9 0"/>',
+        'shape-slant' => '<path d="M3 16L21 8"/><path d="M3 16h18"/>',
+        'shape-tilt' => '<path d="M3 8l18 8"/><path d="M3 16h18"/>',
+        'shape-curve' => '<path d="M3 14c4-8 14-8 18 0"/>',
     ];
 
     public static function for(string $key): string

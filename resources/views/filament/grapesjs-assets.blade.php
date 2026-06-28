@@ -85,6 +85,8 @@
                                     { property: 'background-size', type: 'select', defaults: 'auto', options: [{ value: 'auto' }, { value: 'cover' }, { value: 'contain' }] },
                                     { property: 'background-position', type: 'text' },
                                     { property: 'background-repeat', type: 'select', defaults: 'no-repeat', options: [{ value: 'no-repeat' }, { value: 'repeat' }, { value: 'repeat-x' }, { value: 'repeat-y' }] },
+                                    // Colour overlay on a section (sits above the background, below content).
+                                    { property: '--pb-overlay', type: 'color', label: 'Overlay' },
                                 ] },
                                 { name: 'Border', open: false, properties: ['border-radius', 'border', 'box-shadow'] },
                                 { name: 'Extra', open: false, properties: ['opacity'] },
@@ -176,6 +178,28 @@
                     editor.Commands.add('fullscreen', maximize);
                     editor.Commands.add('core:fullscreen', maximize);
 
+                    // Preview section colour overlays live in the canvas (the
+                    // --pb-overlay style property paints an ::after layer).
+                    editor.on('load', () => {
+                        try {
+                            const doc = editor.Canvas.getDocument();
+                            const s = doc.createElement('style');
+                            s.innerHTML = '[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
+                            doc.head.appendChild(s);
+                        } catch (e) { /* no-op */ }
+                    });
+
+                    // Entrance-animation trait, offered on every selected component
+                    // (sets data-pb-anim; the rendered page animates it on scroll).
+                    const PB_ANIMS = [['', 'None'], ['fade', 'Fade'], ['fade-up', 'Fade up'], ['fade-down', 'Fade down'], ['fade-left', 'Fade left'], ['fade-right', 'Fade right'], ['zoom-in', 'Zoom in']];
+                    const addAnimTraits = (cmp) => {
+                        const names = cmp.getTraits().map((t) => t.get('name'));
+                        if (! names.includes('data-pb-anim')) {
+                            cmp.addTrait({ type: 'select', name: 'data-pb-anim', label: 'Animation', options: PB_ANIMS.map(([id, name]) => ({ id, name })) });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-anim-delay', label: 'Anim delay (ms)', placeholder: '0' });
+                        }
+                    };
+
                     // Load canonical GrapesJS state if present; otherwise fall
                     // back to importing the stored HTML (pages created by a seed,
                     // an import, or AI have html but no project_data yet).
@@ -196,10 +220,13 @@
                     });
                     editor.on('update', sync);
 
-                    editor.on('component:selected', (c) => this.writeState({
-                        selectedComponentId: c.getId(),
-                        selectedComponentHtml: c.toHTML(),
-                    }));
+                    editor.on('component:selected', (c) => {
+                        addAnimTraits(c);
+                        this.writeState({
+                            selectedComponentId: c.getId(),
+                            selectedComponentHtml: c.toHTML(),
+                        });
+                    });
                     editor.on('component:deselected', () => this.writeState({
                         selectedComponentId: null,
                         selectedComponentHtml: null,

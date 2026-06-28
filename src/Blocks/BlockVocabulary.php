@@ -173,13 +173,36 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block (sections + basics) for the GrapesJS block manager.
+     * Decorative shape dividers (full-width SVGs placed between sections).
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function shapes(): array
+    {
+        return [
+            self::block('shape-wave', 'Wave', 'A wavy section divider.', <<<'HTML'
+            <div data-pb-block="shape-wave" class="pb-shape" style="line-height:0;"><svg viewBox="0 0 1200 120" preserveAspectRatio="none" style="display:block;width:100%;height:80px;"><path d="M0,0 C300,120 900,0 1200,80 L1200,120 L0,120 Z" fill="#4f46e5"></path></svg></div>
+            HTML, 'Shapes'),
+            self::block('shape-slant', 'Slant', 'A diagonal section divider.', <<<'HTML'
+            <div data-pb-block="shape-slant" class="pb-shape" style="line-height:0;"><svg viewBox="0 0 1200 120" preserveAspectRatio="none" style="display:block;width:100%;height:80px;"><path d="M0,120 L1200,0 L1200,120 Z" fill="#4f46e5"></path></svg></div>
+            HTML, 'Shapes'),
+            self::block('shape-tilt', 'Tilt', 'A tilted section divider.', <<<'HTML'
+            <div data-pb-block="shape-tilt" class="pb-shape" style="line-height:0;"><svg viewBox="0 0 1200 120" preserveAspectRatio="none" style="display:block;width:100%;height:80px;"><path d="M0,0 L1200,120 L0,120 Z" fill="#4f46e5"></path></svg></div>
+            HTML, 'Shapes'),
+            self::block('shape-curve', 'Curve', 'A curved section divider.', <<<'HTML'
+            <div data-pb-block="shape-curve" class="pb-shape" style="line-height:0;"><svg viewBox="0 0 1200 120" preserveAspectRatio="none" style="display:block;width:100%;height:80px;"><path d="M0,120 C400,0 800,0 1200,120 Z" fill="#4f46e5"></path></svg></div>
+            HTML, 'Shapes'),
+        ];
+    }
+
+    /**
+     * Every block (sections + basics + shapes) for the GrapesJS block manager.
      *
      * @return array<int,SectionBlock>
      */
     public static function all(): array
     {
-        return [...self::sections(), ...self::basics()];
+        return [...self::sections(), ...self::basics(), ...self::shapes()];
     }
 
     /**

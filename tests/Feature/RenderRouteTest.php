@@ -41,13 +41,13 @@ it('404s for a draft page', function (): void {
 });
 
 it('busts the render cache when the page changes', function (): void {
-    $page = Page::factory()->published()->create(['slug' => 'pricing', 'html' => '<p>old</p>']);
+    $page = Page::factory()->published()->create(['slug' => 'pricing', 'html' => '<p>cachebust-one</p>']);
 
-    $this->get('/p/pricing')->assertSee('old', false);
+    $this->get('/p/pricing')->assertSee('cachebust-one', false);
 
-    $page->update(['html' => '<p>new</p>']);
+    $page->update(['html' => '<p>cachebust-two</p>']);
 
-    $this->get('/p/pricing')->assertSee('new', false)->assertDontSee('old', false);
+    $this->get('/p/pricing')->assertSee('cachebust-two', false)->assertDontSee('cachebust-one', false);
 });
 
 it('caches rendered output between requests', function (): void {
