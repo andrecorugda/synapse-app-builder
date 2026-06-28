@@ -72,6 +72,24 @@ it('calls an http endpoint and stores the response', function (): void {
         ->and($ctx->vars['h_status'])->toBe(200);
 });
 
+it('emits setState / setStates result actions for the reactive page store', function (): void {
+    $def = [
+        'start' => 'r',
+        'nodes' => [
+            'r' => ['type' => 'result', 'config' => ['actions' => [
+                ['type' => 'setState', 'key' => 'count', 'value' => '{{ input.n }}'],
+                ['type' => 'setStates', 'values' => ['a' => 1, 'b' => 2]],
+            ]]],
+        ],
+    ];
+
+    $ctx = app(FlowRunner::class)->run($def, ['n' => 7]);
+
+    expect($ctx->actions)->toHaveCount(2)
+        ->and($ctx->actions[0])->toMatchArray(['type' => 'setState', 'key' => 'count', 'value' => '7'])
+        ->and($ctx->actions[1]['type'])->toBe('setStates');
+});
+
 it('drops disallowed result action types and skips unknown nodes', function (): void {
     $def = [
         'start' => 'n1',
