@@ -1,5 +1,6 @@
 @php
     $flowBase = url(config('ai-page-builder.routes.flow_prefix', 'pb-flow'));
+    $renderBase = url(config('ai-page-builder.routes.render_prefix', 'p'));
 @endphp
 <script>
 (function () {
@@ -7,6 +8,7 @@
     window.__pbFlowRuntimeBound = true;
 
     var FLOW_BASE = '{{ $flowBase }}';
+    var RENDER_BASE = '{{ $renderBase }}';
 
     /** Show a lightweight toast notification. */
     function showToast(message) {
@@ -90,15 +92,16 @@
         return data;
     }
 
-    /** Handle a click on a [data-pb-flow] element. */
-    function handleFlowClick(event) {
-        var triggerEl = event.target.closest('[data-pb-flow]');
-        if (!triggerEl) { return; }
-
-        event.preventDefault();
-
+    /** Run the flow bound to a trigger element, merging form + explicit input. */
+    function runFlow(triggerEl, event) {
         var slug = triggerEl.getAttribute('data-pb-flow');
         if (!slug) { return; }
+
+        // Only suppress the default for activation-style events; never block
+        // typing/focus on inputs (keydown/input/change/focus/blur).
+        if (event && (event.type === 'click' || event.type === 'submit')) {
+            event.preventDefault();
+        }
 
         var explicitInput = {};
         var rawInput = triggerEl.getAttribute('data-pb-flow-input');
@@ -111,10 +114,7 @@
 
         fetch(FLOW_BASE + '/' + slug, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ input: mergedInput }),
         })
         .then(function (res) { return res.json(); })
@@ -122,11 +122,42 @@
             if (!data || !Array.isArray(data.actions)) { return; }
             data.actions.forEach(applyAction);
         })
-        .catch(function (err) {
-            console.error('[pb-flow] request error', err);
-        });
+        .catch(function (err) { console.error('[pb-flow] request error', err); });
     }
 
-    document.addEventListener('click', handleFlowClick, false);
+    /** Bind every [data-pb-flow] element to its chosen event, and page links. */
+    function bind() {
+        var flowEls = document.querySelectorAll('[data-pb-flow]');
+        for (var i = 0; i < flowEls.length; i++) {
+            (function (el) {
+                if (el.__pbFlowBound) { return; }
+                if (!el.getAttribute('data-pb-flow')) { return; }
+                el.__pbFlowBound = true;
+                var ev = el.getAttribute('data-pb-flow-event') || 'click';
+                el.addEventListener(ev, function (e) { runFlow(el, e); }, false);
+            })(flowEls[i]);
+        }
+
+        var pageEls = document.querySelectorAll('[data-pb-page]');
+        for (var j = 0; j < pageEls.length; j++) {
+            (function (el) {
+                if (el.__pbPageBound) { return; }
+                var slug = el.getAttribute('data-pb-page');
+                if (!slug) { return; }
+                el.__pbPageBound = true;
+                el.style.cursor = 'pointer';
+                el.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    window.location.href = RENDER_BASE + '/' + slug;
+                }, false);
+            })(pageEls[j]);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind, false);
+    } else {
+        bind();
+    }
 })();
 </script>
