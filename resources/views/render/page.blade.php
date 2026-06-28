@@ -73,5 +73,12 @@
 
     {{-- Flow trigger runtime: components with data-pb-flow run a flow on click. --}}
     @include('ai-page-builder::render.flow-runtime')
+
+    {{-- Per-page custom JS (authored in the builder's Advanced section) — an
+         escape hatch for scenarios the builder doesn't cover. Runs last, after
+         the page DOM and the flow runtime. --}}
+    @if (! empty($customJs))
+        <script>{!! $customJs !!}</script>
+    @endif
 </body>
 </html>
