@@ -2,6 +2,12 @@
     $statePath = $getStatePath();
     $blocks = $getBlocks();
     $height = $getHeight();
+    $mediaLibrary = app(\Andre\AiPageBuilder\Services\MediaLibrary::class);
+    $assets = $mediaLibrary->assets();
+    $uploadUrl = \Illuminate\Support\Facades\Route::has('ai-page-builder.media.upload')
+        ? route('ai-page-builder.media.upload')
+        : null;
+    $csrf = csrf_token();
 @endphp
 
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
@@ -14,6 +20,9 @@
             statePath: @js($statePath),
             blocks: @js($blocks),
             height: {{ (int) $height }},
+            assets: @js($assets),
+            uploadUrl: @js($uploadUrl),
+            csrf: @js($csrf),
         })"
         x-init="boot()"
         style="border:1px solid rgb(0 0 0 / 0.1);border-radius:0.75rem;overflow:hidden;background:#fff;"

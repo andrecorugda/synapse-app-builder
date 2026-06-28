@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
+use Andre\AiPageBuilder\Services\MediaLibrary;
 use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Filament\Support\Facades\FilamentView;
@@ -22,7 +23,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->name('ai-page-builder')
             ->hasConfigFile('ai-page-builder')
             ->hasViews('ai-page-builder')
-            ->hasMigrations(['create_pages_table'])
+            ->hasMigrations(['create_pages_table', 'create_page_builder_media_table'])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class);
     }
 
@@ -30,13 +31,29 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     {
         $this->app->singleton(PageRenderer::class);
         $this->app->singleton(PageBuilderManager::class);
+        $this->app->singleton(MediaLibrary::class);
     }
 
     public function packageBooted(): void
     {
         $this->registerRenderRoutes();
+        $this->registerPanelRoutes();
         $this->registerFilamentAssets();
         $this->autoSeedGatewayIntegration();
+    }
+
+    /**
+     * Authenticated in-panel endpoints (media upload, …) under the configured
+     * panel prefix + middleware (same guard the Filament panel uses).
+     */
+    private function registerPanelRoutes(): void
+    {
+        Route::group([
+            'prefix' => (string) config('ai-page-builder.routes.panel_prefix', 'ai-page-builder'),
+            'middleware' => (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
+        ], function (): void {
+            $this->loadRoutesFrom(__DIR__.'/../routes/panel.php');
+        });
     }
 
     /**

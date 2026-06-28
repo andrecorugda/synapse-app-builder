@@ -34,6 +34,16 @@
                     this.$refs.blocks.innerHTML = '';
                     this.$refs.canvas.innerHTML = '';
 
+                    const assetManager = {
+                        assets: config.assets || [],
+                        uploadName: 'files',
+                        autoAdd: true,
+                    };
+                    if (config.uploadUrl) {
+                        assetManager.upload = config.uploadUrl;
+                        assetManager.headers = { 'X-CSRF-TOKEN': config.csrf };
+                    }
+
                     const editor = window.grapesjs.init({
                         container: this.$refs.canvas,
                         height: config.height + 'px',
@@ -41,6 +51,7 @@
                         fromElement: false,
                         storageManager: false,
                         blockManager: { appendTo: this.$refs.blocks },
+                        assetManager,
                     });
                     this.editor = editor;
 

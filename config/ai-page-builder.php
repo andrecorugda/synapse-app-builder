@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+
+use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
 
 return [
@@ -16,6 +18,7 @@ return [
         'connection' => env('AI_PAGE_BUILDER_DB_CONNECTION'),
         'tables' => [
             'pages' => 'pages',
+            'media' => 'page_builder_media',
         ],
     ],
 
@@ -23,10 +26,11 @@ return [
     |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
-    | Swap the Page model for your own subclass if you need extra behaviour.
+    | Swap a model for your own subclass if you need extra behaviour.
     */
     'models' => [
         'page' => Page::class,
+        'media' => MediaItem::class,
     ],
 
     /*
@@ -40,6 +44,25 @@ return [
         'render_enabled' => env('AI_PAGE_BUILDER_RENDER_ENABLED', true),
         'render_prefix' => env('AI_PAGE_BUILDER_RENDER_PREFIX', 'p'),
         'render_middleware' => ['web'],
+
+        // Authenticated, in-panel endpoints (media upload, etc.). Use the same
+        // guard/middleware your Filament panel uses.
+        'panel_prefix' => env('AI_PAGE_BUILDER_PANEL_PREFIX', 'ai-page-builder'),
+        'panel_middleware' => ['web', 'auth'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Media library
+    |--------------------------------------------------------------------------
+    | Where uploaded media is stored, and upload constraints. `disk` must be a
+    | configured Laravel filesystem disk that is publicly accessible.
+    */
+    'media' => [
+        'disk' => env('AI_PAGE_BUILDER_MEDIA_DISK', 'public'),
+        'directory' => env('AI_PAGE_BUILDER_MEDIA_DIR', 'page-builder'),
+        'accept' => ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'],
+        'max_kb' => (int) env('AI_PAGE_BUILDER_MEDIA_MAX_KB', 8192),
     ],
 
     /*
