@@ -20,14 +20,14 @@ class GatewayAiInvoker implements AiInvoker
         return class_exists(self::FACADE);
     }
 
-    public function invoke(string $integration, array $args = []): string
+    public function invoke(string $integration, array $args = [], array $messages = [], array $opts = []): string
     {
         if (! $this->available()) {
             throw new \RuntimeException('AI invocation requires the AI OpenRouter Gateway (andrecorugda/ai-openrouter-gateway).');
         }
 
         $facade = self::FACADE;
-        $result = $facade::invoke($integration, $args);
+        $result = $facade::invoke($integration, $args, $messages, $opts);
 
         return (string) ($result->text ?? '');
     }

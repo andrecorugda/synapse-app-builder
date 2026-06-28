@@ -14,7 +14,9 @@ interface AiInvoker
     public function available(): bool;
 
     /**
-     * @param  array<string,mixed>  $args
+     * @param  array<string,mixed>  $args  values for the integration prompt's {{placeholders}}
+     * @param  array<int,array<string,mixed>>  $messages  conversation messages (role/content) for threaded calls
+     * @param  array<string,mixed>  $opts  per-call gateway options
      */
-    public function invoke(string $integration, array $args = []): string;
+    public function invoke(string $integration, array $args = [], array $messages = [], array $opts = []): string;
 }
