@@ -6,39 +6,71 @@
 @once
     <link rel="stylesheet" href="{{ config('ai-page-builder.flow.drawflow_css', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css') }}">
     <script src="{{ config('ai-page-builder.flow.drawflow_js', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js') }}"></script>
+    @php
+        // Inject the available functions + collections so the node editors can
+        // offer dropdowns instead of free-text slugs/keys. Guarded — the tables
+        // may not exist yet during early boot / migration.
+        try {
+            $fnClass = config('ai-page-builder.models.flow_function', \Andre\AiPageBuilder\Models\FlowFunction::class);
+            $pbFlowFunctions = $fnClass::query()->orderBy('name')->get()
+                ->map(fn ($f) => ['slug' => $f->slug, 'name' => $f->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbFlowFunctions = [];
+        }
+        try {
+            $modelClass = config('ai-page-builder.models.model', \Andre\AiPageBuilder\Models\PbModel::class);
+            $pbCollections = $modelClass::query()->orderBy('name')->get()
+                ->map(fn ($m) => ['key' => $m->key, 'name' => $m->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbCollections = [];
+        }
+    @endphp
+    <script>
+        window.__pbFlowFunctions = @js($pbFlowFunctions);
+        window.__pbCollections = @js($pbCollections);
+    </script>
     <style>
-        /* ── Drawflow canvas wrapper ── */
+        /* ── Drawflow canvas wrapper (dark) ── */
         .ai-pb-flow-wrap {
             position: relative;
-            background: #f1f5f9;
-            border: 1px solid rgb(0 0 0 / 0.1);
+            background: #0f172a;
+            border: 1px solid rgb(255 255 255 / 0.1);
             border-radius: 0.75rem;
             overflow: hidden;
         }
         .ai-pb-flow-wrap .drawflow {
             width: 100%;
             height: 100%;
-            background-color: #f1f5f9;
-            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-color: #0f172a;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
             background-size: 20px 20px;
         }
-        /* ── Node card styles ── */
+        /* ── Fullscreen ── */
+        .ai-pb-flow-wrap.ai-pb-flow-fullscreen {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            border-radius: 0;
+            border: 0;
+        }
+        /* ── Node card styles (dark) ── */
         .ai-pb-node {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            background: #1e293b;
+            border: 1px solid #334155;
             border-radius: 0.5rem;
             padding: 0.5rem 0.75rem;
-            min-width: 200px;
+            min-width: 210px;
             font-size: 0.75rem;
             font-family: ui-sans-serif, system-ui, sans-serif;
-            box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+            color: #e2e8f0;
+            box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
         }
         .ai-pb-node-title {
             font-weight: 600;
             font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: #64748b;
+            color: #94a3b8;
             margin-bottom: 0.4rem;
             display: flex;
             align-items: center;
@@ -47,23 +79,23 @@
         .ai-pb-node input,
         .ai-pb-node select {
             width: 100%;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #334155;
             border-radius: 0.25rem;
             padding: 0.2rem 0.35rem;
             font-size: 0.72rem;
             margin-bottom: 0.25rem;
             outline: none;
-            background: #f8fafc;
-            color: #0f172a;
+            background: #0f172a;
+            color: #e2e8f0;
         }
         .ai-pb-node input:focus,
         .ai-pb-node select:focus {
             border-color: #6366f1;
-            background: #fff;
+            background: #1e293b;
         }
         .ai-pb-node textarea {
             width: 100%;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #334155;
             border-radius: 0.25rem;
             padding: 0.2rem 0.35rem;
             font-size: 0.7rem;
@@ -72,54 +104,63 @@
             min-height: 3rem;
             margin-bottom: 0.25rem;
             outline: none;
-            background: #f8fafc;
-            color: #0f172a;
+            background: #0f172a;
+            color: #e2e8f0;
         }
         .ai-pb-node textarea:focus {
             border-color: #6366f1;
-            background: #fff;
+            background: #1e293b;
         }
         .ai-pb-node label.ai-pb-node-label {
             display: block;
             font-size: 0.67rem;
-            color: #94a3b8;
+            color: #64748b;
             margin-bottom: 0.1rem;
         }
-        /* ── Palette bar ── */
+        /* ── Toolbar / palette bar (dark) ── */
         .ai-pb-palette {
             display: flex;
             gap: 0.4rem;
             flex-wrap: wrap;
+            align-items: center;
             padding: 0.5rem 0.75rem;
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
             border-radius: 0.75rem 0.75rem 0 0;
+        }
+        .ai-pb-flow-fullscreen .ai-pb-palette {
+            border-radius: 0;
         }
         .ai-pb-palette button {
             padding: 0.2rem 0.6rem;
             border-radius: 0.3rem;
             font-size: 0.72rem;
             font-weight: 500;
-            border: 1px solid #e2e8f0;
-            background: #f8fafc;
-            color: #334155;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: #cbd5e1;
             cursor: pointer;
             line-height: 1.4;
         }
         .ai-pb-palette button:hover {
-            background: #e0e7ff;
+            background: #3730a3;
             border-color: #6366f1;
-            color: #4338ca;
+            color: #e0e7ff;
+        }
+        .ai-pb-palette .ai-pb-palette-spacer { flex: 1 1 auto; }
+        .ai-pb-palette button.ai-pb-fullscreen-btn {
+            background: transparent;
+            border-color: #475569;
         }
         /* node type accent colours via title bar */
-        .ai-pb-node[data-node-type="trigger"] .ai-pb-node-title { color: #16a34a; }
-        .ai-pb-node[data-node-type="ai_invoke"] .ai-pb-node-title { color: #7c3aed; }
-        .ai-pb-node[data-node-type="http_request"] .ai-pb-node-title { color: #0284c7; }
-        .ai-pb-node[data-node-type="condition"] .ai-pb-node-title { color: #d97706; }
-        .ai-pb-node[data-node-type="result"] .ai-pb-node-title { color: #db2777; }
-        /* ── Neutralise Drawflow's default node chrome so only our card shows ──
-           (otherwise the library's box draws a second border around the card and
-           clamps it to ~160px, clipping the content). */
+        .ai-pb-node[data-node-type="trigger"] .ai-pb-node-title { color: #22c55e; }
+        .ai-pb-node[data-node-type="ai_invoke"] .ai-pb-node-title { color: #a78bfa; }
+        .ai-pb-node[data-node-type="http_request"] .ai-pb-node-title { color: #38bdf8; }
+        .ai-pb-node[data-node-type="function"] .ai-pb-node-title { color: #f59e0b; }
+        .ai-pb-node[data-node-type="record"] .ai-pb-node-title { color: #2dd4bf; }
+        .ai-pb-node[data-node-type="condition"] .ai-pb-node-title { color: #fbbf24; }
+        .ai-pb-node[data-node-type="result"] .ai-pb-node-title { color: #f472b6; }
+        /* ── Neutralise Drawflow's default node chrome so only our card shows ── */
         .ai-pb-flow-wrap .drawflow .drawflow-node {
             background: transparent;
             border: 0;
@@ -137,24 +178,39 @@
             min-width: 230px;
             box-sizing: border-box;
         }
-        /* keep the connection ports visible against the white card */
+        /* keep the connection ports visible against the dark card */
         .ai-pb-flow-wrap .drawflow .drawflow-node .input,
         .ai-pb-flow-wrap .drawflow .drawflow-node .output {
-            background: #fff;
+            background: #1e293b;
             border: 2px solid #6366f1;
+        }
+        .ai-pb-flow-wrap .drawflow .connection .main-path {
+            stroke: #64748b;
         }
     </style>
     {{-- The script below is wrapped so Blade does not parse literal braces in JS. --}}
     @verbatim
     <script>
         (function () {
+            /** Options HTML from an injected [{slug|key, name}] list. */
+            function optionList(items, valueKey, placeholder) {
+                var list = items || [];
+                var html = '<option value="">' + placeholder + '</option>';
+                for (var i = 0; i < list.length; i++) {
+                    var v = list[i][valueKey];
+                    var label = list[i].name || v;
+                    html += '<option value="' + v + '">' + label + ' (' + v + ')</option>';
+                }
+                return html;
+            }
+
             /** Build the inner HTML for a Drawflow node by type. */
             function nodeHtml(type) {
                 switch (type) {
                     case 'trigger':
                         return '<div class="ai-pb-node" data-node-type="trigger">'
                             + '<div class="ai-pb-node-title">&#9654; Trigger</div>'
-                            + '<span style="font-size:0.7rem;color:#64748b;">Flow entry point</span>'
+                            + '<span style="font-size:0.7rem;color:#94a3b8;">Flow entry point</span>'
                             + '</div>';
 
                     case 'ai_invoke':
@@ -192,12 +248,38 @@
                     case 'function':
                         return '<div class="ai-pb-node" data-node-type="function">'
                             + '<div class="ai-pb-node-title">&#402; Function</div>'
-                            + '<label class="ai-pb-node-label">Function slug</label>'
-                            + '<input type="text" df-function placeholder="e.g. markup-price" />'
+                            + '<label class="ai-pb-node-label">Function</label>'
+                            + '<select df-function>' + optionList(window.__pbFlowFunctions, 'slug', '— select function —') + '</select>'
                             + '<label class="ai-pb-node-label">Args (JSON)</label>'
                             + '<textarea df-args placeholder=\'{"price":"{{vars.amount}}"}\'></textarea>'
                             + '<label class="ai-pb-node-label">Output variable</label>'
                             + '<input type="text" df-output placeholder="e.g. result" />'
+                            + '</div>';
+
+                    case 'record':
+                        return '<div class="ai-pb-node" data-node-type="record">'
+                            + '<div class="ai-pb-node-title">&#128451; Collection</div>'
+                            + '<label class="ai-pb-node-label">Collection</label>'
+                            + '<select df-model>' + optionList(window.__pbCollections, 'key', '— select collection —') + '</select>'
+                            + '<label class="ai-pb-node-label">Operation</label>'
+                            + '<select df-operation>'
+                            + '<option value="list">List / search</option>'
+                            + '<option value="get">Get by id</option>'
+                            + '<option value="create">Create</option>'
+                            + '<option value="update">Update</option>'
+                            + '<option value="delete">Delete</option>'
+                            + '</select>'
+                            + '<label class="ai-pb-node-label">Record id (get / update / delete)</label>'
+                            + '<input type="text" df-recid placeholder="{{input.id}}" />'
+                            + '<label class="ai-pb-node-label">Filter (JSON, for list)</label>'
+                            + '<textarea df-filter placeholder=\'{"status":{"eq":"open"}}\'></textarea>'
+                            + '<label class="ai-pb-node-label">Search / sort (for list)</label>'
+                            + '<input type="text" df-search placeholder="search term" />'
+                            + '<input type="text" df-sort placeholder="-created_at" />'
+                            + '<label class="ai-pb-node-label">Data (JSON, create / update)</label>'
+                            + '<textarea df-data placeholder=\'{"name":"{{input.name}}"}\'></textarea>'
+                            + '<label class="ai-pb-node-label">Output variable</label>'
+                            + '<input type="text" df-output placeholder="e.g. records" />'
                             + '</div>';
 
                     case 'condition':
@@ -218,8 +300,8 @@
                             + '<label class="ai-pb-node-label">Right operand</label>'
                             + '<input type="text" df-right placeholder="value" />'
                             + '<div style="display:flex;gap:1rem;font-size:0.67rem;margin-top:0.2rem;">'
-                            + '<span style="color:#16a34a;">&#9679; output_1 = true</span>'
-                            + '<span style="color:#dc2626;">&#9679; output_2 = false</span>'
+                            + '<span style="color:#22c55e;">&#9679; output_1 = true</span>'
+                            + '<span style="color:#f87171;">&#9679; output_2 = false</span>'
                             + '</div>'
                             + '</div>';
 
@@ -247,6 +329,11 @@
                 return type === 'trigger' ? 0 : 1;
             }
 
+            function parseJson(text, fallback) {
+                if (!text) { return fallback; }
+                try { return JSON.parse(text); } catch (_) { return fallback; }
+            }
+
             /**
              * Convert a Drawflow export into the engine definition format.
              *
@@ -269,24 +356,6 @@
                     const type = node.name || 'trigger';
                     const data = node.data || {};
 
-                    // Parse JSON text areas
-                    let args = {};
-                    if (data.args) {
-                        try { args = JSON.parse(data.args); } catch (_) { args = {}; }
-                    }
-                    let actions = [];
-                    if (data.actions) {
-                        try { actions = JSON.parse(data.actions); } catch (_) { actions = []; }
-                    }
-                    let headers = {};
-                    if (data.headers) {
-                        try { headers = JSON.parse(data.headers); } catch (_) { headers = {}; }
-                    }
-                    let body = {};
-                    if (data.body) {
-                        try { body = JSON.parse(data.body); } catch (_) { body = {}; }
-                    }
-
                     // Build config by type
                     let config = {};
                     switch (type) {
@@ -296,7 +365,7 @@
                         case 'ai_invoke':
                             config = {
                                 integration: data.integration || '',
-                                args: args,
+                                args: parseJson(data.args, {}),
                                 output: data.output || '',
                             };
                             break;
@@ -304,16 +373,28 @@
                             config = {
                                 method: data.method || 'GET',
                                 url: data.url || '',
-                                headers: headers,
-                                body: body,
+                                headers: parseJson(data.headers, {}),
+                                body: parseJson(data.body, {}),
                                 output: data.output || '',
                             };
                             break;
                         case 'function':
                             config = {
                                 function: data.function || '',
-                                args: args,
+                                args: parseJson(data.args, {}),
                                 output: data.output || '',
+                            };
+                            break;
+                        case 'record':
+                            config = {
+                                model: data.model || '',
+                                operation: data.operation || 'list',
+                                id: data.recid || '',
+                                filter: parseJson(data.filter, {}),
+                                data: parseJson(data.data, {}),
+                                search: data.search || '',
+                                sort: data.sort || '',
+                                output: data.output || 'records',
                             };
                             break;
                         case 'condition':
@@ -324,7 +405,7 @@
                             };
                             break;
                         case 'result':
-                            config = { actions: actions };
+                            config = { actions: parseJson(data.actions, []) };
                             break;
                         default:
                             config = {};
@@ -337,7 +418,6 @@
                     const nextFalse = [];
 
                     if (type === 'condition') {
-                        // output_1 → true branch, output_2 → false branch
                         const out1 = outputs['output_1'] && outputs['output_1'].connections
                             ? outputs['output_1'].connections
                             : [];
@@ -379,6 +459,7 @@
 
             const factory = (config) => ({
                 editor: null,
+                fullscreen: false,
 
                 boot() {
                     const start = () => {
@@ -386,6 +467,10 @@
                         this.init();
                     };
                     start();
+                },
+
+                toggleFullscreen() {
+                    this.fullscreen = ! this.fullscreen;
                 },
 
                 addNode(type) {
@@ -428,11 +513,9 @@
                         try {
                             editor.import(existing._canvas);
                         } catch (_) {
-                            // Malformed — start fresh
                             editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
                         }
                     } else {
-                        // New flow: seed with one trigger node
                         editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
                         this.sync();
                     }
