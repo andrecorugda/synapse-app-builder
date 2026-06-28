@@ -116,7 +116,9 @@ final class SystemPromptBuilder
             }
           } ]
         - "pages": [ { "slug": "<lowercase-slug>", "title": "<label>",
-                       "status": "draft|published", "html": "<markup>", "css": "<css>" } ]
+                       "kind": "page|email", "status": "draft|published",
+                       "html": "<markup>", "css": "<css>" } ]
+        - "settings": { "home_page": "<slug of a kind=page page>" }
 
         Page "html" is composed from the component vocabulary: each block is a
         `data-pb-block="<key>"` element with inline styles. Pages may bind to app
@@ -124,15 +126,30 @@ final class SystemPromptBuilder
         x-for — referencing `$store.app.<stateKey>`. A data table uses
         `x-data="pbTable('<collection key>')"`. NEVER emit executable directives
         (@click, x-on:*, x-init) in page output.
+
+        Page "kind" defaults to "page" (a normal page). Use "email" to mark a page
+        as an EMAIL TEMPLATE — its html becomes the body of an email sent by a
+        `send_email` flow node. Email templates interpolate flow context with
+        mustache tokens: `{{ input.x }}`, `{{ vars.x }}`, `{{ states.x }}` (NOT
+        Alpine — emails have no JS). To notify on an event: create a kind=email
+        page, then a flow (often trigger_type "collection") whose `send_email`
+        node sets `template` to that page's slug. For a collection-triggered
+        flow the changed row is at `{{ input.record.<field> }}` (plus
+        `{{ input.event }}` and `{{ input.collection }}`); its trigger_config is
+        `{ "collection": "<key>", "events": ["created"], "criteria": {} }`.
+
+        Set "settings.home_page" to the slug of a published kind=page page to make
+        it the site's home page. Only set it when the request implies a landing /
+        home page; never point it at an email template.
         TXT;
     }
 
     private function example(): string
     {
         return <<<'TXT'
-        ### Example plan (compact)
+        ### Example plan (compact) — a waitlist that emails a welcome on signup
 
-        {"collections":[{"key":"tasks","name":"Tasks","has_timestamps":true,"has_soft_deletes":false,"fields":[{"key":"title","label":"Title","type":"string","options":{"required":true}},{"key":"done","label":"Done","type":"boolean","options":{"default":false}}],"seed":[{"title":"First task","done":false}]}],"states":[{"key":"filter","type":"string","value":"all"}],"pages":[{"slug":"home","title":"Home","status":"published","html":"<section data-pb-block=\"hero\" class=\"pb-hero\" style=\"padding:4rem 1.5rem;text-align:center;\"><h1 class=\"pb-hero__title\">My tasks</h1></section><table data-pb-block=\"data_table\" class=\"pb-data-table\" x-data=\"pbTable('tasks')\"><tbody><template x-for=\"row in rows\" :key=\"row.id\"><tr><td x-text=\"row.title\"></td></tr></template></tbody></table>","css":""}]}
+        {"collections":[{"key":"signups","name":"Signups","fields":[{"key":"name","label":"Name","type":"string","options":{"required":true}},{"key":"email","label":"Email","type":"string","options":{"required":true}}]}],"pages":[{"slug":"home","title":"Home","kind":"page","status":"published","html":"<section data-pb-block=\"hero\" class=\"pb-hero\" style=\"padding:4rem 1.5rem;text-align:center;\"><h1 class=\"pb-hero__title\">Join the waitlist</h1></section>","css":""},{"slug":"welcome-email","title":"Welcome email","kind":"email","status":"draft","html":"<h1>Welcome {{ input.record.name }}</h1><p>Thanks for joining the waitlist.</p>","css":""}],"flows":[{"slug":"on-signup","name":"On signup","trigger_type":"collection","trigger_config":{"collection":"signups","events":["created"]},"definition":{"start":"t","nodes":{"t":{"type":"trigger","next":["mail"]},"mail":{"type":"send_email","config":{"to":"{{ input.record.email }}","subject":"Welcome {{ input.record.name }}","template":"welcome-email","output":"email"}}}}}],"settings":{"home_page":"home"}}
         TXT;
     }
 

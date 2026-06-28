@@ -12,6 +12,7 @@ use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
+use Andre\AiPageBuilder\Services\Settings;
 use Throwable;
 
 /**
@@ -35,11 +36,12 @@ class BuildPlanApplier
         private readonly RecordQuery $records,
         private readonly VariableStore $variables,
         private readonly HtmlSanitizer $sanitizer,
+        private readonly Settings $settings,
     ) {}
 
     /**
      * @param  array<string,mixed>  $plan
-     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>},errors:list<string>}
+     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>,settings:list<string>},errors:list<string>}
      */
     public function apply(array $plan, bool $dryRun = false): array
     {
@@ -52,6 +54,7 @@ class BuildPlanApplier
                 'functions' => [],
                 'flows' => [],
                 'pages' => [],
+                'settings' => [],
             ],
             'errors' => [],
         ];
@@ -72,6 +75,7 @@ class BuildPlanApplier
         $this->applyFunctions($build, $summary);
         $this->applyFlows($build, $summary);
         $this->applyPages($build, $summary);
+        $this->applySettings($build, $summary);
 
         return $summary;
     }
@@ -107,6 +111,10 @@ class BuildPlanApplier
             if (is_string($p['slug'] ?? null)) {
                 $summary['created']['pages'][] = $p['slug'];
             }
+        }
+        $home = $build->settings()['home_page'] ?? null;
+        if (is_string($home) && $home !== '') {
+            $summary['created']['settings'][] = "home_page={$home}";
         }
     }
 
@@ -307,12 +315,14 @@ class BuildPlanApplier
             try {
                 $html = is_string($page['html'] ?? null) ? $page['html'] : '';
                 $status = is_string($page['status'] ?? null) ? $page['status'] : 'draft';
+                $kind = is_string($page['kind'] ?? null) ? $page['kind'] : 'page';
 
                 Page::query()->updateOrCreate(
                     ['slug' => $slug],
                     [
                         'title' => (string) ($page['title'] ?? $slug),
                         'status' => in_array($status, ['draft', 'published'], true) ? $status : 'draft',
+                        'kind' => in_array($kind, ['page', 'email'], true) ? $kind : 'page',
                         'html' => $this->sanitizer->sanitize($html),
                         'css' => is_string($page['css'] ?? null) ? $page['css'] : null,
                     ],
@@ -320,6 +330,27 @@ class BuildPlanApplier
                 $summary['created']['pages'][] = $slug;
             } catch (Throwable $e) {
                 $summary['errors'][] = "pages[{$i}] ('{$slug}'): ".$e->getMessage();
+            }
+        }
+    }
+
+    /**
+     * Apply app-level settings (currently the home page). Best-effort like the
+     * rest; the home_page slug should name a page the plan also creates.
+     *
+     * @param  array{created:array<string,list<string>>,errors:list<string>}  $summary
+     */
+    private function applySettings(BuildPlan $build, array &$summary): void
+    {
+        $settings = $build->settings();
+
+        $home = $settings['home_page'] ?? null;
+        if (is_string($home) && $home !== '') {
+            try {
+                $this->settings->set('home_page', $home);
+                $summary['created']['settings'][] = "home_page={$home}";
+            } catch (Throwable $e) {
+                $summary['errors'][] = "settings.home_page ('{$home}'): ".$e->getMessage();
             }
         }
     }

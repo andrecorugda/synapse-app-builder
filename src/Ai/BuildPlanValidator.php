@@ -57,8 +57,43 @@ class BuildPlanValidator
         $this->validateFunctions($build, $errors);
         $this->validateFlows($build, $errors);
         $this->validatePages($build, $errors);
+        $this->validateSettings($build, $errors);
 
         return $errors;
+    }
+
+    /**
+     * @param  list<string>  $errors
+     */
+    private function validateSettings(BuildPlan $build, array &$errors): void
+    {
+        $home = $build->settings()['home_page'] ?? null;
+        if ($home === null) {
+            return;
+        }
+
+        if (! is_string($home) || $home === '') {
+            $errors[] = "settings.home_page: must be the slug of a page (got '".$this->display($home)."').";
+
+            return;
+        }
+
+        // Cross-check against the pages this plan creates. A home page should be
+        // a normal page, not an email template. If the slug isn't in the plan
+        // it may reference an existing page — advisory only.
+        $match = null;
+        foreach ($build->pages() as $page) {
+            if (($page['slug'] ?? null) === $home) {
+                $match = $page;
+                break;
+            }
+        }
+
+        if ($match === null) {
+            $errors[] = "settings.home_page (warning): '{$home}' is not a page in this plan — ensure it already exists.";
+        } elseif (($match['kind'] ?? 'page') === 'email') {
+            $errors[] = "settings.home_page: '{$home}' is an email template (kind=email) and cannot be the home page.";
+        }
     }
 
     /**
@@ -244,6 +279,11 @@ class BuildPlanValidator
             $status = $page['status'] ?? null;
             if ($status !== null && ! in_array($status, ['draft', 'published'], true)) {
                 $errors[] = "pages[{$i}]: status '".$this->display($status)."' must be 'draft' or 'published'.";
+            }
+
+            $kind = $page['kind'] ?? null;
+            if ($kind !== null && ! in_array($kind, ['page', 'email'], true)) {
+                $errors[] = "pages[{$i}]: kind '".$this->display($kind)."' must be 'page' or 'email'.";
             }
 
             // data-pb-block references are advisory: report unknown keys but
