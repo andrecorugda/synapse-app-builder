@@ -79,9 +79,9 @@ final class BlockVocabulary
             self::block('gallery', 'Gallery', 'An image gallery grid.', <<<'HTML'
             <section data-pb-block="gallery" class="pb-gallery" style="padding:4rem 1.5rem;">
               <div class="pb-gallery__grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;max-width:64rem;margin:0 auto;">
-                <img src="https://via.placeholder.com/400x300" alt="" style="width:100%;border-radius:0.5rem;">
-                <img src="https://via.placeholder.com/400x300" alt="" style="width:100%;border-radius:0.5rem;">
-                <img src="https://via.placeholder.com/400x300" alt="" style="width:100%;border-radius:0.5rem;">
+                <img src="data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='400'%20height='300'%20fill='%23e2e8f0'/%3E%3C/svg%3E" alt="" style="width:100%;border-radius:0.5rem;">
+                <img src="data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='400'%20height='300'%20fill='%23e2e8f0'/%3E%3C/svg%3E" alt="" style="width:100%;border-radius:0.5rem;">
+                <img src="data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='400'%20height='300'%3E%3Crect%20width='400'%20height='300'%20fill='%23e2e8f0'/%3E%3C/svg%3E" alt="" style="width:100%;border-radius:0.5rem;">
               </div>
             </section>
             HTML),
@@ -116,9 +116,9 @@ final class BlockVocabulary
             <section data-pb-block="team" class="pb-team" style="padding:4rem 1.5rem;">
               <h2 class="pb-team__title" style="text-align:center;font-size:2rem;margin:0 0 2.5rem;">Meet the team</h2>
               <div class="pb-team__grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;max-width:60rem;margin:0 auto;text-align:center;">
-                <div><img src="https://via.placeholder.com/120" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;"><h3 style="margin:0.75rem 0 0.25rem;">Alex Kim</h3><p style="color:#64748b;margin:0;">CEO</p></div>
-                <div><img src="https://via.placeholder.com/120" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;"><h3 style="margin:0.75rem 0 0.25rem;">Sam Lee</h3><p style="color:#64748b;margin:0;">CTO</p></div>
-                <div><img src="https://via.placeholder.com/120" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;"><h3 style="margin:0.75rem 0 0.25rem;">Jo Park</h3><p style="color:#64748b;margin:0;">Design</p></div>
+                <div><img src="data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%3E%3Crect%20width='120'%20height='120'%20fill='%23e2e8f0'/%3E%3C/svg%3E" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;"><h3 style="margin:0.75rem 0 0.25rem;">Alex Kim</h3><p style="color:#64748b;margin:0;">CEO</p></div>
+                <div><img src="data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%3E%3Crect%20width='120'%20height='120'%20fill='%23e2e8f0'/%3E%3C/svg%3E" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;"><h3 style="margin:0.75rem 0 0.25rem;">Sam Lee</h3><p style="color:#64748b;margin:0;">CTO</p></div>
+                <div><img src="data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%3E%3Crect%20width='120'%20height='120'%20fill='%23e2e8f0'/%3E%3C/svg%3E" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;"><h3 style="margin:0.75rem 0 0.25rem;">Jo Park</h3><p style="color:#64748b;margin:0;">Design</p></div>
               </div>
             </section>
             HTML),
@@ -161,7 +161,9 @@ final class BlockVocabulary
         return [
             self::block('text', 'Text', 'A paragraph of text.', '<p style="padding:0.5rem;">Insert your text here.</p>', 'Basic'),
             self::block('heading', 'Heading', 'A section heading.', '<h2 style="padding:0.5rem;">Heading</h2>', 'Basic'),
-            self::block('image', 'Image', 'An image.', '<img src="https://via.placeholder.com/600x300" alt="" style="max-width:100%;">', 'Basic'),
+            // The editor registers this as GrapesJS's native image component (opens
+            // the media picker); the template here is just a fallback.
+            self::block('image', 'Image', 'An image.', '<img alt="" style="max-width:100%;">', 'Basic'),
             self::block('button', 'Button', 'A call-to-action button.', '<a href="#" style="display:inline-block;padding:0.7rem 1.4rem;border-radius:0.5rem;background:#4f46e5;color:#fff;text-decoration:none;font-weight:600;">Button</a>', 'Basic'),
             self::block('columns-2', '2 Columns', 'Two-column row.', '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1rem;"><div style="min-height:3rem;border:1px dashed #cbd5e1;"></div><div style="min-height:3rem;border:1px dashed #cbd5e1;"></div></div>', 'Basic'),
             self::block('columns-3', '3 Columns', 'Three-column row.', '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;padding:1rem;"><div style="min-height:3rem;border:1px dashed #cbd5e1;"></div><div style="min-height:3rem;border:1px dashed #cbd5e1;"></div><div style="min-height:3rem;border:1px dashed #cbd5e1;"></div></div>', 'Basic'),

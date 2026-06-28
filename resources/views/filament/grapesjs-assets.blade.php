@@ -56,16 +56,46 @@
                     this.editor = editor;
 
                     config.blocks.forEach((b) => {
+                        // The 'image' block is GrapesJS's native image component so it
+                        // hooks into the Asset Manager (pick/upload) rather than dropping
+                        // a fixed external placeholder.
+                        const content = b.key === 'image' ? { type: 'image' } : b.template;
                         editor.BlockManager.add(b.key, {
                             label: b.label,
                             category: b.category,
-                            content: b.template,
+                            content,
                             media: b.icon || undefined,
                         });
-                        editor.DomComponents.addType(b.key, {
-                            isComponent: (el) => el.getAttribute && el.getAttribute('data-pb-block') === b.key,
-                            model: { defaults: { name: b.label } },
-                        });
+                        if (b.key !== 'image') {
+                            editor.DomComponents.addType(b.key, {
+                                isComponent: (el) => el.getAttribute && el.getAttribute('data-pb-block') === b.key,
+                                model: { defaults: { name: b.label } },
+                            });
+                        }
+                    });
+
+                    // Open the media picker as soon as an empty image is dropped. The
+                    // native image component also opens it on double-click; this just
+                    // makes the first pick immediate. Picking sets the component src.
+                    const pickImage = (cmp) => {
+                        try {
+                            editor.AssetManager.open({
+                                types: ['image'],
+                                select(asset) {
+                                    const src = (asset && asset.get) ? asset.get('src') : ((asset && asset.src) || '');
+                                    if (src) {
+                                        cmp.set('src', src);
+                                        if (cmp.addAttributes) { cmp.addAttributes({ src }); }
+                                    }
+                                    editor.AssetManager.close();
+                                },
+                            });
+                        } catch (e) { /* no-op; double-click still opens it */ }
+                    };
+                    editor.on('component:add', (cmp) => {
+                        if (cmp && cmp.is && cmp.is('image') && ! (cmp.getAttributes() || {}).src) {
+                            pickImage(cmp);
+                        }
                     });
 
                     // Load canonical GrapesJS state if present; otherwise fall
