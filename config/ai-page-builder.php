@@ -7,6 +7,8 @@ use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\FlowRun;
 use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\PbField;
+use Andre\AiPageBuilder\Models\PbModel;
 
 return [
 
@@ -25,6 +27,9 @@ return [
             'flows' => 'page_builder_flows',
             'flow_runs' => 'page_builder_flow_runs',
             'functions' => 'page_builder_functions',
+            // Metadata for user-defined data models (the "collections").
+            'models' => 'page_builder_models',
+            'fields' => 'page_builder_fields',
         ],
     ],
 
@@ -40,6 +45,29 @@ return [
         'flow' => Flow::class,
         'flow_run' => FlowRun::class,
         'flow_function' => FlowFunction::class,
+        'model' => PbModel::class,
+        'field' => PbField::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Data models (the "collections" backbone)
+    |--------------------------------------------------------------------------
+    | User-defined models become REAL database tables (Directus-style). Each
+    | physical table is named `{table_prefix}{model key}` so generated tables
+    | never collide with the host app's own tables. The auto REST API exposes
+    | every model at `{api_prefix}/{model}` for Flows, Functions and pages to
+    | read/write. Tune destructive-sync + page size here.
+    */
+    'data' => [
+        'table_prefix' => env('AI_PAGE_BUILDER_DATA_PREFIX', 'pb_'),
+        'api_prefix' => env('AI_PAGE_BUILDER_DATA_API_PREFIX', 'api/pb'),
+        'api_middleware' => ['api'],
+        // Drop real columns when their field definition is removed. Off by
+        // default so a mis-edit can't destroy data; turn on for true sync.
+        'allow_destructive_sync' => (bool) env('AI_PAGE_BUILDER_DATA_DESTRUCTIVE', false),
+        'default_per_page' => (int) env('AI_PAGE_BUILDER_DATA_PER_PAGE', 25),
+        'max_per_page' => (int) env('AI_PAGE_BUILDER_DATA_MAX_PER_PAGE', 200),
     ],
 
     /*
