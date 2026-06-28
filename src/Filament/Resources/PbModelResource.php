@@ -178,31 +178,43 @@ class PbModelResource extends Resource
     {
         return $table
             ->defaultSort('updated_at', 'desc')
+            // Compact, sortable list; clicking a row opens the edit drawer.
+            ->recordAction(Actions\EditAction::class)
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
+                    ->sortable()
                     ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('key')
                     ->badge()
                     ->color('gray')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('fields_count')
                     ->label('Fields')
                     ->counts('fields')
+                    ->sortable()
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('table_name')
+                    ->label('Table')
                     ->color('gray')
-                    ->toggleable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()
+                    ->since()
                     ->sortable(),
             ])
             ->recordActions([
-                Actions\EditAction::make(),
+                // Edit a collection's fields in a side drawer; sync the real
+                // table once the changes are saved.
+                Actions\EditAction::make()
+                    ->slideOver()
+                    ->after(fn (PbModel $record): mixed => app(SchemaSynchronizer::class)->sync($record)),
                 Actions\DeleteAction::make()
                     ->before(fn (PbModel $record): mixed => app(SchemaSynchronizer::class)->dropTable($record)),
             ])
@@ -237,10 +249,10 @@ class PbModelResource extends Resource
 
     public static function getPages(): array
     {
+        // Single-page resource: create + edit happen in side-drawer actions on
+        // the list, so there are no separate create/edit routes.
         return [
             'index' => Pages\ListPbModels::route('/'),
-            'create' => Pages\CreatePbModel::route('/create'),
-            'edit' => Pages\EditPbModel::route('/{record}/edit'),
         ];
     }
 }
