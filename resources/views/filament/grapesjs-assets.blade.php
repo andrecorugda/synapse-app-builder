@@ -282,6 +282,48 @@
                             );
                             cmp.addTrait({ type: 'select', name: 'data-pb-record', label: 'On submit → create record in', options: collectionOptions });
                         }
+
+                        // Data Table — "Collection" select (from __pbCollections).
+                        // The table binds rows via x-data="pbTable('<key>')"; the
+                        // trait isn't a real attribute (changeProp:true) — its
+                        // handler rewrites the x-data expression so the published
+                        // page fetches the chosen collection. Seeds from the
+                        // current x-data so re-selecting reflects the live value.
+                        if (cmp.getAttributes()['data-pb-block'] === 'data_table' && ! names.includes('pb-collection')) {
+                            const collectionOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                            );
+                            const xdata = cmp.getAttributes()['x-data'] || '';
+                            const m = xdata.match(/pbTable\(\s*['"]([^'"]*)['"]\s*\)/);
+                            cmp.set('pb-collection', m ? m[1] : '');
+                            cmp.addTrait({ type: 'select', name: 'pb-collection', label: 'Collection', changeProp: true, options: collectionOptions });
+                            cmp.on('change:pb-collection', () => {
+                                const key = cmp.get('pb-collection') || '';
+                                cmp.addAttributes({ 'x-data': "pbTable('" + key + "')" });
+                            });
+                        }
+
+                        // List — "List source (State)" select (from __pbStates).
+                        // The list's child <template> repeats over a $store.app
+                        // array via x-for. The trait (changeProp:true) rewrites
+                        // that template's x-for to the chosen State key.
+                        if (cmp.getAttributes()['data-pb-block'] === 'list' && ! names.includes('pb-list-source')) {
+                            const stateArrayOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbStates || [])
+                                    .filter((s) => ! s.type || s.type === 'array' || s.type === 'json')
+                                    .map((s) => ({ id: s.key, name: s.key + ' · ' + (s.type || 'array') }))
+                            );
+                            const tplFor = cmp.find('template')[0];
+                            const cur = tplFor ? (tplFor.getAttributes()['x-for'] || '') : '';
+                            const sm = cur.match(/\$store\.app\.([A-Za-z0-9_]+)/);
+                            cmp.set('pb-list-source', sm ? sm[1] : '');
+                            cmp.addTrait({ type: 'select', name: 'pb-list-source', label: 'List source (State)', changeProp: true, options: stateArrayOptions });
+                            cmp.on('change:pb-list-source', () => {
+                                const key = cmp.get('pb-list-source') || 'items';
+                                const tpl = cmp.find('template')[0];
+                                if (tpl) { tpl.addAttributes({ 'x-for': 'item in $store.app.' + key }); }
+                            });
+                        }
                     };
 
                     // Load canonical GrapesJS state if present; otherwise fall
