@@ -7,6 +7,8 @@
         wire:ignore
         x-data="aiPbFlow({ statePath: @js($getStatePath()) })"
         x-init="boot()"
+        :class="{ 'ai-pb-flow-fullscreen': fullscreen }"
+        @keydown.escape.window="fullscreen = false"
         class="ai-pb-flow-wrap"
         style="border-radius:0.75rem;overflow:hidden;"
     >
@@ -16,14 +18,20 @@
             <button type="button" @click="addNode('ai_invoke')">&#10024; AI Invoke</button>
             <button type="button" @click="addNode('http_request')">&#127760; HTTP Request</button>
             <button type="button" @click="addNode('function')">&#402; Function</button>
+            <button type="button" @click="addNode('record')">&#128451; Collection</button>
             <button type="button" @click="addNode('condition')">&#10067; Condition</button>
             <button type="button" @click="addNode('result')">&#9632; Result</button>
+
+            <span class="ai-pb-palette-spacer"></span>
+
+            <button type="button" class="ai-pb-fullscreen-btn" @click="toggleFullscreen()"
+                x-text="fullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'"></button>
         </div>
 
-        {{-- Drawflow canvas --}}
+        {{-- Drawflow canvas — grows to fill the viewport in fullscreen mode --}}
         <div
             x-ref="canvas"
-            style="height:600px;width:100%;"
+            :style="fullscreen ? 'height: calc(100vh - 49px); width:100%;' : 'height:600px; width:100%;'"
         ></div>
     </div>
 </x-dynamic-component>
