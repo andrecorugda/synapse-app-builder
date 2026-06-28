@@ -291,6 +291,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             Route::get($login, [AuthController::class, 'show'])->name('ai-page-builder.login');
             Route::post($login, [AuthController::class, 'login']);
             Route::post('pb-logout', [AuthController::class, 'logout'])->name('ai-page-builder.logout');
+            Route::get('pb-auth/me', [AuthController::class, 'me'])->name('ai-page-builder.me');
         });
     }
 

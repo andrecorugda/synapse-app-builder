@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Http\Controllers;
 
+use Andre\AiPageBuilder\Models\PbUser;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -43,6 +45,26 @@ class AuthController
         $request->session()->regenerate();
 
         return redirect()->intended((string) config('ai-page-builder.auth.redirect_after_login', '/'));
+    }
+
+    /**
+     * The current end-user as JSON, for the published page's runtime to drive
+     * component visibility (data-pb-auth / data-pb-roles). { user: null } when
+     * signed out.
+     */
+    public function me(): JsonResponse
+    {
+        /** @var PbUser|null $user */
+        $user = Auth::guard($this->guard())->user();
+
+        return response()->json([
+            'user' => $user === null ? null : [
+                'id' => $user->getKey(),
+                'name' => $user->name,
+                'role' => $user->role?->slug,
+                'is_admin' => $user->isAdmin(),
+            ],
+        ]);
     }
 
     public function logout(Request $request): RedirectResponse

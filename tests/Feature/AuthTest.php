@@ -68,6 +68,15 @@ it('shows the login page', function (): void {
     $this->get('/login')->assertOk()->assertSee('Welcome back', false);
 });
 
+it('exposes the current user at pb-auth/me', function (): void {
+    $this->getJson('/pb-auth/me')->assertOk()->assertJson(['user' => null]);
+
+    $this->actingAs(pbUser(), 'pb')
+        ->getJson('/pb-auth/me')
+        ->assertOk()
+        ->assertJsonPath('user.name', 'Ada');
+});
+
 it('logs out', function (): void {
     $this->actingAs(pbUser(), 'pb');
 
