@@ -222,6 +222,29 @@
              * operation. Each conditional group carries data-ops="op1,op2".
              * Called inline on change and re-applied after add / import.
              */
+            /**
+             * Auto-set a Set State node's data type from the selected State's
+             * declared type (window.__pbVariables), so the value is cast
+             * correctly and the author never picks a mismatched type.
+             */
+            window.__pbSetStateType = function (sel) {
+                var node = sel && sel.closest ? sel.closest('.ai-pb-node') : null;
+                if (! node) { return; }
+                var key = sel.value;
+                var list = window.__pbVariables || [];
+                var type = '';
+                for (var i = 0; i < list.length; i++) {
+                    if (list[i].key === key) { type = list[i].type || 'string'; break; }
+                }
+                var field = node.querySelector('[df-type]');
+                if (field) {
+                    field.value = type;
+                    field.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                var label = node.querySelector('.ai-pb-statetype');
+                if (label) { label.textContent = type ? ('data type: ' + type + ' (auto)') : ''; }
+            };
+
             window.__pbRecordOp = function (sel) {
                 var node = sel && sel.closest ? sel.closest('.ai-pb-node') : null;
                 if (! node) { return; }
@@ -321,19 +344,17 @@
                             + '</div>';
 
                     case 'set_variable':
+                        // The data type is taken automatically from the selected
+                        // State's definition (df-type is set by __pbSetStateType on
+                        // change), so the value is always cast to the right type.
                         return '<div class="ai-pb-node" data-node-type="set_variable">'
                             + '<div class="ai-pb-node-title">&#128190; Set State</div>'
                             + '<label class="ai-pb-node-label">State</label>'
-                            + '<select df-key>' + optionList(window.__pbVariables, 'key', '— select state —') + '</select>'
+                            + '<select df-key onchange="window.__pbSetStateType && window.__pbSetStateType(this)">' + optionList(window.__pbVariables, 'key', '— select state —') + '</select>'
+                            + '<div class="ai-pb-statetype" style="font-size:0.66rem;color:#5eead4;margin:0 0 0.3rem;min-height:0.8rem;"></div>'
+                            + '<input type="hidden" df-type />'
                             + '<label class="ai-pb-node-label">Value</label>'
                             + '<input type="text" df-value placeholder="{{vars.result}}" />'
-                            + '<label class="ai-pb-node-label">Type</label>'
-                            + '<select df-type>'
-                            + '<option value="string">string</option>'
-                            + '<option value="number">number</option>'
-                            + '<option value="boolean">boolean</option>'
-                            + '<option value="json">json</option>'
-                            + '</select>'
                             + '<label class="ai-pb-node-label">Output variable (optional)</label>'
                             + '<input type="text" df-output placeholder="e.g. saved" />'
                             + '</div>';
@@ -543,6 +564,11 @@
                     var sels = root.querySelectorAll('.ai-pb-node[data-node-type="record"] select[df-operation]');
                     for (var i = 0; i < sels.length; i++) {
                         if (window.__pbRecordOp) { window.__pbRecordOp(sels[i]); }
+                    }
+                    // Re-show the auto-detected data type on restored Set State nodes.
+                    var keys = root.querySelectorAll('.ai-pb-node[data-node-type="set_variable"] select[df-key]');
+                    for (var j = 0; j < keys.length; j++) {
+                        if (window.__pbSetStateType) { window.__pbSetStateType(keys[j]); }
                     }
                 },
 
