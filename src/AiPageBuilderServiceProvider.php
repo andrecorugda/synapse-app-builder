@@ -16,6 +16,7 @@ use Andre\AiPageBuilder\Flow\Nodes\AiInvokeNode;
 use Andre\AiPageBuilder\Flow\Nodes\ConditionNode;
 use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
+use Andre\AiPageBuilder\Flow\Nodes\RecordNode;
 use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
@@ -43,6 +44,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_flows_table',
                 'create_page_builder_flow_runs_table',
                 'create_page_builder_functions_table',
+                'create_page_builder_models_table',
+                'create_page_builder_fields_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class);
@@ -65,11 +68,16 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             $registry->register(new ConditionNode);
             $registry->register(new ResultNode);
             $registry->register($app->make(FunctionNode::class));
+            $registry->register($app->make(RecordNode::class));
 
             return $registry;
         });
         $this->app->singleton(FlowRunner::class);
         $this->app->singleton(FlowManager::class);
+
+        // Data layer (user-defined models / collections).
+        $this->app->singleton(\Andre\AiPageBuilder\Services\Data\SchemaSynchronizer::class);
+        $this->app->singleton(\Andre\AiPageBuilder\Services\Data\RecordQuery::class);
     }
 
     public function packageBooted(): void
@@ -77,8 +85,30 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerRenderRoutes();
         $this->registerPanelRoutes();
         $this->registerFlowRoutes();
+        $this->registerDataApiRoutes();
         $this->registerFilamentAssets();
         $this->autoSeedGatewayIntegration();
+    }
+
+    /**
+     * Auto REST API for user-defined data models: GET/POST/PATCH/DELETE under
+     * `{data.api_prefix}/{model}`. Directus-style, permission-gated in the
+     * controller. Disable by clearing the api prefix.
+     */
+    private function registerDataApiRoutes(): void
+    {
+        $prefix = (string) config('ai-page-builder.data.api_prefix', 'api/pb');
+
+        if ($prefix === '') {
+            return;
+        }
+
+        Route::group([
+            'prefix' => $prefix,
+            'middleware' => (array) config('ai-page-builder.data.api_middleware', ['api']),
+        ], function (): void {
+            $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
+        });
     }
 
     /**
