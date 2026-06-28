@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Filament\Resources\FlowResource;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource;
 use Andre\AiPageBuilder\Filament\Resources\MediaResource;
 use Andre\AiPageBuilder\Filament\Resources\PageResource;
+use Andre\AiPageBuilder\Filament\Resources\PbModelResource;
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 
@@ -39,6 +40,7 @@ class AiPageBuilderPlugin implements Plugin
             MediaResource::class,
             FlowResource::class,
             FunctionResource::class,
+            PbModelResource::class,
         ]);
     }
 
