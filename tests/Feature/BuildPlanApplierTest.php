@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
+use Andre\AiPageBuilder\Services\Settings;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -204,4 +205,50 @@ it('strips executable alpine but keeps declarative bindings', function (): void 
         ->not->toContain('x-html')
         ->not->toContain('onclick')
         ->not->toContain('javascript:');
+});
+
+// --- email templates + home page (wire-up) ----------------------------------
+
+it('applies page kind and the home_page setting', function (): void {
+    $plan = [
+        'pages' => [
+            ['slug' => 'home', 'title' => 'Home', 'kind' => 'page', 'status' => 'published', 'html' => '<h1>Hi</h1>'],
+            ['slug' => 'welcome-email', 'title' => 'Welcome', 'kind' => 'email', 'status' => 'draft', 'html' => '<p>Hi {{ input.record.name }}</p>'],
+        ],
+        'settings' => ['home_page' => 'home'],
+    ];
+
+    $summary = app(BuildPlanApplier::class)->apply($plan);
+
+    expect(Page::query()->where('slug', 'home')->value('kind'))->toBe('page')
+        ->and(Page::query()->where('slug', 'welcome-email')->value('kind'))->toBe('email')
+        ->and(app(Settings::class)->get('home_page'))->toBe('home')
+        ->and($summary['created']['settings'])->toContain('home_page=home');
+});
+
+it('defaults page kind to page when omitted', function (): void {
+    app(BuildPlanApplier::class)->apply(['pages' => [['slug' => 'plain', 'title' => 'Plain', 'html' => '<p>x</p>']]]);
+
+    expect(Page::query()->where('slug', 'plain')->value('kind'))->toBe('page');
+});
+
+it('validates page kind and the home_page setting', function (): void {
+    $v = app(BuildPlanValidator::class);
+
+    expect($v->validate(['pages' => [['slug' => 'p', 'kind' => 'page']]]))->toBe([]);
+
+    // bad kind
+    expect($v->validate(['pages' => [['slug' => 'p', 'kind' => 'nope']]]))
+        ->toContain("pages[0]: kind 'nope' must be 'page' or 'email'.");
+
+    // home_page pointing at an email template is a hard error
+    $errs = $v->validate([
+        'pages' => [['slug' => 'mail', 'kind' => 'email']],
+        'settings' => ['home_page' => 'mail'],
+    ]);
+    expect($errs)->toContain("settings.home_page: 'mail' is an email template (kind=email) and cannot be the home page.");
+
+    // home_page not in the plan is a warning, not a blocker
+    $warn = $v->validate(['settings' => ['home_page' => 'existing-elsewhere']]);
+    expect($warn)->toContain("settings.home_page (warning): 'existing-elsewhere' is not a page in this plan — ensure it already exists.");
 });
