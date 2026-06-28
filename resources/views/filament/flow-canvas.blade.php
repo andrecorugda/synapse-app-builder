@@ -15,6 +15,7 @@
             <button type="button" @click="addNode('trigger')">&#9654; Trigger</button>
             <button type="button" @click="addNode('ai_invoke')">&#10024; AI Invoke</button>
             <button type="button" @click="addNode('http_request')">&#127760; HTTP Request</button>
+            <button type="button" @click="addNode('function')">&#402; Function</button>
             <button type="button" @click="addNode('condition')">&#10067; Condition</button>
             <button type="button" @click="addNode('result')">&#9632; Result</button>
         </div>

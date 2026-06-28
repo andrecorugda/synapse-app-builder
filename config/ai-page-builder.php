@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Models\Flow;
+use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\FlowRun;
 use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
@@ -23,6 +24,7 @@ return [
             'media' => 'page_builder_media',
             'flows' => 'page_builder_flows',
             'flow_runs' => 'page_builder_flow_runs',
+            'functions' => 'page_builder_functions',
         ],
     ],
 
@@ -37,6 +39,7 @@ return [
         'media' => MediaItem::class,
         'flow' => Flow::class,
         'flow_run' => FlowRun::class,
+        'flow_function' => FlowFunction::class,
     ],
 
     /*

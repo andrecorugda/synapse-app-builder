@@ -9,10 +9,12 @@ use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
+use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Flow\GatewayAiInvoker;
 use Andre\AiPageBuilder\Flow\NodeRegistry;
 use Andre\AiPageBuilder\Flow\Nodes\AiInvokeNode;
 use Andre\AiPageBuilder\Flow\Nodes\ConditionNode;
+use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
 use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
@@ -40,6 +42,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_custom_css_to_pages_table',
                 'create_page_builder_flows_table',
                 'create_page_builder_flow_runs_table',
+                'create_page_builder_functions_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class);
@@ -53,6 +56,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
         // Flow engine.
         $this->app->bind(AiInvoker::class, GatewayAiInvoker::class);
+        $this->app->singleton(FunctionRegistry::class);
         $this->app->singleton(NodeRegistry::class, function ($app): NodeRegistry {
             $registry = new NodeRegistry;
             $registry->register(new TriggerNode);
@@ -60,6 +64,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             $registry->register(new HttpRequestNode);
             $registry->register(new ConditionNode);
             $registry->register(new ResultNode);
+            $registry->register($app->make(FunctionNode::class));
 
             return $registry;
         });

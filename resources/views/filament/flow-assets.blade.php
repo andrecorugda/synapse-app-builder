@@ -44,12 +44,8 @@
             align-items: center;
             gap: 0.3rem;
         }
-        .ai-pb-node input[df-integration],
-        .ai-pb-node input[df-output],
-        .ai-pb-node input[df-method],
-        .ai-pb-node input[df-url],
-        .ai-pb-node input[df-left],
-        .ai-pb-node input[df-right] {
+        .ai-pb-node input,
+        .ai-pb-node select {
             width: 100%;
             border: 1px solid #e2e8f0;
             border-radius: 0.25rem;
@@ -60,17 +56,12 @@
             background: #f8fafc;
             color: #0f172a;
         }
-        .ai-pb-node input[df-integration]:focus,
-        .ai-pb-node input[df-output]:focus,
-        .ai-pb-node input[df-method]:focus,
-        .ai-pb-node input[df-url]:focus,
-        .ai-pb-node input[df-left]:focus,
-        .ai-pb-node input[df-right]:focus {
+        .ai-pb-node input:focus,
+        .ai-pb-node select:focus {
             border-color: #6366f1;
             background: #fff;
         }
-        .ai-pb-node textarea[df-args],
-        .ai-pb-node textarea[df-actions] {
+        .ai-pb-node textarea {
             width: 100%;
             border: 1px solid #e2e8f0;
             border-radius: 0.25rem;
@@ -84,24 +75,9 @@
             background: #f8fafc;
             color: #0f172a;
         }
-        .ai-pb-node textarea[df-args]:focus,
-        .ai-pb-node textarea[df-actions]:focus {
+        .ai-pb-node textarea:focus {
             border-color: #6366f1;
             background: #fff;
-        }
-        .ai-pb-node select[df-op] {
-            width: 100%;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.25rem;
-            padding: 0.2rem 0.35rem;
-            font-size: 0.72rem;
-            margin-bottom: 0.25rem;
-            background: #f8fafc;
-            color: #0f172a;
-            outline: none;
-        }
-        .ai-pb-node select[df-op]:focus {
-            border-color: #6366f1;
         }
         .ai-pb-node label.ai-pb-node-label {
             display: block;
@@ -196,11 +172,32 @@
                         return '<div class="ai-pb-node" data-node-type="http_request">'
                             + '<div class="ai-pb-node-title">&#127760; HTTP Request</div>'
                             + '<label class="ai-pb-node-label">Method</label>'
-                            + '<input type="text" df-method placeholder="GET" />'
+                            + '<select df-method>'
+                            + '<option value="GET">GET</option>'
+                            + '<option value="POST">POST</option>'
+                            + '<option value="PUT">PUT</option>'
+                            + '<option value="PATCH">PATCH</option>'
+                            + '<option value="DELETE">DELETE</option>'
+                            + '</select>'
                             + '<label class="ai-pb-node-label">URL</label>'
-                            + '<input type="text" df-url placeholder="https://..." />'
+                            + '<input type="text" df-url placeholder="https://api.example.com/v1/{{vars.id}}" />'
+                            + '<label class="ai-pb-node-label">Headers (JSON)</label>'
+                            + '<textarea df-headers placeholder=\'{"Authorization":"Bearer {{vars.token}}"}\'></textarea>'
+                            + '<label class="ai-pb-node-label">Params / body (JSON)</label>'
+                            + '<textarea df-body placeholder=\'{"q":"{{input.query}}"}\'></textarea>'
                             + '<label class="ai-pb-node-label">Output variable</label>'
                             + '<input type="text" df-output placeholder="e.g. http_result" />'
+                            + '</div>';
+
+                    case 'function':
+                        return '<div class="ai-pb-node" data-node-type="function">'
+                            + '<div class="ai-pb-node-title">&#402; Function</div>'
+                            + '<label class="ai-pb-node-label">Function slug</label>'
+                            + '<input type="text" df-function placeholder="e.g. markup-price" />'
+                            + '<label class="ai-pb-node-label">Args (JSON)</label>'
+                            + '<textarea df-args placeholder=\'{"price":"{{vars.amount}}"}\'></textarea>'
+                            + '<label class="ai-pb-node-label">Output variable</label>'
+                            + '<input type="text" df-output placeholder="e.g. result" />'
                             + '</div>';
 
                     case 'condition':
@@ -281,6 +278,14 @@
                     if (data.actions) {
                         try { actions = JSON.parse(data.actions); } catch (_) { actions = []; }
                     }
+                    let headers = {};
+                    if (data.headers) {
+                        try { headers = JSON.parse(data.headers); } catch (_) { headers = {}; }
+                    }
+                    let body = {};
+                    if (data.body) {
+                        try { body = JSON.parse(data.body); } catch (_) { body = {}; }
+                    }
 
                     // Build config by type
                     let config = {};
@@ -299,8 +304,15 @@
                             config = {
                                 method: data.method || 'GET',
                                 url: data.url || '',
-                                headers: {},
-                                body: {},
+                                headers: headers,
+                                body: body,
+                                output: data.output || '',
+                            };
+                            break;
+                        case 'function':
+                            config = {
+                                function: data.function || '',
+                                args: args,
                                 output: data.output || '',
                             };
                             break;
