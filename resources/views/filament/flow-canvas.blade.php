@@ -25,6 +25,17 @@
 
             <span class="ai-pb-palette-spacer"></span>
 
+            {{-- Insert a {{ states.key }} reference into the focused node field;
+                 each option shows the State's data type. --}}
+            <select class="ai-pb-state-picker"
+                title="Insert a State reference into the focused field"
+                @change="insertState($event.target.value); $event.target.value = ''">
+                <option value="">⎘ Insert state…</option>
+                <template x-for="s in (window.__pbVariables || [])" :key="s.key">
+                    <option :value="s.key" x-text="s.key + ' · ' + (s.type || 'string')"></option>
+                </template>
+            </select>
+
             <button type="button" class="ai-pb-fullscreen-btn" @click="toggleFullscreen()"
                 x-text="fullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'"></button>
         </div>
