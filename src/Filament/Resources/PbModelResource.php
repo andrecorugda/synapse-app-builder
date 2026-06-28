@@ -80,10 +80,14 @@ class PbModelResource extends Resource
                                 ->maxLength(160)
                                 ->nullable(),
 
-                            Forms\Components\TextInput::make('icon')
-                                ->maxLength(160)
+                            Forms\Components\Select::make('icon')
+                                ->options(static::iconOptions())
+                                ->searchable()
+                                ->allowHtml()
+                                ->native(false)
                                 ->nullable()
-                                ->helperText('Heroicon name, e.g. heroicon-o-user.'),
+                                ->placeholder('Choose an icon')
+                                ->helperText('Heroicon shown in navigation and lists.'),
                         ]),
 
                         Forms\Components\Textarea::make('description')
@@ -156,6 +160,54 @@ class PbModelResource extends Resource
                         }),
                 ]),
             ]);
+    }
+
+    /**
+     * Accepted heroicons for the collection icon picker. Outline set — a curated
+     * list that covers the common data-collection cases without a 600-item list.
+     *
+     * @var array<int,string>
+     */
+    protected const ICONS = [
+        'heroicon-o-circle-stack', 'heroicon-o-table-cells', 'heroicon-o-rectangle-stack',
+        'heroicon-o-document-text', 'heroicon-o-document', 'heroicon-o-folder',
+        'heroicon-o-user', 'heroicon-o-users', 'heroicon-o-user-group',
+        'heroicon-o-building-office', 'heroicon-o-building-office-2', 'heroicon-o-briefcase',
+        'heroicon-o-shopping-cart', 'heroicon-o-shopping-bag', 'heroicon-o-tag', 'heroicon-o-ticket',
+        'heroicon-o-banknotes', 'heroicon-o-currency-dollar', 'heroicon-o-credit-card',
+        'heroicon-o-calendar', 'heroicon-o-calendar-days', 'heroicon-o-clock',
+        'heroicon-o-chart-bar', 'heroicon-o-chart-pie', 'heroicon-o-presentation-chart-line',
+        'heroicon-o-envelope', 'heroicon-o-chat-bubble-left-right', 'heroicon-o-phone', 'heroicon-o-bell',
+        'heroicon-o-star', 'heroicon-o-heart', 'heroicon-o-bookmark', 'heroicon-o-flag',
+        'heroicon-o-map-pin', 'heroicon-o-globe-alt', 'heroicon-o-truck', 'heroicon-o-cube',
+        'heroicon-o-cog-6-tooth', 'heroicon-o-wrench-screwdriver', 'heroicon-o-key',
+        'heroicon-o-lock-closed', 'heroicon-o-shield-check', 'heroicon-o-clipboard-document-list',
+        'heroicon-o-check-circle', 'heroicon-o-inbox', 'heroicon-o-archive-box',
+        'heroicon-o-photo', 'heroicon-o-film', 'heroicon-o-musical-note',
+        'heroicon-o-academic-cap', 'heroicon-o-beaker', 'heroicon-o-light-bulb',
+        'heroicon-o-fire', 'heroicon-o-bolt', 'heroicon-o-gift', 'heroicon-o-home', 'heroicon-o-sparkles',
+    ];
+
+    /**
+     * Icon-picker options: each label renders the glyph next to its short name
+     * (allowHtml). Falls back to the name alone if the svg() helper is absent.
+     *
+     * @return array<string,string>
+     */
+    public static function iconOptions(): array
+    {
+        $options = [];
+
+        foreach (self::ICONS as $icon) {
+            $name = str_replace('heroicon-o-', '', $icon);
+            $glyph = function_exists('svg')
+                ? svg($icon, 'w-5 h-5')->toHtml()
+                : '';
+
+            $options[$icon] = '<span style="display:inline-flex;align-items:center;gap:.5rem">'.$glyph.'<span>'.$name.'</span></span>';
+        }
+
+        return $options;
     }
 
     /**
