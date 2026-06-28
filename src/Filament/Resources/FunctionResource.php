@@ -69,10 +69,18 @@ class FunctionResource extends Resource
 
                 Forms\Components\Select::make('runtime')
                     ->required()
-                    ->options([
-                        'expression' => 'Expression (Symfony ExpressionLanguage)',
-                        'callable' => 'Registered callable (developer-registered)',
-                    ])
+                    ->options(function (): array {
+                        $options = [
+                            'expression' => 'Expression (safe, sandboxed)',
+                            'callable' => 'Registered callable (developer-registered)',
+                        ];
+
+                        if ((bool) config('ai-page-builder.flow.allow_php_functions', false)) {
+                            $options['php'] = 'PHP script (runs arbitrary PHP)';
+                        }
+
+                        return $options;
+                    })
                     ->default('expression')
                     ->live(),
 
@@ -94,6 +102,13 @@ class FunctionResource extends Resource
                     })
                     ->helperText('Choose a callable registered via FunctionRegistry::register() at boot.')
                     ->visible(fn (Get $get): bool => $get('runtime') === 'callable'),
+
+                Forms\Components\Textarea::make('body')
+                    ->label('PHP script')
+                    ->rows(12)
+                    ->helperText('Runs as PHP. $args, $input and $vars are available; end with `return <value>;`. ⚠ Executes arbitrary code on your server — only for trusted authors (your own app).')
+                    ->extraInputAttributes(['style' => 'font-family: ui-monospace, monospace;'])
+                    ->visible(fn (Get $get): bool => $get('runtime') === 'php'),
             ])
             ->columns(1);
     }
@@ -116,6 +131,7 @@ class FunctionResource extends Resource
                     ->color(fn (string $state): string => match ($state) {
                         'expression' => 'info',
                         'callable' => 'success',
+                        'php' => 'danger',
                         default => 'gray',
                     }),
 

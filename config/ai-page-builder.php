@@ -55,6 +55,12 @@ return [
         'max_steps' => 200,
         'drawflow_js' => env('AI_PAGE_BUILDER_DRAWFLOW_JS', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js'),
         'drawflow_css' => env('AI_PAGE_BUILDER_DRAWFLOW_CSS', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css'),
+
+        // Allow Functions with the `php` runtime to execute raw PHP. This is a
+        // self-hosted, single-tenant app builder — the function author is the app
+        // owner — so this is intentional. It DOES run arbitrary PHP; set to false
+        // to disable if you ever expose the builder to less-trusted users.
+        'allow_php_functions' => (bool) env('AI_PAGE_BUILDER_ALLOW_PHP', true),
     ],
 
     /*

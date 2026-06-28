@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Flow\ExpressionEvaluator;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Models\FlowFunction;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Executes a named FlowFunction and stores the result in a context variable.
@@ -76,6 +77,8 @@ class FunctionNode implements FlowNodeHandler
                     if ($cb !== null) {
                         $result = $cb($args, $context);
                     }
+                } elseif ($fn->runtime === 'php') {
+                    $result = $this->runPhp((string) $fn->body, $args, $context);
                 }
             }
         }
@@ -83,5 +86,34 @@ class FunctionNode implements FlowNodeHandler
         $context->set($output, $result);
 
         return (array) ($node['next'] ?? []);
+    }
+
+    /**
+     * Execute a raw-PHP function body. Synapse App Builder is a self-hosted,
+     * single-tenant builder where the function author IS the app owner (who
+     * already has full code/server access), so this is intentional power — but
+     * it executes arbitrary PHP, so it's gated behind a config flag that a
+     * cautious deployer can switch off. The body runs in an isolated static
+     * closure with $args / $input / $vars available and should `return` a value.
+     *
+     * @param  array<string,mixed>  $args
+     */
+    private function runPhp(string $body, array $args, FlowContext $context): mixed
+    {
+        if (! (bool) config('ai-page-builder.flow.allow_php_functions', false)) {
+            return null;
+        }
+
+        try {
+            $exec = static function (array $args, array $input, array $vars) use ($body) {
+                return eval($body);
+            };
+
+            return $exec($args, $context->input, $context->vars);
+        } catch (\Throwable $e) {
+            Log::warning('[ai-page-builder] php function failed: '.$e->getMessage());
+
+            return null;
+        }
     }
 }
