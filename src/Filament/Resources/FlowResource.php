@@ -122,6 +122,9 @@ class FlowResource extends Resource
                                     'deleted' => 'Deleted',
                                 ])
                                 ->columns(3)
+                                // Group the options in the centre instead of
+                                // spreading them edge-to-edge across the row.
+                                ->extraAttributes(['style' => 'max-width:30rem;margin-inline:auto;'])
                                 ->required(fn (Get $get): bool => $get('trigger_type') === 'collection'),
 
                             Forms\Components\Repeater::make('trigger_config.criteria')
