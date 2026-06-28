@@ -49,6 +49,7 @@
                             label: b.label,
                             category: b.category,
                             content: b.template,
+                            media: b.icon || undefined,
                         });
                         editor.DomComponents.addType(b.key, {
                             isComponent: (el) => el.getAttribute && el.getAttribute('data-pb-block') === b.key,

@@ -21,10 +21,11 @@ final readonly class SectionBlock
         public string $category,
         public string $template,
         public string $description = '',
+        public string $icon = '',
     ) {}
 
     /**
-     * @return array{key:string,label:string,category:string,template:string,description:string}
+     * @return array{key:string,label:string,category:string,template:string,description:string,icon:string}
      */
     public function toArray(): array
     {
@@ -34,6 +35,7 @@ final readonly class SectionBlock
             'category' => $this->category,
             'template' => $this->template,
             'description' => $this->description,
+            'icon' => $this->icon,
         ];
     }
 }

@@ -213,6 +213,6 @@ final class BlockVocabulary
 
     private static function block(string $key, string $label, string $description, string $template, string $category = 'Sections'): SectionBlock
     {
-        return new SectionBlock($key, $label, $category, trim($template), $description);
+        return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key));
     }
 }
