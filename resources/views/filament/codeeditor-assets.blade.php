@@ -5,7 +5,6 @@
      here). Linting is server-side (`php -l`) shown via Ace gutter annotations. --}}
 @once
     @php $aceBase = rtrim((string) config('ai-page-builder.editor.ace_base', 'https://cdn.jsdelivr.net/npm/ace-builds@1.36.5/src-min-noconflict'), '/'); @endphp
-    <script src="{{ $aceBase }}/ace.js"></script>
     <script>window.__pbAceBase = @js($aceBase);</script>
     <style>
         .ai-pb-code .ace_editor { border-radius: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -13,8 +12,22 @@
     @verbatim
     <script>
         (function () {
-            if (window.ace && window.__pbAceBase) {
-                window.ace.config.set('basePath', window.__pbAceBase);
+            // Idempotent across full loads AND wire:navigate SPA navigations: the
+            // panels::body.end render hook re-injects this block on every SPA page,
+            // so guard on a window flag — Ace is loaded, Alpine is registered, and
+            // the Livewire hook is wired exactly once per browser page lifetime.
+            if (window.__pbCodeEditorBooted) { return; }
+            window.__pbCodeEditorBooted = true;
+
+            // Load Ace via a guarded dynamic script (not a static tag, which would
+            // re-execute on SPA nav and reset Ace's internal module registry).
+            if (! window.ace) {
+                var s = document.createElement('script');
+                s.src = window.__pbAceBase + '/ace.js';
+                s.onload = function () { try { window.ace.config.set('basePath', window.__pbAceBase); } catch (e) {} };
+                document.head.appendChild(s);
+            } else {
+                try { window.ace.config.set('basePath', window.__pbAceBase); } catch (e) {}
             }
 
             function aceMode(language) {
@@ -44,6 +57,7 @@
                     boot() {
                         var self = this;
                         if (! window.ace) { return setTimeout(function () { self.boot(); }, 50); }
+                        try { window.ace.config.set('basePath', window.__pbAceBase); } catch (e) {}
                         this.mount();
                     },
 
@@ -52,6 +66,11 @@
                         var el = this.$refs.editor;
                         if (! el) { return; }
                         var self = this;
+
+                        // If a Livewire morph handed us a node that still carries a
+                        // previous editor's Ace DOM, wipe it so ace.edit() starts clean
+                        // (otherwise the new editor inherits stale markup/theme).
+                        if (el.firstChild) { el.innerHTML = ''; }
 
                         var ed = window.ace.edit(el);
                         ed.setTheme('ace/theme/monokai');
