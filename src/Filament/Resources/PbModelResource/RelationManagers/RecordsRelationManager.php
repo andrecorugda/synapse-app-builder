@@ -186,6 +186,10 @@ class RecordsRelationManager extends RelationManager
                 FieldType::Boolean => TernaryFilter::make($name)->label($label),
 
                 FieldType::Integer, FieldType::Decimal => Filter::make($name)
+                    // Two inputs side by side, spanning two grid columns, so the
+                    // range filter stays the same height as single-input filters.
+                    ->columns(2)
+                    ->columnSpan(2)
                     ->schema([
                         Forms\Components\TextInput::make('from')->label($label.' ≥')->numeric(),
                         Forms\Components\TextInput::make('to')->label($label.' ≤')->numeric(),
@@ -197,6 +201,8 @@ class RecordsRelationManager extends RelationManager
                     }),
 
                 FieldType::Date, FieldType::DateTime => Filter::make($name)
+                    ->columns(2)
+                    ->columnSpan(2)
                     ->schema([
                         Forms\Components\DatePicker::make('from')->label($label.' from'),
                         Forms\Components\DatePicker::make('until')->label($label.' until'),
