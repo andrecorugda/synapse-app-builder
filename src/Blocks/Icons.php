@@ -40,6 +40,15 @@ final class Icons
         'shape-slant' => '<path d="M3 16L21 8"/><path d="M3 16h18"/>',
         'shape-tilt' => '<path d="M3 8l18 8"/><path d="M3 16h18"/>',
         'shape-curve' => '<path d="M3 14c4-8 14-8 18 0"/>',
+        // Components
+        'card' => '<rect x="4" y="5" width="16" height="14" rx="2"/><line x1="7" y1="9" x2="14" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/>',
+        'banner' => '<rect x="3" y="8" width="18" height="8" rx="2"/><circle cx="7" cy="12" r="1.3"/><line x1="10" y1="12" x2="16" y2="12"/>',
+        'modal' => '<rect x="3" y="4" width="18" height="16" rx="2" opacity="0.4"/><rect x="7" y="8" width="10" height="8" rx="1.5"/>',
+        'drawer' => '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="14" y="4" width="7" height="16" rx="0"/>',
+        'tabs' => '<path d="M3 9h5V5h5v4h8"/><rect x="3" y="9" width="18" height="10" rx="1.5"/>',
+        'accordion' => '<rect x="3" y="4" width="18" height="5" rx="1.5"/><rect x="3" y="11" width="18" height="9" rx="1.5"/><path d="M17 6.5l1 1 1-1"/>',
+        'tooltip' => '<rect x="4" y="5" width="16" height="9" rx="2"/><path d="M10 14l2 3 2-3"/>',
+        'dropdown_menu' => '<rect x="6" y="4" width="12" height="5" rx="1.5"/><path d="M10 6.5l2 2 2-2"/><rect x="6" y="11" width="12" height="9" rx="1.5"/><line x1="9" y1="14" x2="15" y2="14"/><line x1="9" y1="17" x2="15" y2="17"/>',
     ];
 
     public static function for(string $key): string

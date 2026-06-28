@@ -196,13 +196,150 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block (sections + basics + shapes) for the GrapesJS block manager.
+     * Interactive UI-kit components.
+     *
+     * OWNER-authored (trusted) blocks. Published pages already load Alpine
+     * (window.Alpine + $store.app), so overlay/disclosure components carry
+     * local Alpine state via executable directives (x-data, @click, x-show…).
+     * Each block's root element carries data-pb-block="{key}" and uses inline
+     * styles + stable pb-{key}__* classes (no host Tailwind on the page).
+     * Overlay panels use x-cloak so they stay hidden in the editor canvas,
+     * where Alpine does not run.
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function components(): array
+    {
+        return [
+            self::block('card', 'Card', 'Titled content container with heading, text and a slot.', <<<'HTML'
+            <div data-pb-block="card" class="pb-card" style="max-width:24rem;border:1px solid #e2e8f0;border-radius:0.75rem;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,0.08);overflow:hidden;">
+              <div class="pb-card__body" style="padding:1.5rem;">
+                <h3 class="pb-card__title" style="margin:0 0 0.5rem;font-size:1.15rem;color:#0f172a;">Card title</h3>
+                <p class="pb-card__text" style="margin:0;color:#475569;line-height:1.6;">Supporting copy that explains the content of this card. Add anything you like below.</p>
+                <div class="pb-card__slot" style="margin-top:1rem;"></div>
+              </div>
+            </div>
+            HTML, 'Components'),
+
+            self::block('banner', 'Banner', 'Dismissible inline alert strip.', <<<'HTML'
+            <div data-pb-block="banner" class="pb-banner" x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;border:1px solid #bfdbfe;border-radius:0.5rem;background:#eff6ff;color:#1e3a8a;">
+              <svg class="pb-banner__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span class="pb-banner__message" style="flex:1;line-height:1.5;">Heads up — this is an informational message.</span>
+              <button type="button" class="pb-banner__dismiss" @click="show = false" aria-label="Dismiss" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:1.75rem;height:1.75rem;padding:0;border:0;border-radius:0.375rem;background:transparent;color:inherit;cursor:pointer;line-height:0;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            HTML, 'Components'),
+
+            self::block('modal', 'Modal', 'Trigger button with a centered overlay dialog.', <<<'HTML'
+            <div data-pb-block="modal" class="pb-modal" x-data="{ open: false }">
+              <button type="button" class="pb-modal__trigger" @click="open = true" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open modal</button>
+              <div class="pb-modal__overlay" x-show="open" x-cloak x-transition.opacity @keydown.escape.window="open = false" @click.self="open = false" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,0.55);z-index:1000;">
+                <div class="pb-modal__panel" role="dialog" aria-modal="true" x-transition style="width:100%;max-width:28rem;background:#fff;border-radius:0.75rem;box-shadow:0 20px 50px rgba(15,23,42,0.25);overflow:hidden;">
+                  <div class="pb-modal__body" style="padding:1.75rem;">
+                    <h3 class="pb-modal__title" style="margin:0 0 0.75rem;font-size:1.25rem;color:#0f172a;">Modal title</h3>
+                    <p class="pb-modal__text" style="margin:0;color:#475569;line-height:1.6;">Put your dialog content here. Press Escape, click the backdrop, or use the buttons to close.</p>
+                  </div>
+                  <div class="pb-modal__actions" style="display:flex;justify-content:flex-end;gap:0.75rem;padding:1rem 1.75rem;border-top:1px solid #e2e8f0;background:#f8fafc;">
+                    <button type="button" class="pb-modal__close" @click="open = false" style="padding:0.55rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:pointer;">Close</button>
+                    <button type="button" class="pb-modal__confirm" @click="open = false" style="padding:0.55rem 1.1rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Confirm</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            HTML, 'Components'),
+
+            self::block('drawer', 'Drawer', 'Trigger button with a right-edge slide-over panel.', <<<'HTML'
+            <div data-pb-block="drawer" class="pb-drawer" x-data="{ open: false }">
+              <button type="button" class="pb-drawer__trigger" @click="open = true" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open drawer</button>
+              <div class="pb-drawer__backdrop" x-show="open" x-cloak x-transition.opacity @click="open = false" @keydown.escape.window="open = false" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:1000;"></div>
+              <aside class="pb-drawer__panel" role="dialog" aria-modal="true" x-show="open" x-cloak x-transition:enter="pb-drawer-enter" x-transition:enter-start="pb-drawer-enter-start" x-transition:enter-end="pb-drawer-enter-end" x-transition:leave="pb-drawer-leave" x-transition:leave-start="pb-drawer-enter-end" x-transition:leave-end="pb-drawer-enter-start" style="position:fixed;top:0;right:0;height:100%;width:360px;max-width:90vw;background:#fff;box-shadow:-12px 0 40px rgba(15,23,42,0.18);z-index:1001;display:flex;flex-direction:column;">
+                <div class="pb-drawer__header" style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid #e2e8f0;">
+                  <h3 class="pb-drawer__title" style="margin:0;font-size:1.15rem;color:#0f172a;">Drawer</h3>
+                  <button type="button" class="pb-drawer__close" @click="open = false" aria-label="Close" style="display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;padding:0;border:0;border-radius:0.375rem;background:transparent;color:#475569;cursor:pointer;line-height:0;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div class="pb-drawer__body" style="padding:1.5rem;overflow-y:auto;color:#475569;line-height:1.6;">
+                  <p style="margin:0;">Slide-over panel content. Great for navigation, filters or details.</p>
+                </div>
+              </aside>
+            </div>
+            HTML, 'Components'),
+
+            self::block('tabs', 'Tabs', 'Tabbed panels — switch content without navigating.', <<<'HTML'
+            <div data-pb-block="tabs" class="pb-tabs" x-data="{ tab: 'one' }" style="max-width:36rem;">
+              <div class="pb-tabs__list" role="tablist" style="display:flex;gap:0.25rem;border-bottom:1px solid #e2e8f0;">
+                <button type="button" class="pb-tabs__tab" role="tab" @click="tab = 'one'" :aria-selected="tab === 'one'" :style="tab === 'one' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab one</button>
+                <button type="button" class="pb-tabs__tab" role="tab" @click="tab = 'two'" :aria-selected="tab === 'two'" :style="tab === 'two' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab two</button>
+                <button type="button" class="pb-tabs__tab" role="tab" @click="tab = 'three'" :aria-selected="tab === 'three'" :style="tab === 'three' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab three</button>
+              </div>
+              <div class="pb-tabs__panels" style="padding:1.25rem 0;color:#475569;line-height:1.6;">
+                <div class="pb-tabs__panel" role="tabpanel" x-show="tab === 'one'"><p style="margin:0;">Content for the first tab.</p></div>
+                <div class="pb-tabs__panel" role="tabpanel" x-show="tab === 'two'" x-cloak><p style="margin:0;">Content for the second tab.</p></div>
+                <div class="pb-tabs__panel" role="tabpanel" x-show="tab === 'three'" x-cloak><p style="margin:0;">Content for the third tab.</p></div>
+              </div>
+            </div>
+            HTML, 'Components'),
+
+            self::block('accordion', 'Accordion', 'Collapsible items — expand one at a time.', <<<'HTML'
+            <div data-pb-block="accordion" class="pb-accordion" style="max-width:36rem;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
+              <div class="pb-accordion__item" x-data="{ open: true }" style="border-bottom:1px solid #e2e8f0;">
+                <button type="button" class="pb-accordion__header" @click="open = !open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
+                  <span>First item</span>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="pb-accordion__body" x-show="open" x-cloak style="padding:0 1.25rem 1rem;color:#475569;line-height:1.6;"><p style="margin:0;">Body content for the first item.</p></div>
+              </div>
+              <div class="pb-accordion__item" x-data="{ open: false }" style="border-bottom:1px solid #e2e8f0;">
+                <button type="button" class="pb-accordion__header" @click="open = !open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
+                  <span>Second item</span>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="pb-accordion__body" x-show="open" x-cloak style="padding:0 1.25rem 1rem;color:#475569;line-height:1.6;"><p style="margin:0;">Body content for the second item.</p></div>
+              </div>
+              <div class="pb-accordion__item" x-data="{ open: false }">
+                <button type="button" class="pb-accordion__header" @click="open = !open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
+                  <span>Third item</span>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="pb-accordion__body" x-show="open" x-cloak style="padding:0 1.25rem 1rem;color:#475569;line-height:1.6;"><p style="margin:0;">Body content for the third item.</p></div>
+              </div>
+            </div>
+            HTML, 'Components'),
+
+            self::block('tooltip', 'Tooltip', 'Hover/focus hint bubble above an element.', <<<'HTML'
+            <div data-pb-block="tooltip" class="pb-tooltip" x-data="{ h: false }" style="display:inline-block;position:relative;">
+              <button type="button" class="pb-tooltip__trigger" @mouseenter="h = true" @mouseleave="h = false" @focus="h = true" @blur="h = false" :aria-describedby="h ? 'pb-tooltip-bubble' : null" style="display:inline-block;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:default;">Hover me</button>
+              <span class="pb-tooltip__bubble" id="pb-tooltip-bubble" role="tooltip" x-show="h" x-cloak x-transition.opacity style="position:absolute;bottom:calc(100% + 0.5rem);left:50%;transform:translateX(-50%);white-space:nowrap;padding:0.4rem 0.65rem;border-radius:0.375rem;background:#0f172a;color:#fff;font-size:0.8125rem;line-height:1.3;box-shadow:0 4px 12px rgba(15,23,42,0.25);z-index:10;">Helpful hint goes here</span>
+            </div>
+            HTML, 'Components'),
+
+            self::block('dropdown_menu', 'Dropdown menu', 'Button that toggles a menu of actions.', <<<'HTML'
+            <div data-pb-block="dropdown_menu" class="pb-dropdown" x-data="{ open: false }" style="display:inline-block;position:relative;">
+              <button type="button" class="pb-dropdown__trigger" @click="open = !open" :aria-expanded="open" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:pointer;">
+                <span>Options</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="pb-dropdown__menu" role="menu" x-show="open" x-cloak x-transition.opacity @click.outside="open = false" @keydown.escape.window="open = false" style="position:absolute;top:calc(100% + 0.35rem);left:0;min-width:11rem;padding:0.35rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px rgba(15,23,42,0.16);z-index:20;">
+                <a href="#" class="pb-dropdown__item" role="menuitem" @click="open = false" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#334155;text-decoration:none;">Edit</a>
+                <a href="#" class="pb-dropdown__item" role="menuitem" @click="open = false" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#334155;text-decoration:none;">Duplicate</a>
+                <a href="#" class="pb-dropdown__item" role="menuitem" @click="open = false" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#dc2626;text-decoration:none;">Delete</a>
+              </div>
+            </div>
+            HTML, 'Components'),
+        ];
+    }
+
+    /**
+     * Every block (sections + basics + shapes + components) for the GrapesJS
+     * block manager.
      *
      * @return array<int,SectionBlock>
      */
     public static function all(): array
     {
-        return [...self::sections(), ...self::basics(), ...self::shapes()];
+        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components()];
     }
 
     /**

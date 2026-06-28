@@ -213,7 +213,7 @@
                         try {
                             const doc = editor.Canvas.getDocument();
                             const s = doc.createElement('style');
-                            s.innerHTML = '[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
+                            s.innerHTML = '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
                             doc.head.appendChild(s);
                         } catch (e) { /* no-op */ }
                     });
