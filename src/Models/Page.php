@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
  * @property string $slug
  * @property PageStatus $status
  * @property string $kind
+ * @property bool $requires_auth
  * @property ?string $template
  * @property ?array $project_data
  * @property ?string $html
@@ -47,6 +48,7 @@ class Page extends Model
         'project_data' => 'array',
         'meta' => 'array',
         'published_at' => 'datetime',
+        'requires_auth' => 'boolean',
     ];
 
     public function getConnectionName(): ?string

@@ -25,7 +25,9 @@ use Andre\AiPageBuilder\Flow\Nodes\SendEmailNode;
 use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
+use Andre\AiPageBuilder\Http\Controllers\AuthController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
+use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
@@ -63,6 +65,10 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_variables_table',
                 'create_page_builder_settings_table',
                 'add_kind_to_pages_table',
+                'create_page_builder_roles_table',
+                'create_page_builder_users_table',
+                'create_page_builder_permissions_table',
+                'add_requires_auth_to_pages_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class);
@@ -110,6 +116,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        $this->registerAuthGuard();
+        $this->registerAuthRoutes();
         $this->registerRenderRoutes();
         $this->registerPanelRoutes();
         $this->registerFlowRoutes();
@@ -231,6 +239,55 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         } catch (\Throwable $e) {
             Log::warning('[ai-page-builder] gateway integration auto-seed skipped: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Register the package's own session guard (default `pb`) + Eloquent user
+     * provider for the BUILT app's end-users — without disturbing the host
+     * app's auth config. Idempotent and respectful of host overrides: an
+     * existing guard/provider of the same name is left untouched.
+     */
+    private function registerAuthGuard(): void
+    {
+        if (! (bool) config('ai-page-builder.auth.enabled', true)) {
+            return;
+        }
+
+        $guard = (string) config('ai-page-builder.auth.guard', 'pb');
+        $provider = 'ai_page_builder_users';
+
+        if (config("auth.guards.{$guard}") === null) {
+            config(["auth.guards.{$guard}" => ['driver' => 'session', 'provider' => $provider]]);
+        }
+
+        if (config("auth.providers.{$provider}") === null) {
+            config(["auth.providers.{$provider}" => [
+                'driver' => 'eloquent',
+                'model' => config('ai-page-builder.models.user', PbUser::class),
+            ]]);
+        }
+    }
+
+    /**
+     * Register the static login / logout routes for the built app's end-users.
+     * Path is config-driven (auth.login_path); runs through the render
+     * middleware (web) so sessions work. Opt-out by disabling auth.
+     */
+    private function registerAuthRoutes(): void
+    {
+        if (! (bool) config('ai-page-builder.auth.enabled', true)) {
+            return;
+        }
+
+        $login = trim((string) config('ai-page-builder.auth.login_path', 'login'), '/');
+
+        Route::group([
+            'middleware' => (array) config('ai-page-builder.routes.render_middleware', ['web']),
+        ], function () use ($login): void {
+            Route::get($login, [AuthController::class, 'show'])->name('ai-page-builder.login');
+            Route::post($login, [AuthController::class, 'login']);
+            Route::post('pb-logout', [AuthController::class, 'logout'])->name('ai-page-builder.logout');
+        });
     }
 
     /**

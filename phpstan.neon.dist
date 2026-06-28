@@ -21,3 +21,4 @@ parameters:
           paths:
               - src/Services/PageRenderer.php
               - src/AiPageBuilderServiceProvider.php
+              - src/Http/Controllers/AuthController.php

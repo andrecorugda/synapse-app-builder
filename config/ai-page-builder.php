@@ -9,7 +9,10 @@ use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\PbPermission;
+use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbSetting;
+use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Variable;
 
 return [
@@ -36,6 +39,11 @@ return [
             'variables' => 'page_builder_variables',
             // Builder configuration (home page, email/SMTP transport, …).
             'settings' => 'page_builder_settings',
+            // End-user identity & access for the BUILT app (Synapse's own auth,
+            // distinct from the host app's users).
+            'users' => 'page_builder_users',
+            'roles' => 'page_builder_roles',
+            'permissions' => 'page_builder_permissions',
         ],
     ],
 
@@ -55,6 +63,9 @@ return [
         'field' => PbField::class,
         'variable' => Variable::class,
         'setting' => PbSetting::class,
+        'user' => PbUser::class,
+        'role' => PbRole::class,
+        'permission' => PbPermission::class,
     ],
 
     /*
@@ -133,6 +144,27 @@ return [
 
         // Public flow-run endpoint prefix (stateless, rate-limited).
         'flow_prefix' => env('AI_PAGE_BUILDER_FLOW_PREFIX', 'pb-flow'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | End-user authentication (the BUILT app's own users)
+    |--------------------------------------------------------------------------
+    | Synapse ships its OWN identity layer for the app you build — users, roles
+    | and permissions kept apart from the host app's auth. It is entirely
+    | optional: a public website ignores it; an internal tool turns on
+    | "requires login" per page and assigns roles/permissions.
+    |
+    | The package registers a session guard (default name `pb`) backed by its
+    | own users table, the static login page, logout, and the gate middleware
+    | that protects pages flagged `requires_auth`.
+    */
+    'auth' => [
+        'enabled' => (bool) env('AI_PAGE_BUILDER_AUTH', true),
+        'guard' => env('AI_PAGE_BUILDER_AUTH_GUARD', 'pb'),
+        'login_path' => env('AI_PAGE_BUILDER_LOGIN_PATH', 'login'),
+        // Where to send a user after login / where "home" is when none given.
+        'redirect_after_login' => env('AI_PAGE_BUILDER_AUTH_REDIRECT', '/'),
     ],
 
     /*
