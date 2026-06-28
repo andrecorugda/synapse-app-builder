@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Forms\Components\CodeField;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource\Pages;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Models\FlowFunction;
@@ -84,11 +85,11 @@ class FunctionResource extends Resource
                     ->default('expression')
                     ->live(),
 
-                Forms\Components\Textarea::make('body')
+                CodeField::make('body')
                     ->label('Expression')
-                    ->rows(4)
+                    ->language('javascript')
+                    ->height(120)
                     ->helperText('Symfony ExpressionLanguage over input/vars/args, e.g. args["price"] * 1.2')
-                    ->extraInputAttributes(['style' => 'font-family: ui-monospace, monospace;'])
                     ->visible(fn (Get $get): bool => $get('runtime') === 'expression'),
 
                 Forms\Components\Select::make('body')
@@ -103,11 +104,11 @@ class FunctionResource extends Resource
                     ->helperText('Choose a callable registered via FunctionRegistry::register() at boot.')
                     ->visible(fn (Get $get): bool => $get('runtime') === 'callable'),
 
-                Forms\Components\Textarea::make('body')
+                CodeField::make('body')
                     ->label('PHP script')
-                    ->rows(12)
+                    ->language('php')
+                    ->height(360)
                     ->helperText('Runs as PHP. $args, $input and $vars are available; end with `return <value>;`. ⚠ Executes arbitrary code on your server — only for trusted authors (your own app).')
-                    ->extraInputAttributes(['style' => 'font-family: ui-monospace, monospace;'])
                     ->visible(fn (Get $get): bool => $get('runtime') === 'php'),
             ])
             ->columns(1);

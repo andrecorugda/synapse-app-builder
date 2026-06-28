@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources;
 
 use Andre\AiPageBuilder\Enums\PageStatus;
+use Andre\AiPageBuilder\Filament\Forms\Components\CodeField;
 use Andre\AiPageBuilder\Filament\Forms\Components\GrapesJsField;
 use Andre\AiPageBuilder\Filament\Resources\PageResource\Pages;
 use Andre\AiPageBuilder\Models\Page;
@@ -95,11 +96,11 @@ class PageResource extends Resource
                 Schemas\Components\Section::make('Advanced')
                     ->collapsed()
                     ->schema([
-                        Forms\Components\Textarea::make('custom_css')
+                        CodeField::make('custom_css')
                             ->label('Custom CSS')
-                            ->rows(8)
+                            ->language('css')
+                            ->height(240)
                             ->helperText('Raw CSS appended to this page. Target your element classes, e.g. .pb-hero__title { letter-spacing: -0.02em; }')
-                            ->extraInputAttributes(['style' => 'font-family: ui-monospace, monospace;'])
                             ->columnSpanFull(),
                     ]),
             ])

@@ -143,6 +143,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Code editor (CodeMirror)
+    |--------------------------------------------------------------------------
+    | Base URL for the CodeMirror editor used by code fields (highlighting +
+    | linting). Defaults to a CDN; self-host by pointing this at your assets.
+    */
+    'editor' => [
+        'codemirror_base' => env('AI_PAGE_BUILDER_CODEMIRROR_BASE', 'https://cdn.jsdelivr.net/npm/codemirror@5.65.16'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Filament
     |--------------------------------------------------------------------------
     */

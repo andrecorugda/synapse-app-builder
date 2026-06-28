@@ -176,5 +176,11 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             'panels::body.end',
             static fn (): string => view('ai-page-builder::filament.flow-assets')->render(),
         );
+
+        // The CodeMirror code editor + Alpine component.
+        FilamentView::registerRenderHook(
+            'panels::body.end',
+            static fn (): string => view('ai-page-builder::filament.codeeditor-assets')->render(),
+        );
     }
 }
