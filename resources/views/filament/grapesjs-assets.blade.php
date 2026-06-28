@@ -56,9 +56,17 @@
                         });
                     });
 
+                    // Load canonical GrapesJS state if present; otherwise fall
+                    // back to importing the stored HTML (pages created by a seed,
+                    // an import, or AI have html but no project_data yet).
                     const existing = this.readState('project_data');
                     if (existing && Object.keys(existing).length) {
                         try { editor.loadProjectData(existing); } catch (e) { /* ignore malformed */ }
+                    } else {
+                        const html = this.readState('html');
+                        const css = this.readState('css');
+                        if (html) { editor.setComponents(html); }
+                        if (css) { editor.setStyle(css); }
                     }
 
                     const sync = () => this.writeState({
