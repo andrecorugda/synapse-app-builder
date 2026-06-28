@@ -6,6 +6,11 @@
 @once
     <link rel="stylesheet" href="{{ config('ai-page-builder.assets.grapesjs_css') }}">
     <script src="{{ config('ai-page-builder.assets.grapesjs_js') }}"></script>
+    <style>
+        /* CSS-based maximize (native fullscreen is unreliable inside the panel). */
+        .pb-maximized { position: fixed !important; inset: 0 !important; z-index: 9999 !important; width: 100vw !important; height: 100vh !important; margin: 0 !important; border-radius: 0 !important; }
+        .pb-maximized .pb-editor-body { height: 100vh !important; }
+    </style>
     <script>
         (function () {
             const factory = (config) => ({
@@ -73,6 +78,7 @@
                         },
                     });
                     this.editor = editor;
+                    const rootEl = this.$el;
 
                     config.blocks.forEach((b) => {
                         // The 'image' block is GrapesJS's native image component so it
@@ -116,6 +122,45 @@
                             pickImage(cmp);
                         }
                     });
+
+                    // "Set background image" — opens the media picker and applies the
+                    // pick as a CSS background on the selected component (cover/center).
+                    editor.Commands.add('pb-set-bg-image', {
+                        run(ed) {
+                            const cmp = ed.getSelected();
+                            if (! cmp) { return; }
+                            ed.AssetManager.open({
+                                types: ['image'],
+                                select(asset) {
+                                    const src = (asset && asset.get) ? asset.get('src') : ((asset && asset.src) || '');
+                                    if (src) {
+                                        cmp.addStyle({
+                                            'background-image': "url('" + src + "')",
+                                            'background-size': 'cover',
+                                            'background-position': 'center',
+                                            'background-repeat': 'no-repeat',
+                                        });
+                                    }
+                                    ed.AssetManager.close();
+                                },
+                            });
+                        },
+                    });
+                    editor.Panels.addButton('options', {
+                        id: 'pb-bg-image',
+                        command: 'pb-set-bg-image',
+                        label: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
+                        attributes: { title: 'Set background image on the selected element' },
+                    });
+
+                    // CSS-based maximize so the canvas actually fills the screen
+                    // (native fullscreen is unreliable inside the Filament panel).
+                    const maximize = {
+                        run(ed) { rootEl.classList.add('pb-maximized'); setTimeout(() => ed.refresh(), 0); },
+                        stop(ed) { rootEl.classList.remove('pb-maximized'); setTimeout(() => ed.refresh(), 0); },
+                    };
+                    editor.Commands.add('fullscreen', maximize);
+                    editor.Commands.add('core:fullscreen', maximize);
 
                     // Load canonical GrapesJS state if present; otherwise fall
                     // back to importing the stored HTML (pages created by a seed,
