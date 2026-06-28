@@ -107,7 +107,7 @@ final class SystemPromptBuilder
                            "runtime": "expression|callable|php", "body": "<string>" } ]
         - "flows": [ {
             "slug": "<lowercase-slug>", "name": "<label>",
-            "trigger_type": "manual|component|collection|cron|api",
+            "trigger_type": "manual|component|form|collection|cron|api",
             "trigger_config": { ... },
             "definition": {
               "start": "<node id>",

@@ -9,13 +9,18 @@ use Andre\AiPageBuilder\Flow\FlowContext;
 
 /**
  * Appends result actions returned to the page runtime.
- * config: { actions: [ {type:setHtml,target,html} | {type:notify,message,level} | {type:redirect,url} ] }
+ * config: { actions: [ {type:setHtml,target,html} | {type:notify,message,level} | {type:redirect,url}
+ *                     | {type:setState,key,value} | {type:setStates,values:{...}} ] }
  * Action fields are interpolated against the context (so they can carry AI/HTTP output).
  */
 class ResultNode implements FlowNodeHandler
 {
-    /** Action types the page runtime knows how to apply. */
-    private const ALLOWED = ['setHtml', 'setText', 'notify', 'redirect', 'addClass', 'removeClass'];
+    /**
+     * Action types the page runtime knows how to apply. setState/setStates push
+     * live values into the published page's reactive Alpine store ($store.app),
+     * so a flow can drive bound components without a reload.
+     */
+    private const ALLOWED = ['setHtml', 'setText', 'notify', 'redirect', 'addClass', 'removeClass', 'setState', 'setStates'];
 
     public function type(): string
     {
