@@ -21,6 +21,7 @@ use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
 use Andre\AiPageBuilder\Flow\Nodes\RecordNode;
 use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
+use Andre\AiPageBuilder\Flow\Nodes\SendEmailNode;
 use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
@@ -61,6 +62,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_fields_table',
                 'create_page_builder_variables_table',
                 'create_page_builder_settings_table',
+                'add_kind_to_pages_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class);
@@ -85,6 +87,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             $registry->register($app->make(FunctionNode::class));
             $registry->register($app->make(RecordNode::class));
             $registry->register($app->make(SetVariableNode::class));
+            $registry->register($app->make(SendEmailNode::class));
 
             return $registry;
         });

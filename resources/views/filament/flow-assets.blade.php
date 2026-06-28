@@ -31,11 +31,21 @@
         } catch (\Throwable $e) {
             $pbVariables = [];
         }
+        try {
+            // Email-template pages (kind=email) feed the Send Email node's
+            // template dropdown — its html becomes the email body.
+            $pageClass = config('ai-page-builder.models.page', \Andre\AiPageBuilder\Models\Page::class);
+            $pbEmailTemplates = $pageClass::query()->where('kind', 'email')->orderBy('title')->get()
+                ->map(fn ($p) => ['slug' => $p->slug, 'name' => $p->title])->values()->all();
+        } catch (\Throwable $e) {
+            $pbEmailTemplates = [];
+        }
     @endphp
     <script>
         window.__pbFlowFunctions = @js($pbFlowFunctions);
         window.__pbCollections = @js($pbCollections);
         window.__pbVariables = @js($pbVariables);
+        window.__pbEmailTemplates = @js($pbEmailTemplates);
     </script>
     <style>
         /* ── Drawflow canvas wrapper (dark) ── */
@@ -171,6 +181,7 @@
         .ai-pb-node[data-node-type="function"] .ai-pb-node-title { color: #f59e0b; }
         .ai-pb-node[data-node-type="record"] .ai-pb-node-title { color: #2dd4bf; }
         .ai-pb-node[data-node-type="set_variable"] .ai-pb-node-title { color: #e879f9; }
+        .ai-pb-node[data-node-type="send_email"] .ai-pb-node-title { color: #34d399; }
         .ai-pb-node[data-node-type="condition"] .ai-pb-node-title { color: #fbbf24; }
         .ai-pb-node[data-node-type="result"] .ai-pb-node-title { color: #f472b6; }
         /* ── Neutralise Drawflow's default node chrome so only our card shows ── */
@@ -306,6 +317,25 @@
                             + '<textarea df-args placeholder=\'{"price":"{{vars.amount}}"}\'></textarea>'
                             + '<label class="ai-pb-node-label">Output variable</label>'
                             + '<input type="text" df-output placeholder="e.g. result" />'
+                            + '</div>';
+
+                    case 'send_email':
+                        return '<div class="ai-pb-node" data-node-type="send_email">'
+                            + '<div class="ai-pb-node-title">&#9993; Send Email</div>'
+                            + '<label class="ai-pb-node-label">To</label>'
+                            + '<input type="text" df-to placeholder="{{input.email}}" />'
+                            + '<label class="ai-pb-node-label">Subject</label>'
+                            + '<input type="text" df-subject placeholder="Welcome {{input.name}}" />'
+                            + '<label class="ai-pb-node-label">Template (email page)</label>'
+                            + '<select df-template>' + optionList(window.__pbEmailTemplates, 'slug', '— inline HTML below —') + '</select>'
+                            + '<label class="ai-pb-node-label">Inline HTML (used if no template)</label>'
+                            + '<textarea df-body placeholder=\'<p>Hi {{input.name}}</p>\'></textarea>'
+                            + '<label class="ai-pb-node-label">Cc / Bcc / Reply-To (optional)</label>'
+                            + '<input type="text" df-cc placeholder="cc@example.com" />'
+                            + '<input type="text" df-bcc placeholder="bcc@example.com" />'
+                            + '<input type="text" df-reply_to placeholder="reply@example.com" />'
+                            + '<label class="ai-pb-node-label">Output variable</label>'
+                            + '<input type="text" df-output placeholder="e.g. email" />'
                             + '</div>';
 
                     case 'record':
@@ -460,6 +490,18 @@
                                 function: data.function || '',
                                 args: parseJson(data.args, {}),
                                 output: data.output || '',
+                            };
+                            break;
+                        case 'send_email':
+                            config = {
+                                to: data.to || '',
+                                subject: data.subject || '',
+                                template: data.template || '',
+                                body: data.body || '',
+                                cc: data.cc || '',
+                                bcc: data.bcc || '',
+                                reply_to: data.reply_to || '',
+                                output: data.output || 'email',
                             };
                             break;
                         case 'record':

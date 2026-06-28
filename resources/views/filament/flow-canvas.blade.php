@@ -20,6 +20,7 @@
             <button type="button" @click="addNode('function')">&#402; Function</button>
             <button type="button" @click="addNode('record')">&#128451; Collection</button>
             <button type="button" @click="addNode('set_variable')">&#128190; Set State</button>
+            <button type="button" @click="addNode('send_email')">&#9993; Send Email</button>
             <button type="button" @click="addNode('condition')">&#10067; Condition</button>
             <button type="button" @click="addNode('result')">&#9632; Result</button>
 

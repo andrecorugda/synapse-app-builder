@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property string $title
  * @property string $slug
  * @property PageStatus $status
+ * @property string $kind
  * @property ?string $template
  * @property ?array $project_data
  * @property ?string $html
@@ -72,9 +73,32 @@ class Page extends Model
         return $query->where('status', PageStatus::Published->value);
     }
 
+    /**
+     * @param  Builder<Page>  $query
+     * @return Builder<Page>
+     */
+    public function scopePages(Builder $query): Builder
+    {
+        return $query->where('kind', 'page');
+    }
+
+    /**
+     * @param  Builder<Page>  $query
+     * @return Builder<Page>
+     */
+    public function scopeEmailTemplates(Builder $query): Builder
+    {
+        return $query->where('kind', 'email');
+    }
+
     public function isPublished(): bool
     {
         return $this->status === PageStatus::Published;
+    }
+
+    public function isEmailTemplate(): bool
+    {
+        return $this->kind === 'email';
     }
 
     protected static function newFactory(): PageFactory
