@@ -24,10 +24,18 @@
         } catch (\Throwable $e) {
             $pbCollections = [];
         }
+        try {
+            $varClass = config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class);
+            $pbVariables = $varClass::query()->orderBy('key')->get()
+                ->map(fn ($v) => ['key' => $v->key, 'name' => $v->key])->values()->all();
+        } catch (\Throwable $e) {
+            $pbVariables = [];
+        }
     @endphp
     <script>
         window.__pbFlowFunctions = @js($pbFlowFunctions);
         window.__pbCollections = @js($pbCollections);
+        window.__pbVariables = @js($pbVariables);
     </script>
     <style>
         /* ── Drawflow canvas wrapper (dark) ── */
@@ -311,8 +319,8 @@
                     case 'set_variable':
                         return '<div class="ai-pb-node" data-node-type="set_variable">'
                             + '<div class="ai-pb-node-title">&#128190; Set Variable</div>'
-                            + '<label class="ai-pb-node-label">Variable key</label>'
-                            + '<input type="text" df-key placeholder="e.g. last_run_at" />'
+                            + '<label class="ai-pb-node-label">Variable</label>'
+                            + '<select df-key>' + optionList(window.__pbVariables, 'key', '— select variable —') + '</select>'
                             + '<label class="ai-pb-node-label">Value</label>'
                             + '<input type="text" df-value placeholder="{{vars.result}}" />'
                             + '<label class="ai-pb-node-label">Type</label>'

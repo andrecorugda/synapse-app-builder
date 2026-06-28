@@ -6,6 +6,28 @@
 @once
     <link rel="stylesheet" href="{{ config('ai-page-builder.assets.grapesjs_css') }}">
     <script src="{{ config('ai-page-builder.assets.grapesjs_js') }}"></script>
+    @php
+        // Inject flows + pages so component interaction traits offer dropdowns
+        // (never free-typed slugs). Guarded — tables may be absent during boot.
+        try {
+            $pbFlows = (config('ai-page-builder.models.flow', \Andre\AiPageBuilder\Models\Flow::class))::query()
+                ->where('is_active', true)->orderBy('name')->get()
+                ->map(fn ($f) => ['slug' => $f->slug, 'name' => $f->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbFlows = [];
+        }
+        try {
+            $pbPages = (config('ai-page-builder.models.page', \Andre\AiPageBuilder\Models\Page::class))::query()
+                ->orderBy('title')->get()
+                ->map(fn ($p) => ['slug' => $p->slug, 'title' => $p->title])->values()->all();
+        } catch (\Throwable $e) {
+            $pbPages = [];
+        }
+    @endphp
+    <script>
+        window.__pbFlows = @js($pbFlows);
+        window.__pbPages = @js($pbPages);
+    </script>
     <style>
         /* CSS-based maximize (native fullscreen is unreliable inside the panel). */
         .pb-maximized { position: fixed !important; inset: 0 !important; z-index: 9999 !important; width: 100vw !important; height: 100vh !important; margin: 0 !important; border-radius: 0 !important; }
@@ -192,16 +214,33 @@
                     // Entrance-animation trait, offered on every selected component
                     // (sets data-pb-anim; the rendered page animates it on scroll).
                     const PB_ANIMS = [['', 'None'], ['fade', 'Fade'], ['fade-up', 'Fade up'], ['fade-down', 'Fade down'], ['fade-left', 'Fade left'], ['fade-right', 'Fade right'], ['zoom-in', 'Zoom in']];
+                    // DOM events a component can trigger a flow on.
+                    const PB_EVENTS = [['click', 'Click'], ['dblclick', 'Double click'], ['mouseenter', 'Mouse enter (hover)'], ['mouseleave', 'Mouse leave'], ['mouseover', 'Mouse over'], ['focus', 'Focus'], ['blur', 'Blur'], ['keydown', 'Key down'], ['keyup', 'Key up'], ['change', 'Change'], ['input', 'Input'], ['submit', 'Submit']];
                     const addAnimTraits = (cmp) => {
                         const names = cmp.getTraits().map((t) => t.get('name'));
                         if (! names.includes('data-pb-anim')) {
                             cmp.addTrait({ type: 'select', name: 'data-pb-anim', label: 'Animation', options: PB_ANIMS.map(([id, name]) => ({ id, name })) });
                             cmp.addTrait({ type: 'text', name: 'data-pb-anim-delay', label: 'Anim delay (ms)', placeholder: '0' });
                         }
-                        // Interaction: on click, run a flow (the published-page runtime
-                        // reads data-pb-flow and POSTs to the flow run endpoint).
+                        // Interaction: run a flow on a chosen DOM event (the
+                        // published-page runtime reads data-pb-flow + the event and
+                        // POSTs to the flow run endpoint), and/or link to a page.
+                        // Flows and pages are dropdowns — never free-typed slugs.
                         if (! names.includes('data-pb-flow')) {
-                            cmp.addTrait({ type: 'text', name: 'data-pb-flow', label: 'On click → flow (slug)', placeholder: 'e.g. subscribe' });
+                            const flowOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbFlows || []).map((f) => ({ id: f.slug, name: f.name + ' (' + f.slug + ')' }))
+                            );
+                            const pageOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbPages || []).map((p) => ({ id: p.slug, name: p.title + ' (' + p.slug + ')' }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'data-pb-flow', label: 'Run flow', options: flowOptions });
+                            cmp.addTrait({
+                                type: 'select',
+                                name: 'data-pb-flow-event',
+                                label: 'On event',
+                                options: PB_EVENTS.map(([id, name]) => ({ id, name })),
+                            });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-page', label: 'Link to page', options: pageOptions });
                         }
                     };
 
