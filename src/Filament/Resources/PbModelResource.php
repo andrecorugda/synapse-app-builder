@@ -58,6 +58,10 @@ class PbModelResource extends Resource
         return $schema
             ->components([
                 Schemas\Components\Section::make('Collection')
+                    // Collapse the details on the edit page so the Fields/Records
+                    // tabs (and the records table) get the space.
+                    ->collapsible()
+                    ->collapsed(fn (string $operation): bool => $operation === 'edit')
                     ->schema([
                         Schemas\Components\Grid::make(2)->schema([
                             Forms\Components\TextInput::make('key')

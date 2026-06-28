@@ -14,6 +14,11 @@ use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\BaseFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -60,10 +65,10 @@ class RecordsRelationManager extends RelationManager
     }
 
     /**
-     * The base relation-table wires ->relationship(fn () => $this->getRelationship())
-     * unconditionally. We never use that branch (->query() takes precedence), but
-     * return our builder here too so nothing downstream resolves a missing
-     * relationship by name.
+     * Defensive only: table() calls ->relationship(null) so this is never used to
+     * drive the table. Kept (returning our Eloquent builder) to override the base
+     * implementation, which would otherwise resolve a non-existent relationship by
+     * name and throw.
      */
     public function getRelationship(): Relation|Builder
     {
@@ -83,10 +88,23 @@ class RecordsRelationManager extends RelationManager
         $owner = $this->getOwnerRecord();
 
         return $table
+            // Records have no Eloquent relationship. The base relation-table wires
+            // ->relationship(fn () => $this->getRelationship()) in makeTable(); our
+            // table() runs AFTER it, so clear that resolver and drive the table from
+            // an explicit Eloquent query instead. This keeps getQuery() on the
+            // ->query() branch and prevents getRelationshipQuery() from ever running
+            // (it requires an Eloquent\Builder return and would otherwise throw).
+            ->relationship(null)
             ->query(fn (): Builder => $this->getRecordsQuery())
             ->recordTitleAttribute('id')
             ->defaultSort('id', 'desc')
             ->columns($this->tableColumns($owner))
+            // A query panel above the table — filters apply to THIS collection's
+            // query only (Record::for($owner)), so it can never reach another
+            // table. Safe, scoped, no raw SQL.
+            ->filters($this->tableFilters($owner))
+            ->filtersLayout(FiltersLayout::AboveContent)
+            ->filtersFormColumns(3)
             ->headerActions([
                 Actions\CreateAction::make()
                     ->label('Add record')
@@ -139,6 +157,66 @@ class RecordsRelationManager extends RelationManager
         }
 
         return $columns;
+    }
+
+    /**
+     * Build the query panel: one filter per field, scoped to the collection's
+     * own query. Type-aware (select→dropdown, boolean→ternary, number/date→
+     * range, text→contains). Never references another table.
+     *
+     * @return array<int,BaseFilter>
+     */
+    private function tableFilters(PbModel $owner): array
+    {
+        $filters = [];
+
+        foreach ($owner->fields as $field) {
+            $name = $field->columnName();
+            $label = $field->label;
+            $options = (array) ($field->options ?? []);
+            $type = $field->fieldType();
+
+            $filters[] = match ($type) {
+                FieldType::Select => SelectFilter::make($name)
+                    ->label($label)
+                    ->options($this->selectChoices($options)),
+
+                FieldType::Boolean => TernaryFilter::make($name)->label($label),
+
+                FieldType::Integer, FieldType::Decimal => Filter::make($name)
+                    ->schema([
+                        Forms\Components\TextInput::make('from')->label($label.' ≥')->numeric(),
+                        Forms\Components\TextInput::make('to')->label($label.' ≤')->numeric(),
+                    ])
+                    ->query(function (Builder $query, array $data) use ($name): Builder {
+                        return $query
+                            ->when($data['from'] ?? null, fn (Builder $q, $v): Builder => $q->where($name, '>=', $v))
+                            ->when($data['to'] ?? null, fn (Builder $q, $v): Builder => $q->where($name, '<=', $v));
+                    }),
+
+                FieldType::Date, FieldType::DateTime => Filter::make($name)
+                    ->schema([
+                        Forms\Components\DatePicker::make('from')->label($label.' from'),
+                        Forms\Components\DatePicker::make('until')->label($label.' until'),
+                    ])
+                    ->query(function (Builder $query, array $data) use ($name): Builder {
+                        return $query
+                            ->when($data['from'] ?? null, fn (Builder $q, $v): Builder => $q->whereDate($name, '>=', $v))
+                            ->when($data['until'] ?? null, fn (Builder $q, $v): Builder => $q->whereDate($name, '<=', $v));
+                    }),
+
+                default => Filter::make($name)
+                    ->schema([Forms\Components\TextInput::make('value')->label($label.' contains')])
+                    ->query(function (Builder $query, array $data) use ($name): Builder {
+                        return $query->when(
+                            $data['value'] ?? null,
+                            fn (Builder $q, $v): Builder => $q->where($name, 'like', '%'.$v.'%'),
+                        );
+                    }),
+            };
+        }
+
+        return $filters;
     }
 
     /**
