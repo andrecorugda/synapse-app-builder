@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Console\InstallDemoCommand;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
+use Andre\AiPageBuilder\Console\SeedSystemPagesCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowDispatcher;
 use Andre\AiPageBuilder\Flow\FlowManager;
@@ -34,6 +35,7 @@ use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
+use Andre\AiPageBuilder\Seeders\SystemPagesSeeder;
 use Andre\AiPageBuilder\Services\AccessControl;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
@@ -47,6 +49,7 @@ use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -81,6 +84,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
             ->hasCommand(RunSchedulesCommand::class)
+            ->hasCommand(SeedSystemPagesCommand::class)
             ->hasCommand(InstallDemoCommand::class)
             ->hasCommand(ExportSiteCommand::class);
     }
@@ -141,6 +145,33 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerRecordObserver();
         $this->registerPublishableAssets();
         $this->registerScheduledCommands();
+        $this->ensureSystemPages();
+    }
+
+    /**
+     * Ship the built-in 404 + maintenance pages as editable Synapse pages on
+     * first boot (self-healing, like the gateway integration). Fully guarded —
+     * runs once (gated by a settings flag), only when the tables exist, and any
+     * failure is swallowed so it can never break boot.
+     */
+    private function ensureSystemPages(): void
+    {
+        try {
+            if (! Schema::hasTable(Support\Schema::table('pages'))
+                || ! Schema::hasTable(Support\Schema::table('settings'))) {
+                return;
+            }
+
+            $settings = $this->app->make(Settings::class);
+            if ($settings->get('system_pages_seeded')) {
+                return;
+            }
+
+            $this->app->make(SystemPagesSeeder::class)->run();
+            $settings->set('system_pages_seeded', true);
+        } catch (\Throwable $e) {
+            Log::warning('[ai-page-builder] system pages seed skipped: '.$e->getMessage());
+        }
     }
 
     /**

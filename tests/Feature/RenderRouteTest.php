@@ -63,10 +63,12 @@ it('appends per-page custom CSS to the rendered output', function (): void {
         ->assertSee('letter-spacing:-0.02em', false);
 });
 
-it('404s for a draft page', function (): void {
+it('shows the maintenance page (503) for a draft (unpublished) page', function (): void {
+    // A page that EXISTS but was unpublished reads as "taken down for
+    // maintenance" (503) — distinct from a slug that never existed (404).
     $page = Page::factory()->create(['slug' => 'secret']); // draft by default
 
-    $this->get('/p/'.$page->slug)->assertNotFound();
+    $this->get('/p/'.$page->slug)->assertStatus(503);
 });
 
 it('busts the render cache when the page changes', function (): void {
@@ -96,11 +98,11 @@ it('404s at the prefix root when no home page is configured', function (): void 
     $this->get('/p')->assertNotFound();
 });
 
-it('404s at the prefix root when the home page is not published', function (): void {
+it('shows maintenance (503) at the prefix root when the home page is unpublished', function (): void {
     Page::factory()->create(['slug' => 'draft-home', 'html' => '<h1>nope</h1>']); // draft
     app(Settings::class)->set('home_page', 'draft-home');
 
-    $this->get('/p')->assertNotFound();
+    $this->get('/p')->assertStatus(503);
 });
 
 it('caches rendered output between requests', function (): void {
