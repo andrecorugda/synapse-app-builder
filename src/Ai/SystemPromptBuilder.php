@@ -129,15 +129,25 @@ final class SystemPromptBuilder
           } ]
         - "pages": [ { "slug": "<lowercase-slug>", "title": "<label>",
                        "kind": "page|email", "status": "draft|published",
-                       "html": "<markup>", "css": "<css>" } ]
+                       "html": "<markup using CLASSES, not inline styles>",
+                       "custom_css": "<ALL page CSS — design tokens + class rules>",
+                       "custom_js": "<optional page behaviour as plain JS>" } ]
         - "settings": { "home_page": "<slug of a kind=page page>" }
 
         Page "html" is composed from the component vocabulary: each block is a
-        `data-pb-block="<key>"` element with inline styles. Pages may bind to app
-        state with DECLARATIVE Alpine directives only — x-text, x-show, x-model,
-        x-for — referencing `$store.app.<stateKey>`. A data table uses
-        `x-data="pbTable('<collection key>')"`. NEVER emit executable directives
-        (@click, x-on:*, x-init) in page output.
+        `data-pb-block="<key>"` element. STYLE PAGES VIA `custom_css`, NOT inline:
+        put ALL styling in the page's `custom_css` field (define `:root` design
+        tokens — colors, fonts, spacing — and class rules), and give blocks
+        semantic `class="..."` hooks. Do NOT use inline `style="..."` or `<style>`
+        tags in html, and do NOT inline a `<script>` — put any page behaviour in
+        `custom_js` as plain JS (e.g. `addEventListener`). This keeps pages
+        configurable: the CSS/JS stay editable in one place and the markup stays
+        clean. (Anything inlined is auto-extracted into these channels, so emit it
+        there directly.) Pages may still bind to app state with DECLARATIVE Alpine
+        directives in html — x-text, x-show, x-model, x-for — referencing
+        `$store.app.<stateKey>`; a data table uses `x-data="pbTable('<collection key>')"`.
+        NEVER emit executable directives (@click, x-on:*, x-init) in html — use
+        `custom_js` for that.
 
         Page "kind" defaults to "page" (a normal page). Use "email" to mark a page
         as an EMAIL TEMPLATE — its html becomes the body of an email sent by a
@@ -161,7 +171,7 @@ final class SystemPromptBuilder
         return <<<'TXT'
         ### Example plan (compact) — a waitlist that emails a welcome on signup
 
-        {"collections":[{"key":"signups","name":"Signups","fields":[{"key":"name","label":"Name","type":"string","options":{"required":true}},{"key":"email","label":"Email","type":"string","options":{"required":true}}]}],"pages":[{"slug":"home","title":"Home","kind":"page","status":"published","html":"<section data-pb-block=\"hero\" class=\"pb-hero\" style=\"padding:4rem 1.5rem;text-align:center;\"><h1 class=\"pb-hero__title\">Join the waitlist</h1></section>","css":""},{"slug":"welcome-email","title":"Welcome email","kind":"email","status":"draft","html":"<h1>Welcome {{ input.record.name }}</h1><p>Thanks for joining the waitlist.</p>","css":""}],"flows":[{"slug":"on-signup","name":"On signup","trigger_type":"collection","trigger_config":{"collection":"signups","events":["created"]},"definition":{"start":"t","nodes":{"t":{"type":"trigger","next":["mail"]},"mail":{"type":"send_email","config":{"to":"{{ input.record.email }}","subject":"Welcome {{ input.record.name }}","template":"welcome-email","output":"email"}}}}}],"settings":{"home_page":"home"}}
+        {"collections":[{"key":"signups","name":"Signups","fields":[{"key":"name","label":"Name","type":"string","options":{"required":true}},{"key":"email","label":"Email","type":"string","options":{"required":true}}]}],"pages":[{"slug":"home","title":"Home","kind":"page","status":"published","html":"<section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">Join the waitlist</h1></section>","custom_css":":root{--accent:#6366f1}.pb-hero{padding:4rem 1.5rem;text-align:center}.pb-hero__title{margin:0;font-size:2.4rem;color:var(--accent)}"},{"slug":"welcome-email","title":"Welcome email","kind":"email","status":"draft","html":"<h1>Welcome {{ input.record.name }}</h1><p>Thanks for joining the waitlist.</p>","css":""}],"flows":[{"slug":"on-signup","name":"On signup","trigger_type":"collection","trigger_config":{"collection":"signups","events":["created"]},"definition":{"start":"t","nodes":{"t":{"type":"trigger","next":["mail"]},"mail":{"type":"send_email","config":{"to":"{{ input.record.email }}","subject":"Welcome {{ input.record.name }}","template":"welcome-email","output":"email"}}}}}],"settings":{"home_page":"home"}}
         TXT;
     }
 
@@ -272,7 +282,7 @@ final class SystemPromptBuilder
         - Emit only keys from the catalogs above (component keys, field types, node types).
         - Keep all keys and slugs lowercase; use snake_case for collection/field/state keys and kebab-case for slugs.
         - Reference only collections and states that already exist or are defined in the same plan.
-        - Pages use `data-pb-block` blocks with inline styles and DECLARATIVE Alpine bindings (x-text/x-show/x-model/x-for) over `$store.app.<state>` only — never @click/x-on/x-init.
+        - Pages use `data-pb-block` blocks with semantic CLASSES — put all CSS in `custom_css` and any JS in `custom_js`; never inline `style="..."`, `<style>` or `<script>` in html. Use DECLARATIVE Alpine bindings (x-text/x-show/x-model/x-for) over `$store.app.<state>` only — never @click/x-on/x-init in html (put behaviour in `custom_js`).
         - Data tables bind with `x-data="pbTable('<collection key>')"`.
         - When the request names a home / landing / main page (or implies one), set `settings.home_page` to that page's slug, and give that page `status:"published"`.
         - A page whose html is the body of a `send_email` node MUST have `kind:"email"`.

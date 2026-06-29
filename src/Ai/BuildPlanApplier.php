@@ -317,8 +317,20 @@ class BuildPlanApplier
                 $status = is_string($page['status'] ?? null) ? $page['status'] : 'draft';
                 $kind = is_string($page['kind'] ?? null) ? $page['kind'] : 'page';
 
+                // Styling/behaviour belong in the page's custom_css / custom_js
+                // channels (keeps markup clean + the page configurable). Lift any
+                // <style>/<script> the model still inlined into those channels so
+                // nothing is lost when the html is sanitized below.
+                $customCss = is_string($page['custom_css'] ?? null) ? $page['custom_css'] : '';
+                $customJs = is_string($page['custom_js'] ?? null) ? $page['custom_js'] : '';
+                [$html, $liftedCss, $liftedJs] = $this->liftInlineAssets($html);
+                $customCss = trim($customCss."\n".$liftedCss);
+                $customJs = trim($customJs."\n".$liftedJs);
+
                 // Safety net: a page used as a send_email template IS an email
                 // template even if the plan forgot to mark it (model variance).
+                // Email bodies must keep their inline CSS (clients ignore <style>
+                // and external sheets) — so don't strip styling out of an email.
                 if ($kind !== 'email' && in_array($slug, $this->emailTemplateSlugs($build), true)) {
                     $kind = 'email';
                 }
@@ -331,6 +343,8 @@ class BuildPlanApplier
                         'kind' => in_array($kind, ['page', 'email'], true) ? $kind : 'page',
                         'html' => $this->sanitizer->sanitize($html),
                         'css' => is_string($page['css'] ?? null) ? $page['css'] : null,
+                        'custom_css' => $customCss !== '' ? $customCss : null,
+                        'custom_js' => $customJs !== '' ? $customJs : null,
                     ],
                 );
                 $summary['created']['pages'][] = $slug;
@@ -365,6 +379,38 @@ class BuildPlanApplier
         }
 
         return array_values(array_unique($slugs));
+    }
+
+    /**
+     * Pull any inlined `<style>` and inline `<script>` (no src) out of page html
+     * and return [cleanHtml, css, js]. Keeps AI-authored markup clean and routes
+     * styling/behaviour into the page's configurable custom_css / custom_js
+     * channels (the prompt asks for this; this is the backstop when it inlines).
+     *
+     * @return array{0:string,1:string,2:string}
+     */
+    private function liftInlineAssets(string $html): array
+    {
+        $css = [];
+        $js = [];
+
+        $html = preg_replace_callback('#<style\b[^>]*>(.*?)</style>#is', function (array $m) use (&$css): string {
+            $css[] = trim($m[1]);
+
+            return '';
+        }, $html) ?? $html;
+
+        $html = preg_replace_callback('#<script\b([^>]*)>(.*?)</script>#is', function (array $m) use (&$js): string {
+            // Only lift INLINE scripts; a src= script is external/untrusted and is
+            // dropped (the sanitizer would strip it anyway).
+            if (! preg_match('/\bsrc\s*=/i', $m[1])) {
+                $js[] = trim($m[2]);
+            }
+
+            return '';
+        }, $html) ?? $html;
+
+        return [$html, trim(implode("\n", array_filter($css))), trim(implode("\n", array_filter($js)))];
     }
 
     /**

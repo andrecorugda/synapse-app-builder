@@ -286,6 +286,12 @@ class BuildPlanValidator
                 $errors[] = "pages[{$i}]: kind '".$this->display($kind)."' must be 'page' or 'email'.";
             }
 
+            foreach (['custom_css', 'custom_js'] as $channel) {
+                if (array_key_exists($channel, $page) && $page[$channel] !== null && ! is_string($page[$channel])) {
+                    $errors[] = "pages[{$i}]: {$channel} must be a string.";
+                }
+            }
+
             // data-pb-block references are advisory: report unknown keys but
             // never block (the contract treats these as warnings).
             $html = $page['html'] ?? '';
