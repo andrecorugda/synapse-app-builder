@@ -103,6 +103,21 @@ class RecordApiController extends Controller
         return response()->json(null, 204);
     }
 
+    /**
+     * Server-side aggregation for charts / KPI cards. Read-gated and row-rule
+     * scoped, so a user only aggregates over rows they may see.
+     */
+    public function aggregate(Request $request, string $model): JsonResponse
+    {
+        if ($deny = $this->gate('read', $model)) {
+            return $deny;
+        }
+
+        $params = $this->applyRowRule($request->query(), $model, 'read');
+
+        return response()->json($this->records->aggregate($this->resolve($model), $params));
+    }
+
     /** 403 JsonResponse when the current user can't perform $action, else null. */
     private function gate(string $action, string $model): ?JsonResponse
     {

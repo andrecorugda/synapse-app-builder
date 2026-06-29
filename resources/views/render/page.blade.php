@@ -89,19 +89,48 @@
             var API_BASE = window.__pbApiBase;
             window.Alpine.data('pbTable', function (collection) {
                 return {
-                    rows: [],
-                    loading: true,
-                    error: false,
-                    init: function () {
+                    rows: [], loading: true, error: false,
+                    page: 1, lastPage: 1, total: 0, perPage: 10,
+                    init: function () { this.load(); },
+                    load: function () {
                         var self = this;
-                        fetch(API_BASE + '/' + collection, { headers: { Accept: 'application/json' } })
+                        self.loading = true; self.error = false;
+                        fetch(API_BASE + '/' + collection + '?page=' + self.page + '&per_page=' + self.perPage, { headers: { Accept: 'application/json' } })
                             .then(function (r) { return r.json(); })
                             .then(function (d) {
                                 self.rows = (d && d.data) || [];
+                                self.lastPage = (d && d.last_page) || 1;
+                                self.total = (d && d.total) || self.rows.length;
                                 self.loading = false;
                             })
                             .catch(function () { self.loading = false; self.error = true; });
                     },
+                    prev: function () { if (this.page > 1) { this.page--; this.load(); } },
+                    next: function () { if (this.page < this.lastPage) { this.page++; this.load(); } },
+                };
+            });
+
+            // pbAutocomplete — the Autocomplete block's x-data. Typeahead against a
+            // collection's REST endpoint; `selectedId` holds the chosen record id.
+            window.Alpine.data('pbAutocomplete', function (root) {
+                return {
+                    q: '', results: [], open: false, selectedId: '',
+                    collection: (root && root.getAttribute('data-pb-collection')) || '',
+                    labelField: (root && root.getAttribute('data-pb-label-field')) || 'name',
+                    search: function () {
+                        var self = this;
+                        if (! this.collection || this.q.length < 1) { this.results = []; return; }
+                        fetch(API_BASE + '/' + this.collection + '?search=' + encodeURIComponent(this.q) + '&per_page=8', { headers: { Accept: 'application/json' } })
+                            .then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                self.results = ((d && d.data) || []).map(function (row) {
+                                    return { id: row.id, label: row[self.labelField] != null ? row[self.labelField] : ('#' + row.id) };
+                                });
+                                self.open = true;
+                            })
+                            .catch(function () { self.results = []; });
+                    },
+                    pick: function (r) { this.q = r.label; this.selectedId = r.id; this.open = false; this.results = []; },
                 };
             });
         });
@@ -131,6 +160,81 @@
 
     {{-- Flow trigger runtime: components with data-pb-flow run a flow on click. --}}
     @include('ai-page-builder::render.flow-runtime')
+
+    {{-- Charts & KPI cards: aggregate from a collection via the REST API. KPI
+         cards need no library; charts lazy-load Chart.js (config-overridable for
+         offline/vendored use) only when the page actually contains a chart. --}}
+    <script>
+        (function () {
+            var API = window.__pbApiBase;
+            function qs(o) { return Object.keys(o).filter(function (k) { return o[k] !== '' && o[k] != null; }).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(o[k]); }).join('&'); }
+            function agg(c, p) { return fetch(API + '/' + c + '/aggregate?' + qs(p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }); }
+            function fmt(n) { n = Number(n) || 0; return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+            document.querySelectorAll('[data-pb-block="kpi"]').forEach(function (el) {
+                var c = el.getAttribute('data-pb-collection'); if (! c) { return; }
+                agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '' })
+                    .then(function (d) { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = fmt(d && d.total); } })
+                    .catch(function () {});
+            });
+
+            var charts = document.querySelectorAll('[data-pb-block="chart"]');
+            if (! charts.length) { return; }
+            var palette = ['#6366f1', '#22d3ee', '#fbbf24', '#34d399', '#f472b6', '#60a5fa', '#f87171', '#a78bfa'];
+            function render() {
+                charts.forEach(function (el) {
+                    var c = el.getAttribute('data-pb-collection'); if (! c) { return; }
+                    var raw = el.getAttribute('data-pb-chart-type') || 'bar';
+                    var area = raw === 'area';
+                    var type = area ? 'line' : (raw === 'donut' ? 'doughnut' : raw);
+                    agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '', group_by: el.getAttribute('data-pb-group') || '', date_bucket: el.getAttribute('data-pb-date-bucket') || '' })
+                        .then(function (d) {
+                            var rows = (d && d.rows) || [];
+                            var ph = el.querySelector('.pb-chart__placeholder'); if (ph) { ph.style.display = 'none'; }
+                            var canvas = el.querySelector('canvas'); if (! canvas || ! window.Chart) { return; }
+                            var labels = rows.map(function (r) { return r.label == null ? '—' : r.label; });
+                            var values = rows.map(function (r) { return r.value; });
+                            var pie = (type === 'doughnut' || type === 'pie');
+                            new window.Chart(canvas.getContext('2d'), {
+                                type: type,
+                                data: { labels: labels, datasets: [{
+                                    label: el.getAttribute('data-pb-metric') || 'count',
+                                    data: values,
+                                    backgroundColor: (type === 'line') ? 'rgba(99,102,241,0.15)' : labels.map(function (_, i) { return palette[i % palette.length]; }),
+                                    borderColor: '#6366f1', borderWidth: 2, fill: area, tension: 0.3,
+                                }] },
+                                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: pie } } },
+                            });
+                        })
+                        .catch(function () {});
+                });
+            }
+            if (window.Chart) { render(); return; }
+            var s = document.createElement('script');
+            s.src = '{{ config('ai-page-builder.assets.chartjs', 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js') }}';
+            s.onload = render;
+            document.body.appendChild(s);
+        })();
+    </script>
+
+    {{-- Embed blocks: set the iframe src from data-pb-embed-url (normalizing
+         common share links) so the URL is configurable without touching markup. --}}
+    <script>
+        (function () {
+            function toEmbed(url) {
+                var yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
+                if (yt) { return 'https://www.youtube.com/embed/' + yt[1]; }
+                var vm = url.match(/vimeo\.com\/(\d+)/);
+                if (vm) { return 'https://player.vimeo.com/video/' + vm[1]; }
+                return url;
+            }
+            document.querySelectorAll('[data-pb-block="embed"]').forEach(function (el) {
+                var url = el.getAttribute('data-pb-embed-url'); if (! url) { return; }
+                var f = el.querySelector('iframe'); if (f) { f.src = toEmbed(url); }
+                var ph = el.querySelector('.pb-embed__placeholder'); if (ph) { ph.style.display = 'none'; }
+            });
+        })();
+    </script>
 
     {{-- Alpine powers the reactive Store + data bindings. Loaded before custom
          JS so the store is initialised and custom JS can read/write it. --}}

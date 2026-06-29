@@ -389,6 +389,38 @@
                                 if (tpl) { tpl.addAttributes({ 'x-for': 'item in $store.app.' + key }); }
                             });
                         }
+
+                        // Chart / KPI — bind to a collection + aggregation. These are
+                        // plain data-pb-* attributes (persisted in html) read by the
+                        // published runtime, so no changeProp rewrite is needed.
+                        const pbBlock = cmp.getAttributes()['data-pb-block'];
+                        if ((pbBlock === 'chart' || pbBlock === 'kpi') && ! names.includes('data-pb-collection')) {
+                            const collectionOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Collection', options: collectionOptions });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-metric', label: 'Metric', options: ['count', 'sum', 'avg', 'min', 'max'].map((m) => ({ id: m, name: m })) });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-field', label: 'Field (sum/avg/min/max)' });
+                            if (pbBlock === 'chart') {
+                                cmp.addTrait({ type: 'text', name: 'data-pb-group', label: 'Group by (field)' });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-date-bucket', label: 'Date bucket', options: [{ id: '', name: '— none —' }, { id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }] });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-chart-type', label: 'Chart type', options: ['bar', 'line', 'area', 'donut', 'pie'].map((t) => ({ id: t, name: t })) });
+                            }
+                        }
+
+                        // Embed — the iframe URL (set as an attribute, not inlined).
+                        if (pbBlock === 'embed' && ! names.includes('data-pb-embed-url')) {
+                            cmp.addTrait({ type: 'text', name: 'data-pb-embed-url', label: 'Embed URL (YouTube, Vimeo, Maps, any page)' });
+                        }
+
+                        // Autocomplete — bind the typeahead to a collection + label field.
+                        if (pbBlock === 'autocomplete' && ! names.includes('data-pb-collection')) {
+                            const acCollections = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Collection', options: acCollections });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-label-field', label: 'Label field', placeholder: 'name' });
+                        }
                     };
 
                     // Load canonical GrapesJS state if present; otherwise fall
