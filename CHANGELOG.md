@@ -1,11 +1,13 @@
 # Changelog
 
-All notable changes to `ai-page-builder` will be documented in this file.
+All notable changes to `andrecorugda/synapse` will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-06-29
+
+First public release — **Synapse, the AI app builder** for Laravel + Filament.
 
 ### Added
 - **Pages & components** — GrapesJS visual builder for Filament 4/5: `Page` model + `PageResource`, a `GrapesJsField`, a block vocabulary (sections + primitives + a UI kit: cards/modals/drawers/tabs/forms/**data tables**), per-page custom CSS & JS, SEO meta, duplicate, a cached front-end render route (`/{prefix}/{slug}`, overridable), media library, and a configurable **home page** (served at the prefix root, opt-in at the site root).
