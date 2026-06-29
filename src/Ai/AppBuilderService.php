@@ -73,20 +73,22 @@ class AppBuilderService
     {
         $text = trim($raw);
 
-        if (str_contains($text, '```') && preg_match('/```(?:json)?\s*(.+?)```/s', $text, $m) === 1) {
-            $text = trim($m[1]);
+        // A plan is carried ONLY in a fenced ```json block (so conversational
+        // prose is never misread as a plan)…
+        if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $text, $m) === 1) {
+            $decoded = json_decode(trim($m[1]), true);
+
+            return is_array($decoded) ? $decoded : [];
         }
 
-        $decoded = json_decode($text, true);
+        // …or the whole message is a JSON object (one-shot / programmatic use).
+        if (str_starts_with($text, '{') && str_ends_with($text, '}')) {
+            $decoded = json_decode($text, true);
 
-        if (! is_array($decoded)) {
-            $start = strpos($text, '{');
-            $end = strrpos($text, '}');
-            if ($start !== false && $end !== false && $end > $start) {
-                $decoded = json_decode(substr($text, $start, $end - $start + 1), true);
-            }
+            return is_array($decoded) ? $decoded : [];
         }
 
-        return is_array($decoded) ? $decoded : [];
+        // Otherwise it's a conversational reply — no plan.
+        return [];
     }
 }

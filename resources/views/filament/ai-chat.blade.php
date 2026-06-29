@@ -195,6 +195,52 @@
             line-height: 1.5;
         }
         .pb-aichat-plan-errors div { margin-top: 2px; }
+
+        /* ── Detailed plan breakdown (scrollable, monospace keys) ── */
+        .pb-aichat-plan-detail {
+            margin-top: 8px;
+            max-height: 260px;
+            overflow-y: auto;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+            padding-top: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+        }
+        .pb-aichat-plan-detail::-webkit-scrollbar { width: 6px; }
+        .pb-aichat-plan-detail::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 8px; }
+        .pb-aichat-sec { margin-bottom: 9px; }
+        .pb-aichat-sec:last-child { margin-bottom: 0; }
+        .pb-aichat-sec-h {
+            font-size: 10px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #818cf8;
+            margin-bottom: 4px;
+        }
+        .pb-aichat-sec-list { list-style: none; margin: 0; padding: 0; }
+        .pb-aichat-sec-list li {
+            font-size: 11.5px;
+            line-height: 1.5;
+            color: #cbd5e1;
+            padding: 2px 0;
+        }
+        .pb-aichat-mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            color: #a5b4fc;
+        }
+        .pb-aichat-fields { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 2px; }
+        .pb-aichat-fchip {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 10px;
+            background: rgba(45, 212, 191, 0.12);
+            border: 1px solid rgba(45, 212, 191, 0.28);
+            color: #5eead4;
+            border-radius: 6px;
+            padding: 1px 6px;
+        }
+
         .pb-aichat-apply {
             margin-top: 10px;
             width: 100%;
@@ -247,8 +293,41 @@
             border-top: 1px solid rgba(255, 255, 255, 0.08);
             padding: 12px;
             display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .pb-aichat-composer-row {
+            display: flex;
             gap: 8px;
             align-items: flex-end;
+        }
+        /* ── Mode selector (segmented pills) ── */
+        .pb-aichat-modes {
+            display: flex;
+            gap: 4px;
+            background: rgba(2, 6, 23, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 9px;
+            padding: 3px;
+            width: fit-content;
+        }
+        .pb-aichat-mode {
+            border: 0;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 11.5px;
+            font-weight: 550;
+            font-family: inherit;
+            padding: 4px 11px;
+            border-radius: 7px;
+            cursor: pointer;
+            line-height: 1.3;
+        }
+        .pb-aichat-mode:hover { color: #e2e8f0; }
+        .pb-aichat-mode.pb-aichat-mode-active {
+            background: linear-gradient(135deg, #6366f1, #06b6d4);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
         }
         .pb-aichat-input {
             flex: 1 1 auto;
@@ -299,7 +378,21 @@
             var BASE = (window.__pbChatBase || '').replace(/\/+$/, '');
             var CSRF = window.__pbChatCsrf || '';
             var STORE_KEY = 'pb_ai_chat';
+            var STORE_MODE_KEY = 'pb_ai_chat_mode';
             var SECTIONS = ['collections', 'states', 'functions', 'flows', 'pages'];
+            var MODES = [
+                { id: 'auto',  label: 'Auto',  hint: 'AI decides' },
+                { id: 'ask',   label: 'Ask',   hint: 'Answer only' },
+                { id: 'plan',  label: 'Plan',  hint: 'Plan it with me' },
+                { id: 'build', label: 'Build', hint: 'Build it' },
+            ];
+            function loadMode() {
+                try {
+                    var m = localStorage.getItem(STORE_MODE_KEY);
+                    return MODES.some(function (x) { return x.id === m; }) ? m : 'auto';
+                } catch (e) { return 'auto'; }
+            }
+            var mode = loadMode();
 
             // ── State ──────────────────────────────────────────────────────────
             // thread: [{ role, content (raw — sent to model), display (shown),
@@ -328,6 +421,25 @@
                     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
 
+            // ── Mode selector (Auto / Ask / Plan / Build) ───────────────────────
+            function modesHtml() {
+                return MODES.map(function (m) {
+                    var active = m.id === mode ? ' pb-aichat-mode-active' : '';
+                    return '<button type="button" class="pb-aichat-mode' + active + '" '
+                        + 'data-pb-mode="' + m.id + '" role="radio" '
+                        + 'aria-checked="' + (m.id === mode ? 'true' : 'false') + '" '
+                        + 'title="' + esc(m.hint) + '" aria-label="' + esc(m.label + ': ' + m.hint) + '">'
+                        + esc(m.label) + '</button>';
+                }).join('');
+            }
+            function setMode(id) {
+                if (! MODES.some(function (m) { return m.id === id; })) { return; }
+                mode = id;
+                try { localStorage.setItem(STORE_MODE_KEY, mode); } catch (e) {}
+                var modesEl = drawer && drawer.querySelector('[data-pb-modes]');
+                if (modesEl) { modesEl.innerHTML = modesHtml(); }
+            }
+
             // ── DOM construction (built once, lives on document.body) ───────────
             function buildDom() {
                 fab = document.createElement('button');
@@ -351,8 +463,11 @@
                     + '</div>'
                     + '<div class="pb-aichat-msgs" data-pb-msgs></div>'
                     + '<div class="pb-aichat-composer">'
+                    + '<div class="pb-aichat-modes" data-pb-modes role="radiogroup" aria-label="Response mode">' + modesHtml() + '</div>'
+                    + '<div class="pb-aichat-composer-row">'
                     + '<textarea class="pb-aichat-input" data-pb-input rows="1" placeholder="Describe the app to build or change…"></textarea>'
                     + '<button type="button" class="pb-aichat-send" data-pb-send aria-label="Send">↑</button>'
+                    + '</div>'
                     + '</div>';
 
                 document.body.appendChild(fab);
@@ -370,6 +485,15 @@
                     if (e.key === 'Enter' && ! e.shiftKey) { e.preventDefault(); send(); }
                 });
                 inputEl.addEventListener('input', autoGrow);
+
+                // Mode selector (segmented control).
+                var modesEl = drawer.querySelector('[data-pb-modes]');
+                if (modesEl) {
+                    modesEl.addEventListener('click', function (e) {
+                        var pill = e.target.closest ? e.target.closest('[data-pb-mode]') : null;
+                        if (pill) { setMode(pill.getAttribute('data-pb-mode')); }
+                    });
+                }
 
                 // Event delegation for Apply buttons (messages are re-rendered).
                 msgsEl.addEventListener('click', function (e) {
@@ -434,10 +558,100 @@
 
             function hasPlan(plan) { return planCounts(plan).length > 0; }
 
+            // ── Detailed plan breakdown ─────────────────────────────────────────
+            // Renders WHAT the plan contains (not just counts), grouped under
+            // section headers. Every field is read defensively — the model may
+            // omit any of them.
+            function arr(v) { return Array.isArray(v) ? v : []; }
+            function mono(s) { return '<span class="pb-aichat-mono">' + esc(s) + '</span>'; }
+
+            function fmtVal(v) {
+                if (v === true) { return 'true'; }
+                if (v === false) { return 'false'; }
+                if (v === null || v === undefined) { return ''; }
+                if (typeof v === 'object') {
+                    try { return JSON.stringify(v); } catch (e) { return String(v); }
+                }
+                return String(v);
+            }
+
+            function detailSection(title, itemsHtml) {
+                if (! itemsHtml) { return ''; }
+                return '<div class="pb-aichat-sec">'
+                    + '<div class="pb-aichat-sec-h">' + esc(title) + '</div>'
+                    + '<ul class="pb-aichat-sec-list">' + itemsHtml + '</ul>'
+                    + '</div>';
+            }
+
+            function planDetailHtml(plan) {
+                if (! plan || typeof plan !== 'object') { return ''; }
+                var out = '';
+
+                // Collections: "name (key)" + field chips key·type.
+                out += detailSection('Collections', arr(plan.collections).map(function (c) {
+                    c = c || {};
+                    var head = esc(c.name || c.key || '(unnamed)');
+                    if (c.key) { head += ' ' + mono('(' + c.key + ')'); }
+                    var fields = arr(c.fields).map(function (f) {
+                        f = f || {};
+                        var t = f.type ? ('·' + f.type) : '';
+                        return '<span class="pb-aichat-fchip">' + esc((f.key || f.label || '?') + t) + '</span>';
+                    }).join('');
+                    return '<li>' + head + (fields ? '<div class="pb-aichat-fields">' + fields + '</div>' : '') + '</li>';
+                }).join(''));
+
+                // States: key = value (with type hint).
+                out += detailSection('States', arr(plan.states).map(function (s) {
+                    s = s || {};
+                    var v = fmtVal(s.value);
+                    var t = s.type ? (' ' + mono(':' + s.type)) : '';
+                    return '<li>' + mono(s.key || '?') + t + (v !== '' ? ' = ' + mono(v) : '') + '</li>';
+                }).join(''));
+
+                // Functions: slug (+ runtime).
+                out += detailSection('Functions', arr(plan.functions).map(function (f) {
+                    f = f || {};
+                    var name = f.name ? (esc(f.name) + ' ') : '';
+                    var rt = f.runtime ? ' ' + mono('[' + f.runtime + ']') : '';
+                    return '<li>' + name + mono(f.slug || '?') + rt + '</li>';
+                }).join(''));
+
+                // Flows: slug — trigger_type, N nodes.
+                out += detailSection('Flows', arr(plan.flows).map(function (fl) {
+                    fl = fl || {};
+                    var name = fl.name ? (esc(fl.name) + ' ') : '';
+                    var trig = fl.trigger_type ? (' — ' + esc(fl.trigger_type)) : '';
+                    var nodes = (fl.definition && fl.definition.nodes && typeof fl.definition.nodes === 'object')
+                        ? Object.keys(fl.definition.nodes).length : 0;
+                    var ncount = nodes ? (', ' + nodes + ' node' + (nodes === 1 ? '' : 's')) : '';
+                    return '<li>' + name + mono(fl.slug || '?') + trig + ncount + '</li>';
+                }).join(''));
+
+                // Pages: slug · kind · status.
+                out += detailSection('Pages', arr(plan.pages).map(function (p) {
+                    p = p || {};
+                    var title = p.title ? (esc(p.title) + ' ') : '';
+                    var bits = [p.slug, p.kind, p.status].filter(Boolean).map(function (x) { return esc(x); }).join(' · ');
+                    return '<li>' + title + (bits ? mono(bits) : '') + '</li>';
+                }).join(''));
+
+                // Settings: e.g. home_page = <slug>.
+                var settings = plan.settings;
+                if (settings && typeof settings === 'object') {
+                    var setItems = Object.keys(settings).map(function (k) {
+                        return '<li>' + mono(k) + ' = ' + mono(fmtVal(settings[k])) + '</li>';
+                    }).join('');
+                    out += detailSection('Settings', setItems);
+                }
+
+                return out ? '<div class="pb-aichat-plan-detail">' + out + '</div>' : '';
+            }
+
             function planCardHtml(msg, idx) {
                 var counts = planCounts(msg.plan);
                 if (! counts.length) { return ''; }
                 var chips = counts.map(function (c) { return '<span class="pb-aichat-chip">' + esc(c.label) + '</span>'; }).join('');
+                var detail = planDetailHtml(msg.plan);
 
                 // Already applied → green summary, no button.
                 if (msg.applied) {
@@ -445,6 +659,7 @@
                     return '<div class="pb-aichat-plan">'
                         + '<div class="pb-aichat-plan-h">Proposed changes</div>'
                         + '<div class="pb-aichat-plan-counts">' + chips + '</div>'
+                        + detail
                         + '<div class="pb-aichat-applied' + cls + '">' + esc(msg.applied.text) + '</div>'
                         + '</div>';
                 }
@@ -458,6 +673,7 @@
                 return '<div class="pb-aichat-plan">'
                     + '<div class="pb-aichat-plan-h">Proposed changes</div>'
                     + '<div class="pb-aichat-plan-counts">' + chips + '</div>'
+                    + detail
                     + errs
                     + btn
                     + '</div>';
@@ -538,7 +754,7 @@
                     return { role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '') };
                 });
 
-                post('/ai-chat', { messages: payload })
+                post('/ai-chat', { messages: payload, mode: mode })
                     .then(function (r) { return r.json().catch(function () { return {}; }); })
                     .then(function (d) {
                         d = d || {};

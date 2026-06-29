@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament;
 
-use Andre\AiPageBuilder\Filament\Pages\BuildWithAi;
 use Andre\AiPageBuilder\Filament\Pages\PageBuilderSettings;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource;
@@ -52,7 +51,6 @@ class AiPageBuilderPlugin implements Plugin
         ]);
 
         $panel->pages([
-            BuildWithAi::class,
             PageBuilderSettings::class,
         ]);
     }
