@@ -86,6 +86,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_api_tokens_table',
                 'create_page_builder_partials_table',
                 'add_project_data_to_page_builder_partials_table',
+                'add_custom_fields_to_page_builder_partials_table',
                 'add_fields_to_permissions_table',
                 'create_page_builder_credentials_table',
             ])
