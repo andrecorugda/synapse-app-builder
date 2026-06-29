@@ -58,16 +58,54 @@ class FlowRunner
                 continue;
             }
 
-            try {
-                $next = $handler->run($node, $context);
-                $context->steps[] = ['node' => $id, 'type' => $type, 'status' => 'ok'];
-                foreach ($next as $nextId) {
-                    $queue[] = (string) $nextId;
+            // Per-node error handling: retry up to `retry` attempts, then route to
+            // an `on_error` node if one is declared, else fail the run gracefully
+            // (a toast is surfaced to the page rather than a dead 500).
+            $attempts = max(1, (int) ($node['retry'] ?? ($node['config']['retry'] ?? 1)));
+            $lastError = null;
+            $ran = false;
+
+            for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+                try {
+                    $next = $handler->run($node, $context);
+                    $context->steps[] = ['node' => $id, 'type' => $type, 'status' => 'ok', 'attempt' => $attempt];
+                    foreach ($next as $nextId) {
+                        $queue[] = (string) $nextId;
+                    }
+                    $ran = true;
+                    break;
+                } catch (\Throwable $e) {
+                    $lastError = $e;
+                    $context->steps[] = ['node' => $id, 'type' => $type, 'status' => 'error', 'attempt' => $attempt, 'error' => $e->getMessage()];
                 }
-            } catch (\Throwable $e) {
-                $context->steps[] = ['node' => $id, 'type' => $type, 'status' => 'error', 'error' => $e->getMessage()];
-                throw $e;
             }
+
+            if ($ran) {
+                continue;
+            }
+
+            $context->error = $lastError?->getMessage();
+            $context->failedNode = $id;
+
+            $onError = $node['on_error'] ?? null;
+            if (is_string($onError) && $onError !== '' && isset($nodes[$onError])) {
+                // Handled: expose the error to the branch and route to it.
+                $context->set('error', $context->error);
+                $queue[] = $onError;
+
+                continue;
+            }
+
+            // Unhandled: mark failed, surface a toast (configurable), and stop.
+            $context->failed = true;
+            if (config('ai-page-builder.flow.error_notify', true)) {
+                $context->addAction([
+                    'type' => 'notify',
+                    'level' => 'error',
+                    'message' => (string) config('ai-page-builder.flow.error_message', 'Something went wrong. Please try again.'),
+                ]);
+            }
+            break;
         }
 
         return $context;

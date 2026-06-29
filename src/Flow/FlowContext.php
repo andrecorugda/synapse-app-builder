@@ -22,6 +22,15 @@ class FlowContext
     /** @var array<int,array<string,mixed>> */
     public array $steps = [];
 
+    /** Set when a node failed and no on-error branch handled it. */
+    public bool $failed = false;
+
+    /** Message of the unhandled failure (if any). */
+    public ?string $error = null;
+
+    /** Id of the node whose failure went unhandled (if any). */
+    public ?string $failedNode = null;
+
     /** @param array<string,mixed> $input */
     public function __construct(public array $input = []) {}
 
