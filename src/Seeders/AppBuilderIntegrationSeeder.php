@@ -87,6 +87,6 @@ class AppBuilderIntegrationSeeder
     {
         $engine = app(SystemPromptBuilder::class)->build();
 
-        return $engine."\n\n## Current app context\nThe app you are building into currently contains:\n\n{{app_context}}\n\nReturn ONLY the JSON build plan — no prose, no code fences.";
+        return $engine."\n\n## Current app context\nThe app you are building into currently contains:\n\n{{app_context}}\n\nUse this context to avoid duplicating what already exists and to reference existing items when the user refines.";
     }
 }
