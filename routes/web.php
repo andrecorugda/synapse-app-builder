@@ -4,11 +4,19 @@ declare(strict_types=1);
 
 use Andre\AiPageBuilder\Http\Controllers\PreviewController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
+use Andre\AiPageBuilder\Http\Controllers\SitemapController;
 use Illuminate\Support\Facades\Route;
 
 // The render-prefix root (e.g. /p) serves the configured home page.
 Route::get('/', [RenderPageController::class, 'home'])
     ->name('ai-page-builder.home');
+
+// SEO endpoints. Declared before the catch-all `/{slug}` so the literal
+// `sitemap.xml` / `robots.txt` paths aren't captured as a page slug.
+Route::get('/sitemap.xml', [SitemapController::class, 'sitemap'])
+    ->name('ai-page-builder.sitemap');
+Route::get('/robots.txt', [SitemapController::class, 'robots'])
+    ->name('ai-page-builder.robots');
 
 // Preview a page of ANY status via a temporary signed URL. Registered before
 // the catch-all `/{slug}` so it isn't swallowed by it.
