@@ -67,11 +67,12 @@ class PageRenderer
                 if ($partial === null) {
                     return '';
                 }
-                if (! empty($partial->css)) {
-                    $extraCss[$m[2]] = (string) $partial->css; // keyed by slug = used once
+                $partialCss = (string) $partial->getAttribute('css');
+                if ($partialCss !== '') {
+                    $extraCss[$m[2]] = $partialCss; // keyed by slug = used once
                 }
 
-                return (string) $partial->html;
+                return (string) $partial->getAttribute('html');
             },
             $html,
         ) ?? $html;

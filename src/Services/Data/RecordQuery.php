@@ -7,6 +7,7 @@ namespace Andre\AiPageBuilder\Services\Data;
 use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
+use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -227,9 +228,9 @@ class RecordQuery
             ->groupByRaw($labelExpr)
             ->get();
 
-        $rows = $rows->map(fn ($r) => [
-            'label' => $r->label === null ? null : (string) $r->label,
-            'value' => (float) $r->value,
+        $rows = $rows->map(fn (Record $r) => [
+            'label' => $r->getAttribute('label') === null ? null : (string) $r->getAttribute('label'),
+            'value' => (float) $r->getAttribute('value'),
         ])->all();
 
         // Sort + limit.
@@ -260,7 +261,9 @@ class RecordQuery
      */
     private function dateBucketExpr(Builder $query, string $wrappedColumn, string $bucket): string
     {
-        $driver = $query->getConnection()->getDriverName();
+        /** @var Connection $connection */
+        $connection = $query->getConnection();
+        $driver = $connection->getDriverName();
 
         return match ($driver) {
             'sqlite' => match ($bucket) {
