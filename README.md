@@ -70,34 +70,9 @@ Everything below was **built with the package itself** — run `php artisan ai-p
 
 ## How it fits together
 
-```mermaid
-flowchart TD
-    You["🧑‍💻 You — build in the admin, or just describe it"]
-    AI["✦ AI — generates a validated Build Plan"]
-
-    subgraph Build["Build surfaces (Filament admin)"]
-        Pages["📄 Pages"]
-        Coll[("🗄️ Collections")]
-        Flows["⚡ Flows"]
-        Fns["ƒ Functions"]
-        State["{ } States"]
-        Auth["🔐 Users · Roles · Permissions"]
-    end
-
-    You --> Build
-    You -- "describe / refine" --> AI
-    AI -- "apply (idempotent)" --> Build
-
-    Build --> Pub["🌐 Published app"]
-    Pub --> Visitor["👥 End-user (optionally logged in)"]
-
-    Visitor -- "clicks · submits · events" --> Flows
-    Coll -- "on create / update / delete" --> Flows
-    Flows -- "read / write (row-level secured)" --> Coll
-    Flows -- "setState · send email · HTTP" --> Ext["🔌 Email · external services"]
-    State -- "reactive bind" --> Pub
-    Auth -- "gates pages · data · components" --> Pub
-```
+<p align="center">
+  <img src="art/architecture.png" alt="Synapse architecture: you and the AI build the surfaces (pages, collections, flows, functions, states, auth); the published app serves end-users; events drive flows that read/write data, set state, send email and gate access." width="100%">
+</p>
 
 **The loop in one line:** *event → flow → read/write data + set state → bound components re-render — and AI can build or change any of it.*
 
