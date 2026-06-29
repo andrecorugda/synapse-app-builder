@@ -361,9 +361,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         // on every panel page so app-building + refinement follow you around.
         FilamentView::registerRenderHook(
             'panels::body.end',
-            static fn (): string => view()->exists('ai-page-builder::filament.ai-chat')
-                ? view('ai-page-builder::filament.ai-chat')->render()
-                : '',
+            static fn (): string => view('ai-page-builder::filament.ai-chat')->render(),
         );
     }
 }
