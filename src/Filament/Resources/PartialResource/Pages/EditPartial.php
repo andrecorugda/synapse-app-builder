@@ -5,12 +5,23 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources\PartialResource\Pages;
 
 use Andre\AiPageBuilder\Filament\Resources\PartialResource;
+use Andre\AiPageBuilder\Support\PartialDataMapper;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
 class EditPartial extends EditRecord
 {
     protected static string $resource = PartialResource::class;
+
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        return PartialDataMapper::merge($data);
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        return PartialDataMapper::split($data);
+    }
 
     protected function getHeaderActions(): array
     {

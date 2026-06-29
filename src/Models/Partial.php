@@ -16,12 +16,18 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property string $name
  * @property string $slug
+ * @property ?array<string,mixed> $project_data
  * @property ?string $html
  * @property ?string $css
  */
 class Partial extends Model
 {
     protected $guarded = [];
+
+    /** @var array<string,string> */
+    protected $casts = [
+        'project_data' => 'array',
+    ];
 
     public function getConnectionName(): ?string
     {
