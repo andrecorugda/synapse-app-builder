@@ -14,15 +14,16 @@ connector breadth). "Foundation" notes call out what already exists to build on.
   collections **API tokens + API docs** (Bearer auth), seeded/settable **404 +
   maintenance + home** pages, **page versioning** (preview + apply a version),
   **draft preview** (signed URL), and a flow **"Run now"** action.
-- **Wave 3 — 🟡 partial.** Shipped: **CSV import/export**, **SEO** (sitemap.xml +
-  robots.txt), the **+12 components** batch, the **AI HtmlSanitizer** on the AI
-  path, and **API-token auth** (under Auth depth). Still open below are the
-  larger initiatives — external data sources, a hosted marketplace, full
-  SSO/2FA, field-level permissions, record history, credentials store, the
-  remaining AI-depth items, i18n, and platform/observability.
+- **Wave 3 — 🟡 partial (growing).** Shipped: **CSV import/export**, **SEO**
+  (sitemap.xml + robots.txt), the **+12 components** batch, the **AI HtmlSanitizer**
+  on the AI path, **API-token auth**, **credentials store**, the **image field**,
+  and **field-level permissions**. Still open are the larger initiatives —
+  external data sources, a hosted marketplace, full SSO/social/2FA + self-
+  registration, record history, the remaining AI-depth items (edit-section,
+  image-gen, streaming, usage panel), i18n, and platform/observability.
 
-The package test suite is green (183 passing; the only failures are GD-dependent
-media tests on the bare CI image). All shipped work is on `main`.
+The package test suite is green (198 passing; the only failures are GD-dependent
+media tests on the bare CI image) and phpstan is clean. All shipped work is on `main`.
 
 ---
 
@@ -69,12 +70,13 @@ media tests on the bare CI image). All shipped work is on `main`.
 
 - [ ] ⭐ **External data sources** — read/write an existing DB table or external API as a "virtual
   collection." The Retool / ToolJet moat; even read-only is a big unlock.
-- [ ] **Credentials store** — reusable API / OAuth secrets for HTTP / integration nodes (toward an
-  n8n-style integration story).
+- [x] **Credentials store** — ✅ encrypted secrets (bearer / api-key / basic) the HTTP node uses by
+  key (`config.credential`); managed in a Credentials resource.
 - [ ] ⭐⭐ **Template & component marketplace** — community starter apps + components. The fastest
   way to close the "young ecosystem" gap.
-- [~] **Data depth** — ✅ **CSV import/export shipped**; open: file/image field bound to the media
-  library, field-level permissions, record history (data revisions).
+- [~] **Data depth** — ✅ **CSV import/export**, ✅ **image field** (media-bound), ✅ **field-level
+  permissions** (per-role/action allow-list, REST projects reads + strips writes); open: record
+  history (data revisions).
 - [~] **Auth depth** — ✅ **API tokens / key auth shipped** (Bearer → pb guard, AccessControl-scoped,
   + API docs page); open: SSO / social login + magic links + 2FA; self-registration + profile page.
 - [~] **AI depth** — ✅ **`HtmlSanitizer` is wired on the AI path** (allows declarative directives,
