@@ -472,6 +472,19 @@ final class BlockVocabulary
                   <td class="pb-data-table__td" style="padding:0.75rem 1rem;">contact@globex.com</td>
                 </tr>
               </tbody>
+              <tfoot class="pb-data-table__foot" x-show="lastPage > 1" x-cloak>
+                <tr>
+                  <td colspan="2" style="padding:0.6rem 1rem;border-top:1px solid #e2e8f0;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#64748b;font-size:0.85rem;">
+                      <span>Page <span x-text="page"></span> of <span x-text="lastPage"></span> · <span x-text="total"></span> records</span>
+                      <span style="display:flex;gap:0.5rem;">
+                        <button type="button" @click="prev()" :disabled="page<=1" style="padding:0.35rem 0.7rem;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;cursor:pointer;">Prev</button>
+                        <button type="button" @click="next()" :disabled="page>=lastPage" style="padding:0.35rem 0.7rem;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;cursor:pointer;">Next</button>
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
             HTML, 'Data'),
 
@@ -484,6 +497,49 @@ final class BlockVocabulary
               <div class="pb-list__sample" x-show="false" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">Second item</div>
             </div>
             HTML, 'Data'),
+
+            self::block('kpi', 'Stat card', 'A KPI number aggregated from a collection (count/sum/avg).', <<<'HTML'
+            <div data-pb-block="kpi" class="pb-kpi" data-pb-collection="" data-pb-metric="count" data-pb-field="" data-pb-label="Total" style="font-family:inherit;border:1px solid #e2e8f0;border-radius:0.75rem;padding:1.25rem 1.5rem;background:#fff;min-width:12rem;display:inline-flex;flex-direction:column;gap:0.4rem;">
+              <span class="pb-kpi__label" style="font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;">Total</span>
+              <span class="pb-kpi__value" data-pb-kpi-value style="font-size:2rem;font-weight:700;color:#0f172a;line-height:1.1;">—</span>
+            </div>
+            HTML, 'Data'),
+
+            self::block('chart', 'Chart', 'A chart (bar/line/donut/area) aggregated from a collection via Chart.js.', <<<'HTML'
+            <div data-pb-block="chart" class="pb-chart" data-pb-collection="" data-pb-metric="count" data-pb-field="" data-pb-group="" data-pb-date-bucket="" data-pb-chart-type="bar" style="font-family:inherit;border:1px solid #e2e8f0;border-radius:0.75rem;padding:1.25rem;background:#fff;max-width:40rem;">
+              <div class="pb-chart__title" style="font-size:0.95rem;font-weight:600;color:#334155;margin-bottom:0.75rem;">Chart</div>
+              <div class="pb-chart__canvas-wrap" style="position:relative;height:18rem;">
+                <canvas class="pb-chart__canvas"></canvas>
+              </div>
+              <div class="pb-chart__placeholder" style="color:#94a3b8;font-size:0.85rem;padding:0.5rem 0;">Pick a collection in the Settings panel — the chart renders on the published page.</div>
+            </div>
+            HTML, 'Data'),
+
+            // An embed (iframe). Categorised under Components; lives here for proximity
+            // to the other URL/data-driven blocks. The runtime sets the iframe src
+            // from data-pb-embed-url (and normalizes YouTube/Vimeo share links).
+            self::block('embed', 'Embed / iframe', 'Embed a YouTube, Vimeo, Maps or any URL via an iframe.', <<<'HTML'
+            <div data-pb-block="embed" class="pb-embed" data-pb-embed-url="" style="font-family:inherit;">
+              <div class="pb-embed__frame" style="position:relative;width:100%;aspect-ratio:16/9;background:#0f172a;border-radius:0.5rem;overflow:hidden;">
+                <iframe class="pb-embed__iframe" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;"></iframe>
+                <div class="pb-embed__placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.85rem;text-align:center;padding:1rem;">Set an embed URL (YouTube, Vimeo, Maps, or any page) in the Settings panel.</div>
+              </div>
+            </div>
+            HTML, 'Components'),
+
+            // A typeahead bound to a collection (Forms category). Fetches matches
+            // from the REST API via the pbAutocomplete Alpine component.
+            self::block('autocomplete', 'Autocomplete', 'A typeahead input that searches a collection and fills a value.', <<<'HTML'
+            <div data-pb-block="autocomplete" class="pb-autocomplete" data-pb-collection="" data-pb-label-field="name" x-data="pbAutocomplete($el)" style="position:relative;font-family:inherit;max-width:24rem;">
+              <input type="text" class="pb-autocomplete__input" name="autocomplete" x-model="q" @input="search()" @focus="open=true" placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;">
+              <input type="hidden" class="pb-autocomplete__value" :value="selectedId">
+              <ul class="pb-autocomplete__menu" x-show="open && results.length" x-cloak @click.outside="open=false" style="position:absolute;z-index:30;left:0;right:0;margin:0.25rem 0 0;padding:0.25rem;list-style:none;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px -12px rgba(2,6,23,0.35);max-height:14rem;overflow:auto;">
+                <template x-for="r in results" :key="r.id">
+                  <li class="pb-autocomplete__option" x-text="r.label" @click="pick(r)" style="padding:0.5rem 0.6rem;border-radius:0.375rem;cursor:pointer;"></li>
+                </template>
+              </ul>
+            </div>
+            HTML, 'Forms'),
         ];
     }
 

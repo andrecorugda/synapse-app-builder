@@ -59,6 +59,128 @@ class RecordQuery
     }
 
     /**
+     * Server-side aggregation for charts / KPI cards. Fully column-whitelisted —
+     * `field` and `group_by` must be real columns of the model, so nothing
+     * user-supplied reaches the SQL as an identifier.
+     *
+     * @param  array<string,mixed>  $params  {
+     *                                       metric: count|sum|avg|min|max (default count),
+     *                                       field: <column> (required for sum/avg/min/max),
+     *                                       group_by: <column> (omit for a single KPI number),
+     *                                       date_bucket: day|week|month|year (when grouping a date column),
+     *                                       filter: Directus-style, search: term,
+     *                                       sort: value|-value|label|-label (default -value), limit: int (<=500)
+     *                                       }
+     * @return array{metric:string,total:float,rows:list<array{label:?string,value:float}>}
+     */
+    public function aggregate(PbModel $model, array $params = []): array
+    {
+        $columns = $this->columns($model);
+
+        $metric = strtolower((string) ($params['metric'] ?? 'count'));
+        if (! in_array($metric, ['count', 'sum', 'avg', 'min', 'max'], true)) {
+            $metric = 'count';
+        }
+
+        $query = Record::for($model)->newQuery();
+        $this->applyFilters($model, $query, (array) ($params['filter'] ?? []));
+        $this->applySearch($model, $query, (string) ($params['search'] ?? ''));
+
+        $grammar = $query->getQuery()->getGrammar();
+
+        // The metric expression. count → COUNT(*); the rest need a valid column.
+        if ($metric === 'count') {
+            $valueExpr = 'count(*)';
+        } else {
+            $field = (string) ($params['field'] ?? '');
+            if (! in_array($field, $columns, true)) {
+                return ['metric' => $metric, 'total' => 0.0, 'rows' => []];
+            }
+            $valueExpr = strtoupper($metric).'('.$grammar->wrap($field).')';
+        }
+
+        $groupBy = (string) ($params['group_by'] ?? '');
+
+        // No grouping → a single KPI number.
+        if ($groupBy === '' || ! in_array($groupBy, $columns, true)) {
+            $value = (float) ($query->selectRaw($valueExpr.' as aggregate')->value('aggregate') ?? 0);
+
+            return ['metric' => $metric, 'total' => $value, 'rows' => [['label' => null, 'value' => $value]]];
+        }
+
+        // Group key — optionally bucket a date/datetime column by period.
+        $bucket = strtolower((string) ($params['date_bucket'] ?? ''));
+        $labelExpr = in_array($bucket, ['day', 'week', 'month', 'year'], true)
+            ? $this->dateBucketExpr($query, $grammar->wrap($groupBy), $bucket)
+            : $grammar->wrap($groupBy);
+
+        $rows = $query
+            ->selectRaw($labelExpr.' as label')
+            ->selectRaw($valueExpr.' as value')
+            ->groupByRaw($labelExpr)
+            ->get();
+
+        $rows = $rows->map(fn ($r) => [
+            'label' => $r->label === null ? null : (string) $r->label,
+            'value' => (float) $r->value,
+        ])->all();
+
+        // Sort + limit.
+        $sort = (string) ($params['sort'] ?? '-value');
+        $key = ltrim($sort, '-');
+        $desc = str_starts_with($sort, '-');
+        usort($rows, function (array $a, array $b) use ($key, $desc): int {
+            $cmp = $key === 'label'
+                ? strcmp((string) $a['label'], (string) $b['label'])
+                : $a['value'] <=> $b['value'];
+
+            return $desc ? -$cmp : $cmp;
+        });
+
+        $limit = max(1, min(500, (int) ($params['limit'] ?? 50)));
+        $rows = array_slice($rows, 0, $limit);
+
+        return [
+            'metric' => $metric,
+            'total' => array_sum(array_column($rows, 'value')),
+            'rows' => array_values($rows),
+        ];
+    }
+
+    /**
+     * Driver-aware date-bucket SQL for a (already-quoted) column. Supports the
+     * three drivers the package targets; falls back to the raw column elsewhere.
+     */
+    private function dateBucketExpr(Builder $query, string $wrappedColumn, string $bucket): string
+    {
+        $driver = $query->getConnection()->getDriverName();
+
+        return match ($driver) {
+            'sqlite' => match ($bucket) {
+                'day' => "strftime('%Y-%m-%d', {$wrappedColumn})",
+                'week' => "strftime('%Y-W%W', {$wrappedColumn})",
+                'month' => "strftime('%Y-%m', {$wrappedColumn})",
+                'year' => "strftime('%Y', {$wrappedColumn})",
+                default => $wrappedColumn,
+            },
+            'pgsql' => "to_char({$wrappedColumn}, ".match ($bucket) {
+                'day' => "'YYYY-MM-DD'",
+                'week' => "'IYYY-\"W\"IW'",
+                'month' => "'YYYY-MM'",
+                'year' => "'YYYY'",
+                default => "'YYYY-MM-DD'",
+            }.')',
+            default => 'DATE_FORMAT('.$wrappedColumn.', '.match ($bucket) { // mysql/mariadb
+                'day' => "'%Y-%m-%d'",
+                'week' => "'%x-W%v'",
+                'month' => "'%Y-%m'",
+                'year' => "'%Y'",
+                default => "'%Y-%m-%d'",
+            }.')',
+        };
+    }
+
+    /**
      * @param  array<string,mixed>  $data
      *
      * @throws ValidationException
