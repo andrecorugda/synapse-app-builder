@@ -26,6 +26,9 @@ class MarketingDemo
             'requires_auth' => false,
             'html' => $this->homeHtml(),
             'css' => $this->homeCss(),
+            // Force a clean re-import through the editor's Alpine attribute bridge
+            // (the canonical GrapesJS tree is rebuilt from html on next open).
+            'project_data' => null,
             'meta' => [
                 'title' => 'Nimbus — Project management, reimagined',
                 'description' => 'Nimbus is the calm, fast project workspace where plans, work and updates live in one place. Ship on time without the chaos.',
