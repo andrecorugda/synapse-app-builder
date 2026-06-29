@@ -9,8 +9,10 @@ use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
+use Andre\AiPageBuilder\Services\RecordCsv;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -23,6 +25,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\UploadedFile;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Browses the ACTUAL rows of a collection's dynamic table (pb_<key>) as a second
@@ -111,6 +115,27 @@ class RecordsRelationManager extends RelationManager
                 Actions\CreateAction::make()
                     ->label('Add record')
                     ->using(fn (array $data): Record => app(RecordQuery::class)->create($owner, $data)),
+
+                Actions\Action::make('exportCsv')
+                    ->label('Export CSV')
+                    ->icon('heroicon-m-arrow-down-tray')
+                    ->color('gray')
+                    ->action(fn (): StreamedResponse => $this->exportCsv($owner)),
+
+                Actions\Action::make('importCsv')
+                    ->label('Import CSV')
+                    ->icon('heroicon-m-arrow-up-tray')
+                    ->color('gray')
+                    ->modalSubmitActionLabel('Import')
+                    ->schema([
+                        Forms\Components\FileUpload::make('file')
+                            ->label('CSV file')
+                            ->acceptedFileTypes(['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'])
+                            ->helperText('First row must be a header of column names. Unknown columns are ignored; bad rows are skipped and reported.')
+                            ->storeFiles(false)
+                            ->required(),
+                    ])
+                    ->action(fn (array $data) => $this->importCsv($owner, $data)),
             ])
             ->recordActions([
                 Actions\EditAction::make()
@@ -131,6 +156,57 @@ class RecordsRelationManager extends RelationManager
                         }),
                 ]),
             ]);
+    }
+
+    /**
+     * Stream all of the collection's records as a CSV download named after the
+     * collection key. Building the whole CSV up front (rather than echoing per
+     * row) keeps it simple and matches the admin-scale data this drives.
+     */
+    private function exportCsv(PbModel $owner): StreamedResponse
+    {
+        $csv = app(RecordCsv::class)->export($owner);
+        $filename = $owner->key.'.csv';
+
+        return response()->streamDownload(
+            function () use ($csv): void {
+                echo $csv;
+            },
+            $filename,
+            ['Content-Type' => 'text/csv'],
+        );
+    }
+
+    /**
+     * Read the uploaded CSV and replay it through RecordCsv::import, surfacing the
+     * imported / skipped counts (and the first few row errors) as a notification.
+     *
+     * @param  array<string,mixed>  $data
+     */
+    private function importCsv(PbModel $owner, array $data): void
+    {
+        $file = $data['file'] ?? null;
+
+        if (! $file instanceof UploadedFile) {
+            Notification::make()->danger()->title('No file')->body('Could not read the uploaded CSV.')->send();
+
+            return;
+        }
+
+        $csv = (string) file_get_contents($file->getRealPath());
+        $summary = app(RecordCsv::class)->import($owner, $csv);
+
+        $body = "Imported {$summary['imported']}, skipped {$summary['skipped']}.";
+        if ($summary['errors'] !== []) {
+            $body .= ' '.implode(' ', array_slice($summary['errors'], 0, 3));
+            if (count($summary['errors']) > 3) {
+                $body .= ' …';
+            }
+        }
+
+        $notification = Notification::make()->title('CSV import complete')->body($body);
+        $summary['skipped'] === 0 ? $notification->success() : $notification->warning();
+        $notification->send();
     }
 
     /**
