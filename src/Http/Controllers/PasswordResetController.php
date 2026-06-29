@@ -65,11 +65,21 @@ class PasswordResetController
         return back()->with('status', $generic);
     }
 
-    public function showReset(Request $request): View
+    public function showReset(Request $request): View|RedirectResponse
     {
+        $token = (string) $request->query('token', '');
+        $email = (string) $request->query('email', '');
+
+        // Pre-validate so a used / expired link sends the user to request a fresh
+        // one, instead of showing a form that's guaranteed to fail on submit.
+        if (! $this->tokenIsValid($email, $token)) {
+            return redirect('/'.$this->loginPath().'/forgot')
+                ->withErrors(['email' => 'This password reset link is invalid or has expired. Please request a new one.']);
+        }
+
         return view('ai-page-builder::auth.reset-password', [
-            'token' => (string) $request->query('token', ''),
-            'email' => (string) $request->query('email', ''),
+            'token' => $token,
+            'email' => $email,
             'loginPath' => $this->loginPath(),
         ]);
     }
@@ -82,18 +92,10 @@ class PasswordResetController
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $invalid = back()
-            ->withErrors(['email' => 'This password reset link is invalid or has expired.'])
-            ->onlyInput('email');
+        $invalid = redirect('/'.$this->loginPath().'/forgot')
+            ->withErrors(['email' => 'This password reset link is invalid or has expired. Please request a new one.']);
 
-        $row = $this->table()->where('email', $data['email'])->first();
-        if ($row === null || ! is_string($row->token ?? null) || ! Hash::check($data['token'], $row->token)) {
-            return $invalid;
-        }
-
-        $ttl = app(AuthSettings::class)->resetTokenTtl();
-        $createdAt = isset($row->created_at) ? Carbon::parse((string) $row->created_at) : null;
-        if ($createdAt === null || $createdAt->lt(now()->subSeconds($ttl))) {
+        if (! $this->tokenIsValid($data['email'], $data['token'])) {
             return $invalid;
         }
 
@@ -114,6 +116,24 @@ class PasswordResetController
 
         return redirect($this->loginUrl())
             ->with('status', 'Your password has been reset — please sign in.');
+    }
+
+    /** A reset token is valid when it matches the stored hash and is not expired. */
+    private function tokenIsValid(string $email, string $token): bool
+    {
+        if ($email === '' || $token === '') {
+            return false;
+        }
+
+        $row = $this->table()->where('email', $email)->first();
+        if ($row === null || ! is_string($row->token ?? null) || ! Hash::check($token, $row->token)) {
+            return false;
+        }
+
+        $ttl = app(AuthSettings::class)->resetTokenTtl();
+        $createdAt = isset($row->created_at) ? Carbon::parse((string) $row->created_at) : null;
+
+        return $createdAt !== null && $createdAt->gte(now()->subSeconds($ttl));
     }
 
     private function mail(string $email, string $name, string $link): void
