@@ -25,3 +25,4 @@ parameters:
               - src/Http/Controllers/RegistrationController.php
               - src/Http/Controllers/PasswordResetController.php
               - src/Http/Controllers/InviteController.php
+              - src/Http/Controllers/TwoFactorController.php

@@ -252,6 +252,15 @@ return [
                 )),
             ],
         ],
+
+        // Two-factor auth (runtime-overridable on the Identity & Auth screen).
+        // 'email' OTP needs no extra package; 'totp' (authenticator app) requires
+        // pragmarx/google2fa and is silently dropped from the offered methods when
+        // that package is absent.
+        'two_factor' => [
+            'enabled' => (bool) env('AI_PAGE_BUILDER_2FA', true),
+            'methods' => ['totp', 'email'],
+        ],
     ],
 
     /*

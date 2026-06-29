@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Pages;
 
 use Andre\AiPageBuilder\Auth\SocialProviders;
+use Andre\AiPageBuilder\Auth\TwoFactorService;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Services\PageBuilderMailer;
@@ -132,6 +133,16 @@ class PageBuilderSettings extends FilamentPage
             'sso_github_orgs' => $settings->get(
                 'auth.providers.github.allowed_orgs',
                 config('ai-page-builder.auth.providers.github.allowed_orgs', []),
+            ),
+            // Two-factor authentication — policy + offered methods. Keys are the
+            // dotted `auth.two_factor.*` Settings keys that Auth\TwoFactorService reads.
+            'two_factor_enabled' => (bool) $settings->get(
+                'auth.two_factor.enabled',
+                config('ai-page-builder.auth.two_factor.enabled', true),
+            ),
+            'two_factor_methods' => (array) $settings->get(
+                'auth.two_factor.methods',
+                config('ai-page-builder.auth.two_factor.methods', ['totp', 'email']),
             ),
         ]);
     }
@@ -274,6 +285,25 @@ class PageBuilderSettings extends FilamentPage
                                             ->helperText('Restrict to members of these GitHub org logins. Empty = any GitHub account.')
                                             ->visible(fn (Get $get): bool => (bool) $get('sso_github_enabled')),
                                     ]),
+
+                                Section::make('Two-factor authentication')
+                                    ->description('Offer a second factor at sign-in and choose which methods end-users may enrol with.')
+                                    ->compact()
+                                    ->schema([
+                                        Forms\Components\Toggle::make('two_factor_enabled')
+                                            ->label('Allow two-factor authentication')
+                                            ->live(),
+                                        Forms\Components\CheckboxList::make('two_factor_methods')
+                                            ->label('Allowed methods')
+                                            ->options([
+                                                'totp' => 'Authenticator app (TOTP)',
+                                                'email' => 'Email one-time code',
+                                            ])
+                                            ->helperText(fn (): string => app(TwoFactorService::class)->totpAvailable()
+                                                ? 'Authenticator app requires the optional pragmarx/google2fa package (installed).'
+                                                : 'Authenticator app requires the optional pragmarx/google2fa package (not installed — TOTP will be unavailable).')
+                                            ->visible(fn (Get $get): bool => (bool) $get('two_factor_enabled')),
+                                    ]),
                             ]),
 
                         Tabs\Tab::make('Email')
@@ -407,6 +437,10 @@ class PageBuilderSettings extends FilamentPage
         $settings->set('auth.providers.github.enabled', (bool) ($state['sso_github_enabled'] ?? false));
         $githubOrgs = $state['sso_github_orgs'] ?? [];
         $settings->set('auth.providers.github.allowed_orgs', is_array($githubOrgs) ? array_values($githubOrgs) : []);
+
+        // Two-factor authentication — policy + offered methods.
+        $settings->set('auth.two_factor.enabled', (bool) ($state['two_factor_enabled'] ?? true));
+        $settings->set('auth.two_factor.methods', array_values((array) ($state['two_factor_methods'] ?? ['email'])));
 
         Notification::make()
             ->success()

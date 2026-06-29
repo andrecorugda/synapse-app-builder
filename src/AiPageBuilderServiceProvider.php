@@ -37,6 +37,7 @@ use Andre\AiPageBuilder\Http\Controllers\PasswordResetController;
 use Andre\AiPageBuilder\Http\Controllers\RegistrationController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
 use Andre\AiPageBuilder\Http\Controllers\SocialAuthController;
+use Andre\AiPageBuilder\Http\Controllers\TwoFactorController;
 use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
@@ -97,6 +98,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_password_resets_table',
                 'add_sso_fields_to_page_builder_users_table',
                 'create_page_builder_user_invites_table',
+                'add_two_factor_fields_to_page_builder_users_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -399,6 +401,21 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             // Accept an emailed invitation (set password + activate).
             Route::get($login.'/invite/{token}', [InviteController::class, 'show'])->name('ai-page-builder.invite.accept');
             Route::post($login.'/invite/{token}', [InviteController::class, 'accept'])->middleware('throttle:6,1');
+
+            // Two-factor login challenge — session-gated (a pending user id), the
+            // user is not yet authenticated.
+            Route::get($login.'/two-factor', [TwoFactorController::class, 'challenge'])->name('ai-page-builder.2fa.challenge');
+            Route::post($login.'/two-factor', [TwoFactorController::class, 'verify'])->middleware('throttle:10,1');
+            Route::post($login.'/two-factor/resend', [TwoFactorController::class, 'resend'])->middleware('throttle:3,1');
+
+            // Self-service enrolment / disable. Auth is enforced in the controller
+            // (each method redirects to the login page when no pb user is signed
+            // in) rather than via the auth middleware, whose unauthenticated
+            // redirect targets a host "login" route the package can't assume.
+            Route::get($login.'/two-factor/setup', [TwoFactorController::class, 'setup'])->name('ai-page-builder.2fa.setup');
+            Route::post($login.'/two-factor/setup', [TwoFactorController::class, 'start'])->middleware('throttle:10,1');
+            Route::post($login.'/two-factor/setup/confirm', [TwoFactorController::class, 'confirm'])->middleware('throttle:10,1');
+            Route::post($login.'/two-factor/disable', [TwoFactorController::class, 'disable']);
         });
     }
 

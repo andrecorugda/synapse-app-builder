@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Auth\TwoFactorService;
 use Andre\AiPageBuilder\Filament\Resources\PbUserResource\Pages;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbUser;
@@ -137,6 +138,13 @@ class PbUserResource extends Resource
                     ->boolean()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('two_factor_confirmed_at')
+                    ->label('2FA')
+                    ->badge()
+                    ->state(fn (PbUser $record): string => $record->hasTwoFactorEnabled() ? 'on' : 'off')
+                    ->color(fn (string $state): string => $state === 'on' ? 'success' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->since()
@@ -197,6 +205,22 @@ class PbUserResource extends Resource
 
                         Notification::make()
                             ->title('User reactivated')
+                            ->success()
+                            ->send();
+                    }),
+
+                Actions\Action::make('resetTwoFactor')
+                    ->label('Reset 2FA')
+                    ->icon('heroicon-o-shield-exclamation')
+                    ->color('warning')
+                    ->visible(fn (PbUser $record): bool => $record->hasTwoFactorEnabled())
+                    ->requiresConfirmation()
+                    ->action(function (PbUser $record): void {
+                        app(TwoFactorService::class)->disable($record);
+
+                        Notification::make()
+                            ->title('Two-factor reset')
+                            ->body('The user must set it up again.')
                             ->success()
                             ->send();
                     }),
