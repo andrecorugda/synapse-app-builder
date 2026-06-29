@@ -60,7 +60,11 @@ class PageBuilderSettings extends FilamentPage
         $settings = app(Settings::class);
 
         $this->form->fill([
-            'home_page' => $settings->get('home_page'),
+            'home_page' => $settings->get('home_page', 'home'),
+            // Site behaviour — maintenance mode + 404/maintenance page pickers.
+            'maintenance_mode' => filter_var($settings->get('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN),
+            'not_found_page' => $settings->get('not_found_page', 'not-found'),
+            'maintenance_page' => $settings->get('maintenance_page', 'maintenance'),
             // Email transport. The password is never echoed back — leave blank
             // to keep the stored one (see save()).
             'mail_host' => $settings->get('mail_host'),
@@ -93,6 +97,29 @@ class PageBuilderSettings extends FilamentPage
                         Forms\Components\Placeholder::make('home_url')
                             ->label('Will be served at')
                             ->content(fn (Get $get): string => $this->homeUrlPreview($get('home_page'))),
+                    ]),
+
+                Section::make('Site behaviour')
+                    ->description('Maintenance mode and the pages shown for 404 / downtime. Built-in defaults ship seeded; admins bypass maintenance mode.')
+                    ->compact()
+                    ->schema([
+                        Forms\Components\Toggle::make('maintenance_mode')
+                            ->label('Maintenance mode')
+                            ->helperText('When on, visitors get the maintenance page (HTTP 503). Signed-in admins still see the live site.'),
+                        Forms\Components\Select::make('not_found_page')
+                            ->label('404 page')
+                            ->options(fn (): array => $this->pageOptions())
+                            ->searchable()
+                            ->native(false)
+                            ->placeholder('Built-in default')
+                            ->helperText('Shown for unknown / unpublished URLs.'),
+                        Forms\Components\Select::make('maintenance_page')
+                            ->label('Maintenance page')
+                            ->options(fn (): array => $this->pageOptions())
+                            ->searchable()
+                            ->native(false)
+                            ->placeholder('Built-in default')
+                            ->helperText('Shown to visitors while maintenance mode is on.'),
                     ]),
 
                 Section::make('Email (SMTP)')
@@ -174,6 +201,12 @@ class PageBuilderSettings extends FilamentPage
 
         $home = $state['home_page'] ?? null;
         $settings->set('home_page', is_string($home) && $home !== '' ? $home : null);
+
+        // Site behaviour.
+        $settings->set('maintenance_mode', (bool) ($state['maintenance_mode'] ?? false));
+        foreach (['not_found_page', 'maintenance_page'] as $key) {
+            $settings->set($key, isset($state[$key]) && $state[$key] !== '' ? (string) $state[$key] : null);
+        }
 
         // Email transport.
         foreach (['mail_host', 'mail_username', 'mail_encryption', 'mail_from_address', 'mail_from_name'] as $key) {
