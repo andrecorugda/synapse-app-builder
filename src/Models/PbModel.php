@@ -26,6 +26,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $icon
  * @property bool $has_timestamps
  * @property bool $has_soft_deletes
+ * @property string $source_type
+ * @property string|null $source_connection
+ * @property bool $is_read_only
  * @property array<string,mixed>|null $options
  * @property int|null $created_by
  * @property Collection<int,PbField> $fields
@@ -34,17 +37,50 @@ class PbModel extends Model
 {
     use SoftDeletes;
 
+    /** A managed collection owns its table; an external one maps to an existing table. */
+    public const SOURCE_MANAGED = 'managed';
+
+    public const SOURCE_EXTERNAL = 'external';
+
     protected $guarded = [];
 
     protected $casts = [
         'options' => 'array',
         'has_timestamps' => 'boolean',
         'has_soft_deletes' => 'boolean',
+        'is_read_only' => 'boolean',
         'created_by' => 'integer',
     ];
 
     public function getConnectionName(): ?string
     {
+        return Schema::connection();
+    }
+
+    /** True when this collection maps to an existing table the package does not manage. */
+    public function isExternal(): bool
+    {
+        return $this->getAttribute('source_type') === self::SOURCE_EXTERNAL;
+    }
+
+    /** Writes blocked through the API (always true for read-only collections). */
+    public function isReadOnly(): bool
+    {
+        return (bool) $this->getAttribute('is_read_only');
+    }
+
+    /**
+     * The connection records live on: the configured external connection for an
+     * external collection, else the package's own data connection.
+     */
+    public function dataConnection(): ?string
+    {
+        if ($this->isExternal()) {
+            $conn = (string) ($this->getAttribute('source_connection') ?? '');
+
+            return $conn !== '' ? $conn : Schema::connection();
+        }
+
         return Schema::connection();
     }
 

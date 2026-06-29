@@ -34,7 +34,9 @@ final class Record extends Model
             : self::resolvePbModel($model);
 
         $instance = new self;
-        $instance->setConnection(Schema::connection());
+        // External collections live on their own connection; managed ones on the
+        // package's data connection.
+        $instance->setConnection($pb->dataConnection());
         $instance->setTable($pb->table_name);
         $instance->timestamps = (bool) $pb->has_timestamps;
         $instance->pbModelKey = $pb->key;

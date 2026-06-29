@@ -46,6 +46,7 @@ abstract class TestCase extends Orchestra
         (require __DIR__.'/../database/migrations/add_sso_fields_to_page_builder_users_table.php')->up();
         (require __DIR__.'/../database/migrations/create_page_builder_user_invites_table.php')->up();
         (require __DIR__.'/../database/migrations/add_two_factor_fields_to_page_builder_users_table.php')->up();
+        (require __DIR__.'/../database/migrations/add_external_source_to_page_builder_models_table.php')->up();
     }
 
     /**

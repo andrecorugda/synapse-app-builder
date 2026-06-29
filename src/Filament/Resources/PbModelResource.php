@@ -14,6 +14,8 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -104,6 +106,64 @@ class PbModelResource extends Resource
                             ->label('Soft deletes')
                             ->inline(false)
                             ->default(false),
+
+                        // Source: a managed collection owns its table (pb_ + key,
+                        // auto-derived); an external collection maps an existing
+                        // table on another connection — read only, never altered.
+                        Forms\Components\Select::make('source_type')
+                            ->label('Source')
+                            ->options([
+                                PbModel::SOURCE_MANAGED => 'Managed (this app owns the table)',
+                                PbModel::SOURCE_EXTERNAL => 'External database table (read an existing table)',
+                            ])
+                            ->default(PbModel::SOURCE_MANAGED)
+                            ->required()
+                            ->native(false)
+                            ->live()
+                            // External tables are read by default; when switching to
+                            // external, default the read-only toggle on (writing is
+                            // opt-in). Managed collections leave it untouched.
+                            ->afterStateUpdated(function (string $state, Set $set): void {
+                                if ($state === PbModel::SOURCE_EXTERNAL) {
+                                    $set('is_read_only', true);
+                                }
+                            })
+                            ->columnSpan(2),
+
+                        Forms\Components\Select::make('source_connection')
+                            ->label('Connection')
+                            ->options(
+                                collect(array_keys(config('database.connections', [])))
+                                    ->mapWithKeys(fn (string $c): array => [$c => $c])
+                                    ->all()
+                            )
+                            ->native(false)
+                            ->searchable()
+                            ->required(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
+                            ->visible(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
+                            ->helperText('The Laravel DB connection where the existing table lives.')
+                            ->columnSpan(2),
+
+                        Forms\Components\TextInput::make('table_name')
+                            ->label('Existing table')
+                            ->maxLength(255)
+                            ->required(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
+                            ->visible(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
+                            ->helperText('The existing table name to map (this app will read it, never alter it).')
+                            ->columnSpan(2),
+
+                        Forms\Components\Toggle::make('is_read_only')
+                            ->label('Read-only')
+                            ->inline(false)
+                            ->default(false)
+                            ->helperText('Block writes through the API/flows.')
+                            ->columnSpan(2),
+
+                        Forms\Components\Placeholder::make('external_fields_note')
+                            ->hiddenLabel()
+                            ->visible(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
+                            ->content('For an external collection you define Fields to DESCRIBE the existing columns (used for projection, casts and display) — the app will not create them.')
+                            ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('description')
                             ->rows(2)

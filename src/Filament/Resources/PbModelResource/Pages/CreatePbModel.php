@@ -14,15 +14,19 @@ class CreatePbModel extends CreateRecord
     protected static string $resource = PbModelResource::class;
 
     /**
-     * Resolve the physical table name from the collection key before insert —
-     * the model has no creating event of its own.
+     * Resolve the physical table name before insert — the model has no creating
+     * event of its own. A managed collection owns its table, so the name is
+     * derived from the key (pb_ + key); an external collection maps an existing
+     * table, so the user-entered table_name is kept as-is.
      *
      * @param  array<string,mixed>  $data
      * @return array<string,mixed>
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $data['table_name'] = PbModel::physicalTableName((string) $data['key']);
+        if (($data['source_type'] ?? PbModel::SOURCE_MANAGED) !== PbModel::SOURCE_EXTERNAL) {
+            $data['table_name'] = PbModel::physicalTableName((string) $data['key']);
+        }
 
         return $data;
     }

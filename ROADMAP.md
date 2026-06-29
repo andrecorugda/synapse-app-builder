@@ -68,8 +68,12 @@ media tests on the bare CI image) and phpstan is clean. All shipped work is on `
 
 ## Wave 3 — depth & moat
 
-- [ ] ⭐ **External data sources** — read/write an existing DB table or external API as a "virtual
-  collection." The Retool / ToolJet moat; even read-only is a big unlock.
+- [x] ⭐ **External data sources ✅ SHIPPED 2026-06-29** — a collection can be `external`: it maps to an
+  EXISTING table on any configured DB connection (`source_type`/`source_connection`/`table_name`), which
+  the package reads through the *same* data layer (RecordQuery / REST API / data-table+chart+autocomplete
+  blocks / flows / permissions / ownership) but never creates, alters, or drops (`SchemaSynchronizer`
+  skips it). `is_read_only` blocks writes (external defaults to read-only). Fields *describe* the existing
+  columns. *Open follow-up:* external **HTTP/REST API** as a virtual collection (a bigger query→HTTP layer).
 - [x] **Credentials store** — ✅ encrypted secrets (bearer / api-key / basic) the HTTP node uses by
   key (`config.credential`); managed in a Credentials resource.
 - [ ] ⭐⭐ **Template & component marketplace** — community starter apps + components. The fastest
