@@ -90,6 +90,26 @@ it('emits setState / setStates result actions for the reactive page store', func
         ->and($ctx->actions[1]['type'])->toBe('setStates');
 });
 
+it('fans out to multiple nodes and runs a fan-in/join node only once', function (): void {
+    // trigger ─┬─> b ─┐
+    //          └─> c ─┴─> join   (b, c, join each notify)
+    $def = [
+        'start' => 't',
+        'nodes' => [
+            't' => ['type' => 'trigger', 'next' => ['b', 'c']],
+            'b' => ['type' => 'result', 'config' => ['actions' => [['type' => 'notify', 'message' => 'B']]], 'next' => ['join']],
+            'c' => ['type' => 'result', 'config' => ['actions' => [['type' => 'notify', 'message' => 'C']]], 'next' => ['join']],
+            'join' => ['type' => 'result', 'config' => ['actions' => [['type' => 'notify', 'message' => 'JOIN']]]],
+        ],
+    ];
+
+    $ctx = app(FlowRunner::class)->run($def);
+
+    $messages = array_map(fn ($a) => $a['message'], $ctx->actions);
+    expect($messages)->toContain('B')->toContain('C')->toContain('JOIN')
+        ->and(array_count_values($messages)['JOIN'])->toBe(1); // join ran once despite two paths
+});
+
 it('drops disallowed result action types and skips unknown nodes', function (): void {
     $def = [
         'start' => 'n1',
