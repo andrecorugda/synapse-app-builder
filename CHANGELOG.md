@@ -5,6 +5,11 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-06-29
+
+### Changed
+- Tightened the package description (concise, leads with the n8n-style flow engine) and added the Filament-directory submission art (16:9 cover + thumbnail).
+
 ## [1.0.0] - 2026-06-29
 
 First public release — **Synapse, the AI app builder** for Laravel + Filament.
