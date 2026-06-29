@@ -22,8 +22,13 @@ use Illuminate\View\View;
  */
 class AuthController
 {
-    public function show(): View
+    public function show(): View|RedirectResponse
     {
+        // Already signed in? The login page is for guests — send them home.
+        if (Auth::guard($this->guard())->check()) {
+            return redirect()->intended((string) config('ai-page-builder.auth.redirect_after_login', '/'));
+        }
+
         $auth = app(AuthSettings::class);
 
         // Drive which doors the login page shows (password form, register link,

@@ -63,6 +63,19 @@
             return;
         }
 
+        if (type === 'logout') {
+            // End the pb session, then return to login (or action.url). CSRF from
+            // the per-session XSRF-TOKEN cookie — never baked into cached HTML.
+            var m = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+            var dest = action.url || '{{ url('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/')) }}';
+            fetch('{{ url('pb-logout') }}', {
+                method: 'POST',
+                headers: { 'X-XSRF-TOKEN': m ? decodeURIComponent(m[1]) : '', 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            }).then(function () { window.location.href = dest; }).catch(function () { window.location.href = dest; });
+            return;
+        }
+
         if (type === 'addClass') {
             var targets = document.querySelectorAll(action.target);
             targets.forEach(function (el) {

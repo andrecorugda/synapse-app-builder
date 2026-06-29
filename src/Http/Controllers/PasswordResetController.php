@@ -28,6 +28,10 @@ class PasswordResetController
 {
     public function showForgot(): View|RedirectResponse
     {
+        if (auth((string) config('ai-page-builder.auth.guard', 'pb'))->check()) {
+            return redirect()->intended((string) config('ai-page-builder.auth.redirect_after_login', '/'));
+        }
+
         if (! app(AuthSettings::class)->passwordLoginEnabled()) {
             return redirect($this->loginUrl());
         }
