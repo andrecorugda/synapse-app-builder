@@ -7,6 +7,7 @@ namespace Andre\AiPageBuilder\Models;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -48,6 +49,15 @@ class Flow extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /** Telemetry runs for this flow (newest first). Shown as a tab on the flow. */
+    public function runs(): HasMany
+    {
+        /** @var class-string<Model> $model */
+        $model = config('ai-page-builder.models.flow_run', FlowRun::class);
+
+        return $this->hasMany($model, 'flow_id')->latest();
     }
 
     /**
