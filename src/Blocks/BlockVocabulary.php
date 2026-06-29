@@ -328,6 +328,48 @@ final class BlockVocabulary
               </div>
             </div>
             HTML, 'Components'),
+
+            self::block('video', 'Video', 'A self-hosted HTML5 video player.', <<<'HTML'
+            <div data-pb-block="video" class="pb-video" style="max-width:100%;border-radius:var(--pb-radius,0.75rem);overflow:hidden;background:#000;">
+              <video class="pb-video__el" controls playsinline poster="https://placehold.co/1280x720/0f172a/64748b?text=Video" style="display:block;width:100%;height:auto;">
+                <source src="" type="video/mp4">
+              </video>
+            </div>
+            HTML, 'Components'),
+
+            self::block('breadcrumbs', 'Breadcrumbs', 'A breadcrumb trail.', <<<'HTML'
+            <nav data-pb-block="breadcrumbs" class="pb-breadcrumbs" aria-label="Breadcrumb" style="font-family:inherit;font-size:0.875rem;color:var(--pb-muted,#64748b);">
+              <ol style="list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin:0;padding:0;">
+                <li><a href="/" style="color:var(--pb-muted,#64748b);text-decoration:none;">Home</a></li>
+                <li aria-hidden="true">/</li>
+                <li><a href="#" style="color:var(--pb-muted,#64748b);text-decoration:none;">Section</a></li>
+                <li aria-hidden="true">/</li>
+                <li aria-current="page" style="color:var(--pb-ink,#0f172a);font-weight:600;">Current</li>
+              </ol>
+            </nav>
+            HTML, 'Components'),
+
+            self::block('rating', 'Rating', 'A star rating display.', <<<'HTML'
+            <div data-pb-block="rating" class="pb-rating" role="img" aria-label="Rated 4 out of 5" style="font-size:1.25rem;letter-spacing:2px;color:var(--pb-accent,#f59e0b);">★★★★<span style="color:#cbd5e1;">★</span></div>
+            HTML, 'Components'),
+
+            self::block('progress', 'Progress bar', 'A labelled progress bar.', <<<'HTML'
+            <div data-pb-block="progress" class="pb-progress" style="font-family:inherit;max-width:32rem;">
+              <div class="pb-progress__label" style="display:flex;justify-content:space-between;font-size:0.8125rem;color:var(--pb-muted,#64748b);margin-bottom:0.35rem;"><span>Progress</span><span>70%</span></div>
+              <div class="pb-progress__track" style="height:0.6rem;border-radius:999px;background:var(--pb-border,#e2e8f0);overflow:hidden;"><div class="pb-progress__bar" style="height:100%;width:70%;border-radius:999px;background:var(--pb-primary,#6366f1);"></div></div>
+            </div>
+            HTML, 'Components'),
+
+            self::block('alert', 'Alert', 'A callout / alert box.', <<<'HTML'
+            <div data-pb-block="alert" class="pb-alert" role="alert" style="display:flex;gap:0.75rem;align-items:flex-start;padding:1rem 1.15rem;border:1px solid var(--pb-border,#e2e8f0);border-left:4px solid var(--pb-primary,#6366f1);border-radius:var(--pb-radius,0.6rem);background:var(--pb-surface,#f8fafc);color:var(--pb-ink,#0f172a);font-family:inherit;">
+              <span aria-hidden="true" style="font-size:1.15rem;line-height:1.3;">ℹ️</span>
+              <div><strong class="pb-alert__title" style="display:block;margin-bottom:0.15rem;">Heads up</strong><span class="pb-alert__text" style="color:var(--pb-muted,#64748b);font-size:0.9375rem;">This is an informational message you can edit.</span></div>
+            </div>
+            HTML, 'Components'),
+
+            self::block('avatar', 'Avatar', 'A circular avatar image.', <<<'HTML'
+            <img data-pb-block="avatar" class="pb-avatar" src="https://placehold.co/96x96/6366f1/ffffff?text=A" alt="Avatar" width="64" height="64" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--pb-border,#e2e8f0);">
+            HTML, 'Components'),
         ];
     }
 
@@ -420,6 +462,20 @@ final class BlockVocabulary
               </label>
               <button type="submit" class="pb-form__submit" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;font-size:0.9375rem;cursor:pointer;outline-offset:2px;">Submit</button>
             </form>
+            HTML, 'Forms'),
+
+            self::block('date_picker', 'Date picker', 'A date input field.', <<<'HTML'
+            <label data-pb-block="date_picker" class="pb-field" style="display:block;font-family:inherit;max-width:24rem;">
+              <span class="pb-field__label" style="display:block;font-size:0.875rem;font-weight:600;color:var(--pb-ink,#0f172a);margin-bottom:0.35rem;">Date</span>
+              <input type="date" name="date" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;color:var(--pb-ink,#0f172a);box-sizing:border-box;">
+            </label>
+            HTML, 'Forms'),
+
+            self::block('file_upload', 'File upload', 'A file input field.', <<<'HTML'
+            <label data-pb-block="file_upload" class="pb-field" style="display:block;font-family:inherit;max-width:24rem;">
+              <span class="pb-field__label" style="display:block;font-size:0.875rem;font-weight:600;color:var(--pb-ink,#0f172a);margin-bottom:0.35rem;">Upload a file</span>
+              <input type="file" name="file" style="width:100%;padding:0.5rem;border:1px dashed #cbd5e1;border-radius:0.5rem;font:inherit;color:var(--pb-muted,#64748b);box-sizing:border-box;">
+            </label>
             HTML, 'Forms'),
         ];
     }
