@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Filament\Resources\PbModelResource\Pages;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\FieldsRelationManager;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\RecordsRelationManager;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Filament\Actions;
 use Filament\Forms;
@@ -218,7 +219,9 @@ class PbModelResource extends Resource
     }
 
     /**
-     * Existing collection keys, for the relation-field target dropdown.
+     * Targets for a relation field's "belongs to" dropdown: the app's users
+     * table (always offered first — a collection can have several user relations
+     * like author / approver / assignee) followed by the existing collections.
      *
      * @return array<string,string>
      */
@@ -227,10 +230,12 @@ class PbModelResource extends Resource
         /** @var class-string<PbModel> $modelClass */
         $modelClass = config('ai-page-builder.models.model', PbModel::class);
 
-        return $modelClass::query()
+        $collections = $modelClass::query()
             ->orderBy('name')
             ->pluck('name', 'key')
             ->all();
+
+        return [PbUser::RELATION_TARGET => 'App users'] + $collections;
     }
 
     public static function getRelations(): array

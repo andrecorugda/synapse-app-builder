@@ -6,9 +6,11 @@ namespace Andre\AiPageBuilder\Services\Data;
 
 use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
@@ -86,6 +88,25 @@ class RecordQuery
     }
 
     /**
+     * Resolve a relation field's `relation_model` target to a model instance —
+     * either the app's users table (the `PbUser::RELATION_TARGET` sentinel) or
+     * another collection's dynamic Record. Lets a user relation (author /
+     * approver / assignee …) behave exactly like a collection relation for both
+     * the exists-validation and the expand lookup.
+     */
+    private function relationTarget(string $relatedKey): Model
+    {
+        if ($relatedKey === PbUser::RELATION_TARGET) {
+            /** @var class-string<PbUser> $userClass */
+            $userClass = config('ai-page-builder.models.user', PbUser::class);
+
+            return new $userClass;
+        }
+
+        return Record::for($relatedKey);
+    }
+
+    /**
      * Attach related records to a result set. Supports two directions, keyed by
      * the requested expand name:
      *   - belongs-to: a `relation` field's key (e.g. `manager`) → the single
@@ -124,7 +145,7 @@ class RecordQuery
                 try {
                     $relatedById = $ids === []
                         ? collect()
-                        : Record::for($relatedKey)->newQuery()->whereIn('id', $ids)->get()->keyBy('id');
+                        : $this->relationTarget($relatedKey)->newQuery()->whereIn('id', $ids)->get()->keyBy('id');
                 } catch (\Throwable) {
                     continue;
                 }
@@ -370,11 +391,11 @@ class RecordQuery
                 $relatedKey = $field->options['relation_model'] ?? null;
                 if (is_string($relatedKey) && $relatedKey !== '') {
                     try {
-                        $related = Record::for($relatedKey);
+                        $related = $this->relationTarget($relatedKey);
                         $conn = $related->getConnectionName();
                         $fieldRules[] = 'exists:'.($conn ? $conn.'.' : '').$related->getTable().',id';
                     } catch (\Throwable) {
-                        // Related collection not resolvable — skip the exists check.
+                        // Related target not resolvable — skip the exists check.
                     }
                 }
             }

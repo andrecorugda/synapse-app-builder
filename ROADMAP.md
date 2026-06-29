@@ -77,8 +77,33 @@ media tests on the bare CI image) and phpstan is clean. All shipped work is on `
 - [~] **Data depth** — ✅ **CSV import/export**, ✅ **image field** (media-bound), ✅ **field-level
   permissions** (per-role/action allow-list, REST projects reads + strips writes); open: record
   history (data revisions).
-- [~] **Auth depth** — ✅ **API tokens / key auth shipped** (Bearer → pb guard, AccessControl-scoped,
-  + API docs page); open: SSO / social login + magic links + 2FA; self-registration + profile page.
+- [x] **Record ownership = user relations** — *(Identity & Auth Phase 1)* the relation (belongs-to)
+  field type now targets **App users** by default, not just other collections, so a collection can
+  carry **several named user foreign keys** (author / approver / assignee …), each renamable —
+  ownership is just a relation, no dedicated system column. Mechanics reused as-is: column `{key}_id`,
+  `exists:` validation + `expand=` resolution route to `PbUser` (password hidden), and a create
+  permission rule `{"<field>_id":"$CURRENT_USER"}` auto-stamps the logged-in user while the same rule
+  scopes reads/writes. *(Chosen over a single `has_owner`/`owner_id` column — that couldn't model
+  multiple user roles on one collection.)*
+- [~] **Auth depth — Identity & Auth subsystem** *(planned 2026-06-29, phased; SSO/TOTP via OPTIONAL
+  deps — Socialite / socialiteproviders / google2fa, `class_exists`-guarded; email-OTP needs no dep).*
+  ✅ **API tokens / key auth shipped** (Bearer → pb guard, AccessControl-scoped, + API docs page). Phases:
+  1. **Record ownership** (above).
+  2. **Password-login toggle + forgot/reset + self-registration + approval/status** — `auth.password_login`
+     bool; password broker + reset table + emails (PageBuilderMailer); `status` column (pending|active|
+     suspended) folded into the login check beside `is_active`. Onboarding model is **admin-configurable**
+     (invite-only | approval-required | open + optional email-domain allow-list) — a setting, not a default.
+  3. **SSO providers** — pluggable `AuthProvider` contract + registry, config-driven `auth.providers`;
+     Google / Microsoft / GitHub, each with **org/domain/tenant restriction** (Google hosted-domain,
+     MS Azure tenant id, GitHub org membership). `provider`/`provider_id` columns; `password` nullable.
+     OAuth `state` CSRF; find-or-create PbUser on callback honoring restriction + onboarding policy.
+  4. **Invites + admin approval/invite UI** — invite table (hashed token, role, expiry); "Send invite"
+     action; PbUserResource gains status + approve/suspend; new Invites resource.
+  5. **2FA** — post-auth challenge interstitial; **email-OTP** (no dep) + **authenticator TOTP**
+     (optional google2fa) + hashed recovery codes; admin reset action.
+  Cross-cutting: all config nested under `auth.*`; sibling controllers (Registration/PasswordReset/
+  SocialAuth/TwoFactor/Invite); login/register/forgot throttling; a Filament "Identity & Auth" settings
+  page using selects/toggles (dropdowns-not-free-fields). Build phased, verify + commit between each.
 - [~] **AI depth** — ✅ **`HtmlSanitizer` is wired on the AI path** (allows declarative directives,
   strips executable); open: edit-existing-section refinement, AI image generation, streaming chat,
   usage / cost panel.
