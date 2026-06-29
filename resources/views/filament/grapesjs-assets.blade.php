@@ -36,6 +36,33 @@
         } catch (\Throwable $e) {
             $pbCollections = [];
         }
+        // Per-collection field lists feed the dependent field-name selects
+        // (chart/kpi metric field + group-by, autocomplete label field). Shape:
+        // { "<collection key>": [ { name, column, label, type }, … ], … }.
+        //   name   — the field key (REST row key / relation attribute name)
+        //   column — the physical DB column (what aggregate validates against;
+        //            == key for everything except Relation, which is key_id)
+        // The selects offer `column` as the value for chart/kpi (aggregation
+        // matches real columns) and `name` for the autocomplete label field
+        // (the typeahead indexes the REST row by attribute name).
+        try {
+            $pbModelClass = config('ai-page-builder.models.model', \Andre\AiPageBuilder\Models\PbModel::class);
+            $pbSchemaConn = \Illuminate\Support\Facades\Schema::connection(\Andre\AiPageBuilder\Support\Schema::connection());
+            $pbFields = [];
+            if ($pbSchemaConn->hasTable(\Andre\AiPageBuilder\Support\Schema::table('fields'))
+                && $pbSchemaConn->hasTable(\Andre\AiPageBuilder\Support\Schema::table('models'))) {
+                foreach ($pbModelClass::query()->with('fields')->get() as $pbModel) {
+                    $pbFields[$pbModel->key] = $pbModel->fields->map(fn ($f) => [
+                        'name' => $f->key,
+                        'column' => $f->columnName(),
+                        'label' => $f->label,
+                        'type' => $f->type,
+                    ])->values()->all();
+                }
+            }
+        } catch (\Throwable $e) {
+            $pbFields = [];
+        }
         // Reusable partials → draggable blocks that insert a data-pb-partial placeholder.
         try {
             $pbPartials = (config('ai-page-builder.models.partial', \Andre\AiPageBuilder\Models\Partial::class))::query()
@@ -49,6 +76,7 @@
         window.__pbPages = @js($pbPages);
         window.__pbStates = @js($pbStates);
         window.__pbCollections = @js($pbCollections);
+        window.__pbFields = @js($pbFields);
         window.__pbPartials = @js($pbPartials);
         window.__pbThemeCss = @js(app(\Andre\AiPageBuilder\Services\Theme::class)->css());
     </script>
@@ -425,22 +453,81 @@
                             });
                         }
 
+                        // Field-name options for a collection's dependent selects.
+                        // `value` keys the persisted attribute: 'column' (real DB
+                        // column — what chart/kpi aggregation validates against) or
+                        // 'name' (the field key / REST-row attribute — what the
+                        // autocomplete label field indexes). `numericOnly` keeps just
+                        // sum/avg/min/max-capable fields for the metric field; others
+                        // (group-by, label) list all. Returns an option array with a
+                        // leading empty entry, so an unset/unknown collection shows
+                        // just the placeholder.
+                        const PB_NUMERIC_TYPES = ['number', 'integer', 'int', 'float', 'decimal', 'currency'];
+                        const pbFieldOptions = (collectionKey, value, opts) => {
+                            const o = opts || {};
+                            const empty = { id: '', name: o.emptyLabel || '— select field —' };
+                            const list = (window.__pbFields && window.__pbFields[collectionKey]) || [];
+                            return [empty].concat(
+                                list
+                                    .filter((f) => ! o.numericOnly || PB_NUMERIC_TYPES.indexOf(String(f.type || '').toLowerCase()) !== -1)
+                                    .map((f) => ({ id: f[value] || f.name, name: (f.label || f.name) + ' (' + (f[value] || f.name) + ')' }))
+                            );
+                        };
+
+                        // Rebuild a real-attribute select trait in place with a fresh
+                        // option list (used when a dependent select's parent changes).
+                        // Removes then re-adds at the same index so the panel keeps its
+                        // order; the persisted attribute value is untouched, so GrapesJS
+                        // re-selects it when it still exists among the new options (the
+                        // <select> falls back to the empty option otherwise).
+                        const pbReaddSelect = (component, traitName, label, options) => {
+                            const traits = component.getTraits();
+                            const idx = traits.findIndex((t) => t.get('name') === traitName);
+                            if (idx === -1) { return; }
+                            component.removeTrait(traitName);
+                            component.addTrait({ type: 'select', name: traitName, label: label, options: options }, { at: idx });
+                        };
+
                         // Chart / KPI — bind to a collection + aggregation. These are
                         // plain data-pb-* attributes (persisted in html) read by the
-                        // published runtime, so no changeProp rewrite is needed.
+                        // published runtime, so no changeProp rewrite is needed. The
+                        // metric field + group-by are dependent selects driven by the
+                        // chosen collection's real fields (re-populated when the
+                        // collection changes — see change:attributes below).
                         const pbBlock = cmp.getAttributes()['data-pb-block'];
                         if ((pbBlock === 'chart' || pbBlock === 'kpi') && ! names.includes('data-pb-collection')) {
                             const collectionOptions = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
                             );
+                            const curCollection = cmp.getAttributes()['data-pb-collection'] || '';
                             cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Collection', options: collectionOptions });
                             cmp.addTrait({ type: 'select', name: 'data-pb-metric', label: 'Metric', options: ['count', 'sum', 'avg', 'min', 'max'].map((m) => ({ id: m, name: m })) });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-field', label: 'Field (sum/avg/min/max)' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-field', label: 'Field (sum/avg/min/max)', options: pbFieldOptions(curCollection, 'column', { numericOnly: true }) });
                             if (pbBlock === 'chart') {
-                                cmp.addTrait({ type: 'text', name: 'data-pb-group', label: 'Group by (field)' });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-group', label: 'Group by (field)', options: pbFieldOptions(curCollection, 'column') });
                                 cmp.addTrait({ type: 'select', name: 'data-pb-date-bucket', label: 'Date bucket', options: [{ id: '', name: '— none —' }, { id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }] });
                                 cmp.addTrait({ type: 'select', name: 'data-pb-chart-type', label: 'Chart type', options: ['bar', 'line', 'area', 'donut', 'pie'].map((t) => ({ id: t, name: t })) });
                             }
+                            // Re-populate the dependent field selects when the
+                            // collection changes. data-pb-collection is a real
+                            // attribute trait; this GrapesJS build emits only the
+                            // generic `change:attributes` (no per-key event), so we
+                            // listen to that and act only when the collection value
+                            // actually changed — guarding against unrelated attribute
+                            // edits and against the re-add itself re-triggering. The
+                            // trait is rebuilt with options for the new collection;
+                            // the persisted value is untouched, so GrapesJS re-selects
+                            // it when still present (else falls back to the empty option).
+                            let pbLastCollection = curCollection;
+                            cmp.on('change:attributes', () => {
+                                const col = cmp.getAttributes()['data-pb-collection'] || '';
+                                if (col === pbLastCollection) { return; }
+                                pbLastCollection = col;
+                                pbReaddSelect(cmp, 'data-pb-field', 'Field (sum/avg/min/max)', pbFieldOptions(col, 'column', { numericOnly: true }));
+                                if (pbBlock === 'chart') {
+                                    pbReaddSelect(cmp, 'data-pb-group', 'Group by (field)', pbFieldOptions(col, 'column'));
+                                }
+                            });
                         }
 
                         // Embed — the iframe URL (set as an attribute, not inlined).
@@ -448,13 +535,29 @@
                             cmp.addTrait({ type: 'text', name: 'data-pb-embed-url', label: 'Embed URL (YouTube, Vimeo, Maps, any page)' });
                         }
 
-                        // Autocomplete — bind the typeahead to a collection + label field.
+                        // Autocomplete — bind the typeahead to a collection + label
+                        // field. The label field is a dependent select over the
+                        // collection's real fields; the typeahead indexes the REST
+                        // row by attribute name, so its value is the field `name`
+                        // (key), not the physical column. Re-populated on collection
+                        // change like the chart/kpi field selects above.
                         if (pbBlock === 'autocomplete' && ! names.includes('data-pb-collection')) {
                             const acCollections = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
                             );
+                            const acCollection = cmp.getAttributes()['data-pb-collection'] || '';
                             cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Collection', options: acCollections });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-label-field', label: 'Label field', placeholder: 'name' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-label-field', label: 'Label field', options: pbFieldOptions(acCollection, 'name', { emptyLabel: '— name (default) —' }) });
+                            // Re-populate the label-field select when the collection
+                            // changes (generic change:attributes + value guard — this
+                            // GrapesJS build emits no per-key attribute event).
+                            let acLastCollection = acCollection;
+                            cmp.on('change:attributes', () => {
+                                const col = cmp.getAttributes()['data-pb-collection'] || '';
+                                if (col === acLastCollection) { return; }
+                                acLastCollection = col;
+                                pbReaddSelect(cmp, 'data-pb-label-field', 'Label field', pbFieldOptions(col, 'name', { emptyLabel: '— name (default) —' }));
+                            });
                         }
                     };
 

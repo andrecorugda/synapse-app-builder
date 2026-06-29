@@ -40,12 +40,36 @@
         } catch (\Throwable $e) {
             $pbEmailTemplates = [];
         }
+        try {
+            // Reusable (encrypted) credentials the HTTP Request node can apply
+            // by key — so flows authenticate without inlining tokens.
+            $credClass = config('ai-page-builder.models.credential', \Andre\AiPageBuilder\Models\Credential::class);
+            $pbCredentials = $credClass::query()->orderBy('name')->get()
+                ->map(fn ($c) => ['key' => $c->key, 'name' => $c->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbCredentials = [];
+        }
+        try {
+            // AI Gateway integrations feed the AI Invoke node's slug dropdown.
+            // The gateway package is OPTIONAL — only query when it's installed.
+            if (class_exists(\Andre\AiGateway\Models\AiIntegration::class)) {
+                $pbIntegrations = \Andre\AiGateway\Models\AiIntegration::query()
+                    ->where('is_active', true)->orderBy('name')->get()
+                    ->map(fn ($i) => ['slug' => $i->slug, 'name' => $i->name])->values()->all();
+            } else {
+                $pbIntegrations = [];
+            }
+        } catch (\Throwable $e) {
+            $pbIntegrations = [];
+        }
     @endphp
     <script>
         window.__pbFlowFunctions = @js($pbFlowFunctions);
         window.__pbCollections = @js($pbCollections);
         window.__pbVariables = @js($pbVariables);
         window.__pbEmailTemplates = @js($pbEmailTemplates);
+        window.__pbCredentials = @js($pbCredentials);
+        window.__pbIntegrations = @js($pbIntegrations);
     </script>
     <style>
         /* ── Drawflow canvas wrapper (dark) ── */
@@ -280,7 +304,7 @@
                         return '<div class="ai-pb-node" data-node-type="ai_invoke">'
                             + '<div class="ai-pb-node-title">&#10024; AI Invoke</div>'
                             + '<label class="ai-pb-node-label">Integration slug</label>'
-                            + '<input type="text" df-integration placeholder="e.g. page_builder" />'
+                            + '<select df-integration>' + optionList(window.__pbIntegrations, 'slug', '— select integration —') + '</select>'
                             + '<label class="ai-pb-node-label">Output variable</label>'
                             + '<input type="text" df-output placeholder="e.g. ai_result" />'
                             + '<label class="ai-pb-node-label">Args (JSON)</label>'
@@ -300,6 +324,8 @@
                             + '</select>'
                             + '<label class="ai-pb-node-label">URL</label>'
                             + '<input type="text" df-url placeholder="https://api.example.com/v1/{{vars.id}}" />'
+                            + '<label class="ai-pb-node-label">Credential (auth)</label>'
+                            + '<select df-credential>' + optionList(window.__pbCredentials, 'key', '— none —') + '</select>'
                             + '<label class="ai-pb-node-label">Headers (JSON)</label>'
                             + '<textarea df-headers placeholder=\'{"Authorization":"Bearer {{vars.token}}"}\'></textarea>'
                             + '<label class="ai-pb-node-label">Params / body (JSON)</label>'
@@ -462,7 +488,7 @@
                     case 'ai_invoke':
                         return { integration: config.integration || '', output: config.output || '', args: jsonStr(config.args) };
                     case 'http_request':
-                        return { method: config.method || 'GET', url: config.url || '', headers: jsonStr(config.headers), body: jsonStr(config.body), output: config.output || '' };
+                        return { method: config.method || 'GET', url: config.url || '', credential: config.credential || '', headers: jsonStr(config.headers), body: jsonStr(config.body), output: config.output || '' };
                     case 'function':
                         return { function: config.function || '', args: jsonStr(config.args), output: config.output || '' };
                     case 'send_email':
@@ -594,6 +620,7 @@
                                 body: parseJson(data.body, {}),
                                 output: data.output || '',
                             };
+                            if (data.credential) { config.credential = data.credential; }
                             break;
                         case 'function':
                             config = {
