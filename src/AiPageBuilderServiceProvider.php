@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Ai\AppBuilderService;
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Console\InstallDemoCommand;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
@@ -72,7 +73,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_requires_auth_to_pages_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
-            ->hasCommand(RunCronFlowsCommand::class);
+            ->hasCommand(RunCronFlowsCommand::class)
+            ->hasCommand(InstallDemoCommand::class);
     }
 
     public function packageRegistered(): void

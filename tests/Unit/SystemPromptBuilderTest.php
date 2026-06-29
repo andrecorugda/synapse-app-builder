@@ -22,7 +22,7 @@ it('spells out the build-plan contract markers', function (): void {
     $prompt = (new SystemPromptBuilder)->build();
 
     expect($prompt)
-        ->toContain('build plan')
+        ->toContain('Build-plan contract')
         ->toContain('collections')
         ->toContain('states')
         ->toContain('functions')
@@ -75,7 +75,7 @@ it('states the hard rules including the no-executable-directive rule', function 
     $prompt = (new SystemPromptBuilder)->build();
 
     expect($prompt)
-        ->toContain('Output ONLY')
+        ->toContain('```json')
         ->toContain('@click')
         ->toContain('x-text');
 });
