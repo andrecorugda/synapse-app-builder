@@ -319,3 +319,13 @@ it('shows the reset form for a valid link but bounces a stale link to forgot', f
         ->assertRedirect('/login/forgot')
         ->assertSessionHasErrors('email');
 });
+
+it('logs the end-user out via pb-logout', function (): void {
+    phase2User();
+
+    $this->post('/login', ['email' => 'ada@example.com', 'password' => 'secret-pass']);
+    expect(auth('pb')->check())->toBeTrue();
+
+    $this->post('/pb-logout')->assertRedirect();
+    expect(auth('pb')->check())->toBeFalse();
+});
