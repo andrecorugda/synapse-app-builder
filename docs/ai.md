@@ -13,7 +13,7 @@ composer require andrecorugda/ai-openrouter-gateway
 # .env: OPENROUTER_INTEGRATION_KEY=sk-or-...
 ```
 
-The package talks to it through the [`AiInvoker`](extending.md#the-aiinvoker-contract) abstraction (`GatewayAiInvoker` by default), so the rest of the package stays gateway-optional and the AI services stay unit-testable. `AppBuilderService::available()` is false without it, and the *Build with AI* page / chat degrade gracefully ("you can still build manually").
+The package talks to it through the [`AiInvoker`](extending.md#the-aiinvoker-contract) abstraction (`GatewayAiInvoker` by default), so the rest of the package stays gateway-optional and the AI services stay unit-testable. `AppBuilderService::available()` is false without it, and the chat degrades gracefully ("you can still build manually").
 
 The `ai.driver` config is `auto` by default: use the gateway when installed, else the direct OpenRouter driver, else a null driver (manual editing still works). Force it with `gateway` or `openrouter`.
 
@@ -36,22 +36,31 @@ Field `options` carry `required`, `unique`, `default`, `length`, `choices` (for 
 
 `src/Ai/BuildPlanValidator.php` runs **before** the applier touches the DB, returning a flat list of human-readable errors (empty = valid). It blocks structural breakage — invalid slugs (`^[a-z][a-z0-9_-]*$`), duplicate keys, unknown field types (checked against `FieldType::cases()`), unknown flow trigger types and **unregistered node types** (resolved from the live `NodeRegistry`), a `home_page` that points at an email template — while treating advisory issues (an unknown `data-pb-block` key, a `home_page` slug not created in the same plan) as warnings.
 
-## Build with AI
+## The floating chat (the single AI surface)
 
-The **Build with AI** admin page (`src/Filament/Pages/BuildWithAi.php`) is the describe → review → apply surface:
+The AI lives in a dockable companion injected on every admin page (the ✦ orb; `resources/views/filament/ai-chat.blade.php` via a Filament render hook), backed by `AiChatController`. It is a real conversation, not a one-shot form.
 
-1. **Describe** — a `brief` (what you want) and optional `business` (brand/guidelines).
-2. **Generate plan** — calls `AppBuilderService::generate($brief, $business)`, which sends the seeded `app_builder` system prompt + the live app context + your brief through the gateway, then extracts and validates the plan. The reviewable plan, its validation errors and the raw model reply are shown.
-3. **Apply plan** — visible once a plan exists, **disabled while there are validation errors**, and requires confirmation. Calls `BuildPlanApplier::apply($plan)` and reports what was created (collections, states, functions, flows, pages, settings).
+**Modes** (a selector in the composer; the choice is sent as `mode` and persisted):
 
-## The floating chat
+| Mode | Behaviour |
+|---|---|
+| **Auto** (default) | The model infers intent — answers questions, proposes a plan only for a concrete build/change request. |
+| **Ask** | Answer/advise only; never proposes a plan. |
+| **Plan** | Designs it *with* you — proposes a plan plus an itemized summary, asks before assumptions. |
+| **Build** | Produces a ready-to-apply plan for the request. |
 
-A dockable AI companion is injected on every admin page (the ✦ orb; `src/Filament/views/.../ai-chat.blade.php` via a Filament render hook), backed by `AiChatController`:
+The system prompt is conversational: greetings and questions get plain replies; a plan is emitted only inside a fenced ```` ```json ```` block (so prose is never misread as a plan) and rendered as a **detailed, reviewable card** — each collection with its field chips, plus states, functions, flows, pages and settings.
 
-- `POST /ai-page-builder/ai-chat` (**send**) — threads the **whole conversation** through `AppBuilderService::generate()`, so the model retains context and can iteratively **refine** what you've built. Returns a friendly one-line summary ("Proposed: 2 collections, 1 page…"), the raw reply (for thread continuity), the plan, and any validation errors.
+Endpoints:
+
+- `POST /ai-page-builder/ai-chat` (**send**) — threads the **whole conversation** through `AppBuilderService::generate()` (with the mode directive), so the model retains context and can iteratively **refine** what you've built. Returns the conversational reply, the raw text (for thread continuity), the plan, and any validation errors.
 - `POST /ai-page-builder/ai-chat/apply` (**apply**) — commits the proposed plan via `BuildPlanApplier` (human-in-the-loop: generation and application are separate steps).
 
-Because the chat is thread-aware and context-aware, you can build on one page and refine on another — "refine from anywhere."
+The conversation is kept in the browser (`localStorage`) and the panel is appended to `document.body`, so it survives Livewire's `wire:navigate` — build on one page, refine on another.
+
+## Try it: the demo apps
+
+`php artisan ai-page-builder:install-demo` builds two reference apps from the package's own primitives — a designed marketing website (`/p/home`) and a role-gated **Inventory** CRUD app (`/p/inventory`, sign in `manager@nimbus.test` / `password`) with collections, a reactive dashboard, States, a Function, end-user roles, and a fan-out Flow. A fast way to see everything working together.
 
 ## Idempotent apply
 

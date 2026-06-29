@@ -46,13 +46,15 @@ Nothing leaves your server. There's no SaaS, no per-seat pricing, no lock-in. It
 
 ## See it
 
-| Describe → review → apply | Refine by chatting, anywhere |
-|---|---|
-| ![Build with AI](art/screenshots/build-with-ai.png) | ![AI chat](art/screenshots/ai-chat.png) |
+Everything below was **built with the package itself** — run `php artisan ai-page-builder:install-demo` to get these two apps.
 
-| Your app's login | App users & roles |
+| A designed marketing site | A role-gated Inventory app |
 |---|---|
-| ![Login](art/screenshots/login.png) | ![App users](art/screenshots/app-users.png) |
+| ![Marketing site](art/screenshots/marketing-site.png) | ![Inventory dashboard](art/screenshots/inventory.png) |
+
+| Chat to build & refine (Ask / Plan / Build) | An automation flow (fan-out + branches) |
+|---|---|
+| ![AI chat](art/screenshots/ai-chat.png) | ![Flow editor](art/screenshots/flow.png) |
 
 ---
 
@@ -131,7 +133,13 @@ composer require andrecorugda/ai-openrouter-gateway
 # set OPENROUTER_INTEGRATION_KEY (or OPENROUTER_API_KEY) in .env
 ```
 
-Then open **Build with AI**, or tap the ✦ chat orb on any admin page.
+Then tap the ✦ chat orb on any admin page and just talk to it.
+
+**Want a guided tour?** Install two ready-made apps (a marketing site + a role-gated Inventory CRUD app) built entirely from the package:
+
+```bash
+php artisan ai-page-builder:install-demo
+```
 
 📖 **Full documentation:** [`docs/`](docs/README.md) — installation, architecture, every subsystem, and the complete config reference.
 
@@ -141,9 +149,10 @@ Then open **Build with AI**, or tap the ✦ chat orb on any admin page.
 
 AI is **optional and additive** — the builder is fully usable by hand. When the [AI OpenRouter Gateway](https://github.com/andrecorugda/ai-openrouter-gateway) is installed:
 
-- **You describe; it plans.** The model returns a structured **Build Plan** (collections, states, functions, flows, pages, settings) — never opaque files. You review it before anything is created.
+- **A real conversation, with modes.** The floating chat talks like a teammate — **Auto** infers what you want, **Ask** answers only, **Plan** designs it with you, **Build** ships it. Greetings and questions get replies, not plans.
+- **You describe; it plans — visibly.** When you ask for a change, it returns a structured **Build Plan** shown in full (each collection + its fields, pages, flows, settings) for review — never opaque files.
 - **Applied as data.** A deterministic, idempotent engine writes the plan through the same services the admin uses, so AI-built artifacts behave exactly like hand-built ones — and "refine" just means re-applying a plan that references existing items.
-- **A companion, not a wizard.** The floating chat is thread-aware and context-aware; build on one page, refine on another.
+- **A companion, not a wizard.** The chat is thread-aware and context-aware (it knows your collections, pages and flows); build on one page, refine on another.
 - **Safe by construction.** AI-authored HTML is sanitized (declarative bindings kept, executable directives stripped); applying is always human-in-the-loop; generation is metered and cost-capped by the gateway.
 
 ---
