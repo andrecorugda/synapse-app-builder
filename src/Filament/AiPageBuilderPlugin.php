@@ -12,6 +12,7 @@ use Andre\AiPageBuilder\Filament\Resources\PageResource;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource;
 use Andre\AiPageBuilder\Filament\Resources\PbRoleResource;
 use Andre\AiPageBuilder\Filament\Resources\PbUserResource;
+use Andre\AiPageBuilder\Filament\Resources\ScheduleResource;
 use Andre\AiPageBuilder\Filament\Resources\VariableResource;
 use Filament\Contracts\Plugin;
 use Filament\Panel;
@@ -45,6 +46,7 @@ class AiPageBuilderPlugin implements Plugin
             FlowResource::class,
             FunctionResource::class,
             VariableResource::class,
+            ScheduleResource::class,
             PbModelResource::class,
             PbUserResource::class,
             PbRoleResource::class,

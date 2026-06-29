@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Ai\BuildPlanApplier;
 use Andre\AiPageBuilder\Console\ExportSiteCommand;
 use Andre\AiPageBuilder\Console\InstallDemoCommand;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
+use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowDispatcher;
@@ -40,8 +41,10 @@ use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\MediaLibrary;
 use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
+use Andre\AiPageBuilder\Services\ScheduleRunner;
 use Andre\AiPageBuilder\Services\Settings;
 use Filament\Support\Facades\FilamentView;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Spatie\LaravelPackageTools\Package;
@@ -72,9 +75,11 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_users_table',
                 'create_page_builder_permissions_table',
                 'add_requires_auth_to_pages_table',
+                'create_schedules_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
+            ->hasCommand(RunSchedulesCommand::class)
             ->hasCommand(InstallDemoCommand::class)
             ->hasCommand(ExportSiteCommand::class);
     }
@@ -134,6 +139,27 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->autoSeedGatewayIntegration();
         $this->registerRecordObserver();
         $this->registerPublishableAssets();
+        $this->registerScheduledCommands();
+    }
+
+    /**
+     * Drive UI-defined schedules: run `ai-page-builder:run-schedules` every
+     * minute so {@see ScheduleRunner} can fire any
+     * Schedule row whose cron expression is due that minute. withoutOverlapping
+     * guards against a slow tick stacking on the next.
+     *
+     * Registered via callAfterResolving so it only wires up once the host app's
+     * Schedule is built (console/scheduler context) — never at web request time.
+     * The callback captures NO outer variables, so route:cache stays safe: the
+     * command name is a literal string and Schedule arrives as a parameter.
+     */
+    private function registerScheduledCommands(): void
+    {
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
+            $schedule->command('ai-page-builder:run-schedules')
+                ->everyMinute()
+                ->withoutOverlapping();
+        });
     }
 
     /**
