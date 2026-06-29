@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Ai\AppBuilderService;
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Console\ExportSiteCommand;
 use Andre\AiPageBuilder\Console\InstallDemoCommand;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
@@ -74,7 +75,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
-            ->hasCommand(InstallDemoCommand::class);
+            ->hasCommand(InstallDemoCommand::class)
+            ->hasCommand(ExportSiteCommand::class);
     }
 
     public function packageRegistered(): void
