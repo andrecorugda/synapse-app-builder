@@ -65,6 +65,7 @@
             // show only for those role slugs (admins always pass). Server-side
             // data is already secured by the permission engine — this is UX.
             window.Alpine.store('app').$user = null;
+            @unless ($static ?? false)
             fetch('{{ url('pb-auth/me') }}', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
@@ -79,6 +80,7 @@
                     });
                 })
                 .catch(function () {});
+            @endunless
 
             // pbTable — the Data Table block's x-data. Fetches a collection's rows
             // from the auto REST API (GET {api}/{collection} → {data:[…]}) and
