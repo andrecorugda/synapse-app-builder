@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Cache;
  */
 class PageRenderer
 {
-    public function render(Page $page): View
+    public function render(Page $page, bool $static = false): View
     {
         return view('ai-page-builder::render.page', [
             'page' => $page,
@@ -29,7 +29,16 @@ class PageRenderer
             'state' => app(VariableStore::class)->all(),
             'meta' => is_array($page->meta) ? $page->meta : [],
             'title' => $page->title,
+            // Static export: omit the live backend calls (the auth/me fetch) so
+            // the page has zero failing requests when hosted without a backend.
+            'static' => $static,
         ]);
+    }
+
+    /** Render for static export (no backend runtime calls, no cache). */
+    public function renderStatic(Page $page): string
+    {
+        return $this->render($page, static: true)->render();
     }
 
     /**

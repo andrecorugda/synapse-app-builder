@@ -43,7 +43,7 @@ class ExportSiteCommand extends Command
         $count = 0;
 
         foreach ($pages as $page) {
-            $html = $this->staticize($renderer->renderCached($page), $prefix);
+            $html = $this->staticize($renderer->renderStatic($page), $prefix);
             File::put($out.'/'.$page->slug.'.html', $html);
             if ($page->slug === $homeSlug) {
                 File::put($out.'/index.html', $html);
