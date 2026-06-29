@@ -384,6 +384,14 @@
                                 options: PB_EVENTS.map(([id, name]) => ({ id, name })),
                             });
                             cmp.addTrait({ type: 'select', name: 'data-pb-page', label: 'Link to page', options: pageOptions });
+                            // Log the end-user out on click (ends the pb session,
+                            // returns to the login page) — works on any element.
+                            cmp.addTrait({
+                                type: 'select',
+                                name: 'data-pb-logout',
+                                label: 'Log out on click',
+                                options: [{ id: '', name: 'No' }, { id: '1', name: 'Yes — sign out' }],
+                            });
                         }
 
                         // Data binding: connect this component to a value in the

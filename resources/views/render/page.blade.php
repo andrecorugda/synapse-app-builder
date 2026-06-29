@@ -163,6 +163,30 @@
     {{-- Flow trigger runtime: components with data-pb-flow run a flow on click. --}}
     @include('ai-page-builder::render.flow-runtime')
 
+    {{-- End-user logout: any element with data-pb-logout="1" ends the pb session
+         and returns to the login page. The CSRF token is read from the per-session
+         XSRF-TOKEN cookie at click time — NEVER baked into this (cached) HTML. --}}
+    @if ((bool) config('ai-page-builder.auth.enabled', true) && ! ($static ?? false))
+    <script>
+        (function () {
+            var nodes = document.querySelectorAll('[data-pb-logout="1"]');
+            if (! nodes.length) { return; }
+            var url = '{{ url('pb-logout') }}';
+            var loginUrl = '{{ url('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/')) }}';
+            function xsrf() { var m = document.cookie.match(/XSRF-TOKEN=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; }
+            nodes.forEach(function (el) {
+                el.style.cursor = 'pointer';
+                el.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    fetch(url, { method: 'POST', headers: { 'X-XSRF-TOKEN': xsrf(), 'Accept': 'application/json' }, credentials: 'same-origin' })
+                        .then(function () { window.location.href = loginUrl; })
+                        .catch(function () { window.location.href = loginUrl; });
+                });
+            });
+        })();
+    </script>
+    @endif
+
     {{-- Charts & KPI cards: aggregate from a collection via the REST API. KPI
          cards need no library; charts lazy-load Chart.js (config-overridable for
          offline/vendored use) only when the page actually contains a chart. --}}
