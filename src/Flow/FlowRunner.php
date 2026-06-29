@@ -31,11 +31,20 @@ class FlowRunner
 
         $maxSteps = (int) config('ai-page-builder.flow.max_steps', 200);
         $queue = [$start];
+        $visited = [];
         $steps = 0;
 
         while ($queue !== [] && $steps < $maxSteps) {
             $steps++;
             $id = array_shift($queue);
+
+            // A node may be reached by several branches (fan-in / diamond). Run
+            // it at most once per flow so a join doesn't double-fire its handler.
+            if (isset($visited[$id])) {
+                continue;
+            }
+            $visited[$id] = true;
+
             $node = $nodes[$id] ?? null;
             if (! is_array($node)) {
                 continue;
