@@ -64,6 +64,21 @@
         .links { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 1.1rem; }
         .links a { color: #a5b4fc; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
         .links a:hover { color: #c7d2fe; text-decoration: underline; }
+        .divider {
+            display: flex; align-items: center; gap: 0.75rem; margin: 1.3rem 0 1.1rem; color: #64748b; font-size: 0.78rem;
+        }
+        .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: rgba(148,163,184,0.18); }
+        .sso { display: flex; flex-direction: column; gap: 0.6rem; }
+        .sso-btn {
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%;
+            padding: 0.7rem 1rem; border-radius: 11px; cursor: pointer;
+            font-size: 0.92rem; font-weight: 600; text-decoration: none;
+            color: #f1f5f9; background: rgba(2,6,23,0.55);
+            border: 1px solid rgba(148,163,184,0.22);
+            transition: border-color .15s, background .15s, transform .08s;
+        }
+        .sso-btn:hover { border-color: #6366f1; background: rgba(99,102,241,0.12); }
+        .sso-btn:active { transform: translateY(1px); }
         .foot { margin-top: 1.4rem; text-align: center; font-size: 0.78rem; color: #64748b; }
     </style>
 </head>
@@ -122,6 +137,17 @@
         @endif
 
         {{-- SSO buttons (Phase 3) --}}
+        @php($ssoProviders = $ssoProviders ?? [])
+        @if (! empty($ssoProviders))
+            @if ($passwordLogin)
+                <div class="divider">or</div>
+            @endif
+            <div class="sso">
+                @foreach ($ssoProviders as $p)
+                    <a class="sso-btn" href="{{ url('/'.$loginPath.'/sso/'.$p['key']) }}">Continue with {{ $p['label'] }}</a>
+                @endforeach
+            </div>
+        @endif
 
         <div class="foot">Powered by Synapse — App Builder</div>
     </div>

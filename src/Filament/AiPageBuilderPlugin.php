@@ -6,7 +6,6 @@ namespace Andre\AiPageBuilder\Filament;
 
 use Andre\AiPageBuilder\Filament\Pages\AppPortability;
 use Andre\AiPageBuilder\Filament\Pages\CollectionsApiDocs;
-use Andre\AiPageBuilder\Filament\Pages\IdentityAuthSettings;
 use Andre\AiPageBuilder\Filament\Pages\PageBuilderSettings;
 use Andre\AiPageBuilder\Filament\Pages\ThemeSettings;
 use Andre\AiPageBuilder\Filament\Resources\CredentialResource;
@@ -64,7 +63,6 @@ class AiPageBuilderPlugin implements Plugin
 
         $panel->pages([
             PageBuilderSettings::class,
-            IdentityAuthSettings::class,
             ThemeSettings::class,
             AppPortability::class,
             CollectionsApiDocs::class,

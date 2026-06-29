@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Http\Controllers;
 
 use Andre\AiPageBuilder\Auth\AuthSettings;
+use Andre\AiPageBuilder\Auth\SocialProviders;
 use Andre\AiPageBuilder\Models\PbUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -29,6 +30,9 @@ class AuthController
             'passwordLogin' => $auth->passwordLoginEnabled(),
             'registrationAllowed' => $auth->publicRegistrationAllowed(),
             'loginPath' => trim((string) config('ai-page-builder.auth.login_path', 'login'), '/'),
+            // SSO buttons to render (empty unless Socialite is installed and a
+            // provider is enabled + credentialed).
+            'ssoProviders' => app(SocialProviders::class)->usableList(),
         ]);
     }
 

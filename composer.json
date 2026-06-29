@@ -45,15 +45,18 @@
     },
     "require-dev": {
         "filament/filament": "^4.0|^5.0",
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.17",
+        "laravel/socialite": "^5.0",
         "orchestra/testbench": "^9.0|^10.0|^11.0",
         "pestphp/pest": "^3.0",
-        "pestphp/pest-plugin-laravel": "^3.0",
-        "laravel/pint": "^1.17",
-        "larastan/larastan": "^3.0"
+        "pestphp/pest-plugin-laravel": "^3.0"
     },
     "suggest": {
         "filament/filament": "Required to use the bundled Filament admin UI (^4.0 or ^5.0).",
-        "andrecorugda/ai-openrouter-gateway": "Optimized AI path — metered, versioned prompt, cost caps. Auto-detected when installed."
+        "andrecorugda/ai-openrouter-gateway": "Optimized AI path — metered, versioned prompt, cost caps. Auto-detected when installed.",
+        "laravel/socialite": "Enables SSO sign-in (Google, GitHub) for the built app's end-users. Auto-detected when installed.",
+        "socialiteproviders/microsoft": "Adds Microsoft / Azure AD SSO (with tenant restriction) on top of Socialite."
     },
     "autoload": {
         "psr-4": {
