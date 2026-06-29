@@ -47,7 +47,7 @@ class PageBuilderMailer
     {
         if (! $this->configured()) {
             throw new RuntimeException(
-                'Page Builder email is not configured — set the SMTP host and a from address in Settings first.',
+                'Synapse email is not configured — set the SMTP host and a from address in Settings first.',
             );
         }
 
@@ -93,8 +93,8 @@ class PageBuilderMailer
     {
         $this->send(
             $to,
-            'Page Builder test email',
-            '<p>Your Page Builder SMTP settings work. 🎉</p>',
+            'Synapse test email',
+            '<p>Your Synapse SMTP settings work. 🎉</p>',
         );
     }
 
