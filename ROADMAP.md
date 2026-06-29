@@ -85,25 +85,19 @@ media tests on the bare CI image) and phpstan is clean. All shipped work is on `
   permission rule `{"<field>_id":"$CURRENT_USER"}` auto-stamps the logged-in user while the same rule
   scopes reads/writes. *(Chosen over a single `has_owner`/`owner_id` column — that couldn't model
   multiple user roles on one collection.)*
-- [~] **Auth depth — Identity & Auth subsystem** *(planned 2026-06-29, phased; SSO/TOTP via OPTIONAL
-  deps — Socialite / socialiteproviders / google2fa, `class_exists`-guarded; email-OTP needs no dep).*
-  ✅ **API tokens / key auth shipped** (Bearer → pb guard, AccessControl-scoped, + API docs page). Phases:
-  1. **Record ownership** (above).
-  2. **Password-login toggle + forgot/reset + self-registration + approval/status** — `auth.password_login`
-     bool; password broker + reset table + emails (PageBuilderMailer); `status` column (pending|active|
-     suspended) folded into the login check beside `is_active`. Onboarding model is **admin-configurable**
-     (invite-only | approval-required | open + optional email-domain allow-list) — a setting, not a default.
-  3. **SSO providers** — pluggable `AuthProvider` contract + registry, config-driven `auth.providers`;
-     Google / Microsoft / GitHub, each with **org/domain/tenant restriction** (Google hosted-domain,
-     MS Azure tenant id, GitHub org membership). `provider`/`provider_id` columns; `password` nullable.
-     OAuth `state` CSRF; find-or-create PbUser on callback honoring restriction + onboarding policy.
-  4. **Invites + admin approval/invite UI** — invite table (hashed token, role, expiry); "Send invite"
-     action; PbUserResource gains status + approve/suspend; new Invites resource.
-  5. **2FA** — post-auth challenge interstitial; **email-OTP** (no dep) + **authenticator TOTP**
-     (optional google2fa) + hashed recovery codes; admin reset action.
-  Cross-cutting: all config nested under `auth.*`; sibling controllers (Registration/PasswordReset/
-  SocialAuth/TwoFactor/Invite); login/register/forgot throttling; a Filament "Identity & Auth" settings
-  page using selects/toggles (dropdowns-not-free-fields). Build phased, verify + commit between each.
+- [x] **Auth depth — Identity & Auth subsystem ✅ SHIPPED 2026-06-29** *(phased; SSO/TOTP via OPTIONAL
+  deps — laravel/socialite, socialiteproviders/microsoft, pragmarx/google2fa, `class_exists`-guarded;
+  email-OTP needs no dep).* All phases done, verified + committed:
+  1. ✅ **Record ownership** = user relations (above).
+  2. ✅ **Password-login toggle + forgot/reset + self-registration + approval/status** — `auth.password_login`;
+     self-contained hashed reset tokens + emails; `status` (pending|active|suspended) folded into login.
+     Onboarding is **admin-configurable** (invite-only | approval | open + email-domain allow-list).
+  3. ✅ **SSO providers** — Google / Microsoft / GitHub, each with **org/domain/tenant restriction**
+     (enforced server-side); `provider`/`provider_id` columns; `password` nullable; graceful when Socialite absent.
+  4. ✅ **Invites + admin approval/invite UI** — hashed-token invites, Send/Resend/Revoke, accept flow.
+  5. ✅ **2FA** — login challenge; **email-OTP** + **authenticator TOTP** + hashed recovery codes; admin reset.
+  Cross-cutting (done): config nested under `auth.*`; sibling controllers; throttling; runtime-editable on the
+  **Synapse Settings → Identity & Auth tab** (dropdowns/toggles, not free fields). Email verified live via SMTP.
 - [~] **AI depth** — ✅ **`HtmlSanitizer` is wired on the AI path** (allows declarative directives,
   strips executable); open: edit-existing-section refinement, AI image generation, streaming chat,
   usage / cost panel.
