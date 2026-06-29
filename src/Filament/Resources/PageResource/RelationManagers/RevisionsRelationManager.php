@@ -14,9 +14,10 @@ use Filament\Tables;
 use Filament\Tables\Table;
 
 /**
- * Read-only version history for a page, with a per-row Restore action that
- * rolls the page back to the selected snapshot (snapshotting current state
- * first, so the restore is reversible).
+ * Read-only version history for a page. Each save/publish creates a version;
+ * per row you can Preview a version and Apply it (make it the live content).
+ * Applying snapshots the current state first, so it's always reversible — you
+ * can apply a different version again at any time.
  */
 class RevisionsRelationManager extends RelationManager
 {
@@ -44,8 +45,8 @@ class RevisionsRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'publish' => 'Published',
-                        'restore' => 'Restored',
-                        'before_restore' => 'Before restore',
+                        'restore' => 'Applied',
+                        'before_restore' => 'Before apply',
                         default => 'Saved',
                     })
                     ->color(fn (string $state): string => match ($state) {
@@ -67,13 +68,23 @@ class RevisionsRelationManager extends RelationManager
                     ->color('gray'),
             ])
             ->recordActions([
-                Actions\Action::make('restore')
-                    ->label('Restore')
-                    ->icon('heroicon-m-arrow-uturn-left')
-                    ->color('warning')
+                Actions\Action::make('preview')
+                    ->label('Preview')
+                    ->icon('heroicon-m-eye')
+                    ->color('gray')
+                    ->modalHeading('Version preview')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->modalContent(fn (PageRevision $record) => view('ai-page-builder::filament.revision-preview', ['revision' => $record])),
+
+                Actions\Action::make('apply')
+                    ->label('Apply this version')
+                    ->icon('heroicon-m-check-circle')
+                    ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Restore this version')
-                    ->modalDescription('The page will be rolled back to this snapshot. The current state is saved first, so you can undo the restore.')
+                    ->modalHeading('Apply this version')
+                    ->modalDescription('This version becomes the page\'s live content. The current version is snapshotted first, so you can apply a different one again at any time.')
+                    ->modalSubmitActionLabel('Apply version')
                     ->action(function (PageRevision $record): void {
                         /** @var Page $page */
                         $page = $this->getOwnerRecord();
@@ -81,8 +92,8 @@ class RevisionsRelationManager extends RelationManager
 
                         Notification::make()
                             ->success()
-                            ->title('Page restored')
-                            ->body('Restored to the version from '.$record->created_at?->diffForHumans().'.')
+                            ->title('Version applied')
+                            ->body('The page now uses the version from '.$record->created_at?->diffForHumans().'.')
                             ->send();
                     }),
             ]);
