@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -31,6 +32,8 @@ use Illuminate\Support\Carbon;
  * @property ?array $project_data
  * @property ?string $html
  * @property ?string $css
+ * @property ?string $custom_css
+ * @property ?string $custom_js
  * @property ?array $meta
  * @property ?Carbon $published_at
  */
@@ -101,6 +104,63 @@ class Page extends Model
     public function isEmailTemplate(): bool
     {
         return $this->kind === 'email';
+    }
+
+    /**
+     * Version history, newest first.
+     *
+     * @return HasMany<PageRevision, $this>
+     */
+    public function revisions(): HasMany
+    {
+        /** @var class-string<PageRevision> $revisionModel */
+        $revisionModel = config('ai-page-builder.models.page_revision', PageRevision::class);
+
+        return $this->hasMany($revisionModel)->latest();
+    }
+
+    /**
+     * Snapshot the page's current editable state into a new revision.
+     */
+    public function snapshot(string $action = 'save'): PageRevision
+    {
+        $status = $this->status instanceof PageStatus ? $this->status->value : $this->status;
+
+        /** @var PageRevision */
+        return $this->revisions()->create([
+            'action' => $action,
+            'title' => $this->title,
+            'status' => $status,
+            'project_data' => $this->project_data,
+            'html' => $this->html,
+            'css' => $this->css,
+            'custom_css' => $this->custom_css,
+            'custom_js' => $this->custom_js,
+            'meta' => $this->meta,
+            'created_by' => auth()->id(),
+        ]);
+    }
+
+    /**
+     * Roll the page back to a prior revision, snapshotting the current state
+     * first so the restore is itself reversible.
+     */
+    public function restoreRevision(PageRevision $rev): void
+    {
+        $this->snapshot('before_restore');
+
+        $this->forceFill([
+            'title' => $rev->title,
+            'status' => $rev->status,
+            'project_data' => $rev->project_data,
+            'html' => $rev->html,
+            'css' => $rev->css,
+            'custom_css' => $rev->custom_css,
+            'custom_js' => $rev->custom_js,
+            'meta' => $rev->meta,
+        ])->save();
+
+        $this->snapshot('restore');
     }
 
     protected static function newFactory(): PageFactory
