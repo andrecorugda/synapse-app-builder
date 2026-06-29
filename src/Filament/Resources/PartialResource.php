@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
-use Andre\AiPageBuilder\Filament\Forms\Components\CodeField;
+use Andre\AiPageBuilder\Filament\Forms\Components\GrapesJsField;
 use Andre\AiPageBuilder\Filament\Resources\PartialResource\Pages;
 use Andre\AiPageBuilder\Models\Partial;
 use Filament\Actions;
@@ -71,21 +71,16 @@ class PartialResource extends Resource
                             ->disabled(fn (?Model $record): bool => $record !== null)
                             ->dehydrated()
                             ->helperText('Embed in a page with: <div data-pb-partial="{slug}"></div>'),
-
-                        CodeField::make('html')
-                            ->label('HTML')
-                            ->language('html')
-                            ->height(320)
-                            ->helperText('Markup injected wherever this partial is embedded. Use theme tokens (var(--pb-*)) for brand consistency.')
-                            ->columnSpanFull(),
-
-                        CodeField::make('css')
-                            ->label('CSS')
-                            ->language('css')
-                            ->height(200)
-                            ->helperText('Optional CSS appended to any page that uses this partial.')
-                            ->columnSpanFull(),
                     ]),
+
+                // A partial is just a reusable page fragment, so it gets the same
+                // visual builder — every block, binding and theme token pages have.
+                // The editor's html/css become the snapshot the renderer injects
+                // wherever the partial is embedded.
+                GrapesJsField::make('builder')
+                    ->label('Partial content')
+                    ->default(['project_data' => [], 'html' => '', 'css' => ''])
+                    ->columnSpanFull(),
             ])
             ->columns(1);
     }
