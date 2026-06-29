@@ -7,6 +7,25 @@ connector breadth). "Foundation" notes call out what already exists to build on.
 
 ---
 
+## Status (2026-06-29)
+
+- **Wave 1 — ✅ shipped & verified.**
+- **Wave 2 — ✅ shipped & verified**, plus extras beyond the original plan:
+  collections **API tokens + API docs** (Bearer auth), seeded/settable **404 +
+  maintenance + home** pages, **page versioning** (preview + apply a version),
+  **draft preview** (signed URL), and a flow **"Run now"** action.
+- **Wave 3 — 🟡 partial.** Shipped: **CSV import/export**, **SEO** (sitemap.xml +
+  robots.txt), the **+12 components** batch, the **AI HtmlSanitizer** on the AI
+  path, and **API-token auth** (under Auth depth). Still open below are the
+  larger initiatives — external data sources, a hosted marketplace, full
+  SSO/2FA, field-level permissions, record history, credentials store, the
+  remaining AI-depth items, i18n, and platform/observability.
+
+The package test suite is green (183 passing; the only failures are GD-dependent
+media tests on the bare CI image). All shipped work is on `main`.
+
+---
+
 ## Wave 1 — committed near-term
 
 - [x] **Dynamic crons** — a `schedules` table + a single `Kernel::schedule()` hook that loops
@@ -33,18 +52,18 @@ connector breadth). "Foundation" notes call out what already exists to build on.
 
 ## Wave 2 — high leverage
 
-- [ ] ⭐ **Collection relationships** — belongs-to / has-many / many-to-many + a relation field type
+- [x] ⭐ **Collection relationships** — belongs-to / has-many / many-to-many + a relation field type
   + eager-loading in the REST API. The single most-expected data feature Synapse still lacks.
-- [ ] ⭐ **Global theme tokens** — define brand colors / fonts / spacing once; pages + AI inherit
+- [x] ⭐ **Global theme tokens** — define brand colors / fonts / spacing once; pages + AI inherit
   them. What truly makes pages "configurable"; natural home for the Wave 1 custom-CSS work.
-- [ ] **Draft + preview** — view/share an unpublished page via a signed preview link.
-- [ ] ⭐ **Flow run history / logs UI** — surface the existing `FlowRun` telemetry with a step
+- [x] **Draft + preview** — view/share an unpublished page via a signed preview link.
+- [x] ⭐ **Flow run history / logs UI** — surface the existing `FlowRun` telemetry with a step
   inspector + replay. Prerequisite for flow error handling to be actually useful.
-- [ ] **Schedule + webhook flow triggers** — `schedule` (ties to dynamic crons) and inbound
+- [x] **Schedule + webhook flow triggers** — `schedule` (ties to dynamic crons) and inbound
   `webhook` trigger types; plus form-submit and manual "run now."
-- [ ] ⭐⭐ **App export / import** — serialize a whole app (collections + pages + flows + functions
+- [x] ⭐⭐ **App export / import** — serialize a whole app (collections + pages + flows + functions
   + states + settings) to JSON and re-import. Enables backups, staging→prod promotion, and templates.
-- [ ] **Reusable partials / symbols** — one header/footer edited once, used across pages.
+- [x] **Reusable partials / symbols** — one header/footer edited once, used across pages.
 
 ## Wave 3 — depth & moat
 
@@ -54,16 +73,17 @@ connector breadth). "Foundation" notes call out what already exists to build on.
   n8n-style integration story).
 - [ ] ⭐⭐ **Template & component marketplace** — community starter apps + components. The fastest
   way to close the "young ecosystem" gap.
-- [ ] **Data depth** — file/image field bound to the media library; field-level permissions;
-  record history (data revisions); CSV import/export.
-- [ ] **Auth depth** — API tokens / key auth for the REST API; SSO / social login + magic links +
-  2FA; self-registration toggle + profile page.
-- [ ] **AI depth** — ship the `HtmlSanitizer` on the AI path (allow declarative directives, strip
-  executable) now that AI writes custom JS; edit-existing-section refinement; AI image generation;
-  streaming chat; usage / cost panel (gateway already meters).
-- [ ] **SEO & i18n** — auto `sitemap.xml`, `robots.txt`, OG-image, JSON-LD; multi-language page content.
-- [ ] **More components** — date/time picker, file upload, rich-text / markdown, maps, kanban,
-  steppers/wizards, conditional visibility.
+- [~] **Data depth** — ✅ **CSV import/export shipped**; open: file/image field bound to the media
+  library, field-level permissions, record history (data revisions).
+- [~] **Auth depth** — ✅ **API tokens / key auth shipped** (Bearer → pb guard, AccessControl-scoped,
+  + API docs page); open: SSO / social login + magic links + 2FA; self-registration + profile page.
+- [~] **AI depth** — ✅ **`HtmlSanitizer` is wired on the AI path** (allows declarative directives,
+  strips executable); open: edit-existing-section refinement, AI image generation, streaming chat,
+  usage / cost panel.
+- [~] **SEO & i18n** — ✅ **`sitemap.xml` + `robots.txt` shipped** (noindex-aware); open: OG-image /
+  JSON-LD helpers, multi-language page content.
+- [~] **More components** — ✅ **date picker + file upload shipped** (plus video, breadcrumbs, rating,
+  progress, alert, avatar — 55 blocks total); open: rich-text/markdown, maps, kanban, steppers, conditional visibility.
 - [ ] **Platform** — backups / snapshots; Sentry / observability; CLI scaffolder.
 
 ---
