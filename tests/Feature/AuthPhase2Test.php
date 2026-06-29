@@ -329,3 +329,11 @@ it('logs the end-user out via pb-logout', function (): void {
     $this->post('/pb-logout')->assertRedirect();
     expect(auth('pb')->check())->toBeFalse();
 });
+
+it('redirects an already signed-in user away from the guest auth pages', function (): void {
+    $this->actingAs(phase2User(), 'pb');
+
+    $this->get('/login')->assertRedirect();
+    $this->get('/login/register')->assertRedirect();
+    $this->get('/login/forgot')->assertRedirect();
+});

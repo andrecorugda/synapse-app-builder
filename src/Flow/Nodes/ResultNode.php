@@ -20,7 +20,7 @@ class ResultNode implements FlowNodeHandler
      * live values into the published page's reactive Alpine store ($store.app),
      * so a flow can drive bound components without a reload.
      */
-    private const ALLOWED = ['setHtml', 'setText', 'notify', 'redirect', 'addClass', 'removeClass', 'setState', 'setStates'];
+    private const ALLOWED = ['setHtml', 'setText', 'notify', 'redirect', 'logout', 'addClass', 'removeClass', 'setState', 'setStates'];
 
     public function type(): string
     {

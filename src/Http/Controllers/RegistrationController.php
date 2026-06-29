@@ -24,6 +24,10 @@ class RegistrationController
 {
     public function show(): View|RedirectResponse
     {
+        if (Auth::guard($this->guard())->check()) {
+            return redirect()->intended((string) config('ai-page-builder.auth.redirect_after_login', '/'));
+        }
+
         if (! app(AuthSettings::class)->publicRegistrationAllowed()) {
             return redirect($this->loginUrl());
         }
