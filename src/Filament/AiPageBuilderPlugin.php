@@ -17,6 +17,7 @@ use Andre\AiPageBuilder\Filament\Resources\PartialResource;
 use Andre\AiPageBuilder\Filament\Resources\PbApiTokenResource;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource;
 use Andre\AiPageBuilder\Filament\Resources\PbRoleResource;
+use Andre\AiPageBuilder\Filament\Resources\PbUserInviteResource;
 use Andre\AiPageBuilder\Filament\Resources\PbUserResource;
 use Andre\AiPageBuilder\Filament\Resources\ScheduleResource;
 use Andre\AiPageBuilder\Filament\Resources\VariableResource;
@@ -56,6 +57,7 @@ class AiPageBuilderPlugin implements Plugin
             PbModelResource::class,
             PbUserResource::class,
             PbRoleResource::class,
+            PbUserInviteResource::class,
             PbApiTokenResource::class,
             PartialResource::class,
             CredentialResource::class,

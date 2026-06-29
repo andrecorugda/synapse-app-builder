@@ -24,3 +24,4 @@ parameters:
               - src/Http/Controllers/AuthController.php
               - src/Http/Controllers/RegistrationController.php
               - src/Http/Controllers/PasswordResetController.php
+              - src/Http/Controllers/InviteController.php

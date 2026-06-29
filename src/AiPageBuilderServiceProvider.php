@@ -32,6 +32,7 @@ use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
 use Andre\AiPageBuilder\Http\Controllers\AuthController;
+use Andre\AiPageBuilder\Http\Controllers\InviteController;
 use Andre\AiPageBuilder\Http\Controllers\PasswordResetController;
 use Andre\AiPageBuilder\Http\Controllers\RegistrationController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
@@ -95,6 +96,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_auth_fields_to_page_builder_users_table',
                 'create_page_builder_password_resets_table',
                 'add_sso_fields_to_page_builder_users_table',
+                'create_page_builder_user_invites_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -393,6 +395,10 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             Route::get($login.'/sso/{provider}/callback', [SocialAuthController::class, 'callback'])
                 ->whereIn('provider', ['google', 'microsoft', 'github'])
                 ->name('ai-page-builder.sso.callback');
+
+            // Accept an emailed invitation (set password + activate).
+            Route::get($login.'/invite/{token}', [InviteController::class, 'show'])->name('ai-page-builder.invite.accept');
+            Route::post($login.'/invite/{token}', [InviteController::class, 'accept'])->middleware('throttle:6,1');
         });
     }
 
