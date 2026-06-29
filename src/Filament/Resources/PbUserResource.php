@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbUser;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas;
 use Filament\Schemas\Schema;
@@ -79,6 +80,17 @@ class PbUserResource extends Resource
                             ->native(false)
                             ->nullable(),
 
+                        Forms\Components\Select::make('status')
+                            ->label('Status')
+                            ->options([
+                                PbUser::STATUS_ACTIVE => 'Active',
+                                PbUser::STATUS_PENDING => 'Pending',
+                                PbUser::STATUS_SUSPENDED => 'Suspended',
+                            ])
+                            ->default(PbUser::STATUS_ACTIVE)
+                            ->native(false)
+                            ->required(),
+
                         Forms\Components\Toggle::make('is_active')
                             ->label('Active')
                             ->inline(false)
@@ -109,6 +121,17 @@ class PbUserResource extends Resource
                     ->color('gray')
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        PbUser::STATUS_ACTIVE => 'success',
+                        PbUser::STATUS_PENDING => 'warning',
+                        PbUser::STATUS_SUSPENDED => 'danger',
+                        default => 'gray',
+                    })
+                    ->sortable(),
+
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean()
@@ -123,8 +146,61 @@ class PbUserResource extends Resource
                 Tables\Filters\SelectFilter::make('role_id')
                     ->label('Role')
                     ->options(fn (): array => static::roleOptions()),
+
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options([
+                        PbUser::STATUS_ACTIVE => 'Active',
+                        PbUser::STATUS_PENDING => 'Pending',
+                        PbUser::STATUS_SUSPENDED => 'Suspended',
+                    ]),
             ])
             ->recordActions([
+                Actions\Action::make('approve')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (PbUser $record): bool => $record->getAttribute('status') === PbUser::STATUS_PENDING)
+                    ->requiresConfirmation()
+                    ->action(function (PbUser $record): void {
+                        $record->update(['status' => PbUser::STATUS_ACTIVE]);
+
+                        Notification::make()
+                            ->title('User approved')
+                            ->success()
+                            ->send();
+                    }),
+
+                Actions\Action::make('suspend')
+                    ->label('Suspend')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('danger')
+                    ->visible(fn (PbUser $record): bool => $record->getAttribute('status') === PbUser::STATUS_ACTIVE)
+                    ->requiresConfirmation()
+                    ->action(function (PbUser $record): void {
+                        $record->update(['status' => PbUser::STATUS_SUSPENDED]);
+
+                        Notification::make()
+                            ->title('User suspended')
+                            ->success()
+                            ->send();
+                    }),
+
+                Actions\Action::make('reactivate')
+                    ->label('Reactivate')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('success')
+                    ->visible(fn (PbUser $record): bool => $record->getAttribute('status') === PbUser::STATUS_SUSPENDED)
+                    ->requiresConfirmation()
+                    ->action(function (PbUser $record): void {
+                        $record->update(['status' => PbUser::STATUS_ACTIVE]);
+
+                        Notification::make()
+                            ->title('User reactivated')
+                            ->success()
+                            ->send();
+                    }),
+
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])

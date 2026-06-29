@@ -22,3 +22,5 @@ parameters:
               - src/Services/PageRenderer.php
               - src/AiPageBuilderServiceProvider.php
               - src/Http/Controllers/AuthController.php
+              - src/Http/Controllers/RegistrationController.php
+              - src/Http/Controllers/PasswordResetController.php

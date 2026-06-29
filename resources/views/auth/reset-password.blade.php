@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Sign in &middot; {{ config('app.name', 'Synapse') }}</title>
+    <title>Set a new password &middot; {{ config('app.name', 'Synapse') }}</title>
     <style>
         :root { color-scheme: light dark; }
         * { box-sizing: border-box; }
@@ -39,11 +39,10 @@
             transition: border-color .15s, box-shadow .15s;
         }
         input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
-        .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.3rem; }
-        .remember { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: #94a3b8; }
+        input[readonly] { opacity: 0.7; cursor: not-allowed; }
         button {
             width: 100%; padding: 0.75rem 1rem; border: 0; border-radius: 11px; cursor: pointer;
-            font-size: 0.95rem; font-weight: 700; color: white;
+            font-size: 0.95rem; font-weight: 700; color: white; margin-top: 0.25rem;
             background: linear-gradient(135deg, #6366f1, #4f46e5);
             transition: transform .08s, filter .15s;
         }
@@ -57,11 +56,7 @@
             background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #6ee7b7;
             padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.85rem; margin-bottom: 1.2rem;
         }
-        .notice {
-            background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.28); color: #c7d2fe;
-            padding: 0.7rem 0.85rem; border-radius: 11px; font-size: 0.88rem; margin-bottom: 1.2rem;
-        }
-        .links { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 1.1rem; }
+        .links { text-align: center; margin-top: 1.1rem; }
         .links a { color: #a5b4fc; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
         .links a:hover { color: #c7d2fe; text-decoration: underline; }
         .foot { margin-top: 1.4rem; text-align: center; font-size: 0.78rem; color: #64748b; }
@@ -69,59 +64,41 @@
 </head>
 <body>
     <div class="card">
+        @php($loginPath = trim((string) ($loginPath ?? config('ai-page-builder.auth.login_path', 'login')), '/'))
+
         <div class="brand">
             <div class="brand-mark">◆</div>
             <div class="brand-name">{{ config('app.name', 'Synapse') }}</div>
         </div>
 
-        @php($loginPath = trim((string) ($loginPath ?? config('ai-page-builder.auth.login_path', 'login')), '/'))
-        @php($passwordLogin = $passwordLogin ?? true)
-        @php($registrationAllowed = $registrationAllowed ?? false)
-
-        <h1>Welcome back</h1>
-        <p class="sub">Sign in to continue.</p>
-
-        @if (session('status'))
-            <div class="status">{{ session('status') }}</div>
-        @endif
+        <h1>Set a new password</h1>
+        <p class="sub">Choose a new password for your account.</p>
 
         @if ($errors->any())
             <div class="error">{{ $errors->first() }}</div>
         @endif
 
-        @if ($passwordLogin)
-            <form method="POST" action="{{ url('/'.$loginPath) }}">
-                @csrf
-                <div class="field">
-                    <label for="email">Email</label>
-                    <input id="email" type="email" name="email" value="{{ old('email') }}" autocomplete="email" autofocus required>
-                </div>
-                <div class="field">
-                    <label for="password">Password</label>
-                    <input id="password" type="password" name="password" autocomplete="current-password" required>
-                </div>
-                <div class="row">
-                    <label class="remember"><input type="checkbox" name="remember" value="1"> Remember me</label>
-                </div>
-                <button type="submit">Sign in</button>
-            </form>
-
-            <div class="links">
-                <a href="{{ url('/'.$loginPath.'/forgot') }}">Forgot your password?</a>
-                @if ($registrationAllowed)
-                    <a href="{{ url('/'.$loginPath.'/register') }}">Create an account</a>
-                @endif
+        <form method="POST" action="{{ url('/'.$loginPath.'/reset') }}">
+            @csrf
+            <input type="hidden" name="token" value="{{ $token }}">
+            <div class="field">
+                <label for="email">Email</label>
+                <input id="email" type="email" name="email" value="{{ old('email', $email) }}" autocomplete="email" readonly required>
             </div>
-        @else
-            <div class="notice">Password sign-in is disabled — use single sign-on.</div>
-            @if ($registrationAllowed)
-                <div class="links">
-                    <a href="{{ url('/'.$loginPath.'/register') }}">Create an account</a>
-                </div>
-            @endif
-        @endif
+            <div class="field">
+                <label for="password">New password</label>
+                <input id="password" type="password" name="password" autocomplete="new-password" autofocus required>
+            </div>
+            <div class="field">
+                <label for="password_confirmation">Confirm new password</label>
+                <input id="password_confirmation" type="password" name="password_confirmation" autocomplete="new-password" required>
+            </div>
+            <button type="submit">Reset password</button>
+        </form>
 
-        {{-- SSO buttons (Phase 3) --}}
+        <div class="links">
+            <a href="{{ url('/'.$loginPath) }}">&larr; Back to sign in</a>
+        </div>
 
         <div class="foot">Powered by Synapse — App Builder</div>
     </div>
