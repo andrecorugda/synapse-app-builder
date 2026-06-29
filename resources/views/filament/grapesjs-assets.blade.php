@@ -55,6 +55,59 @@
     </style>
     <script>
         (function () {
+            // --- Alpine ⇄ GrapesJS attribute bridge -------------------------
+            // GrapesJS renders components into a real-DOM canvas, and the DOM
+            // rejects `@click` / `:class` (and friends) — `setAttribute('@click')`
+            // throws InvalidCharacterError, which aborts the import and leaves the
+            // page unstyled (white canvas). So on the way IN we rename Alpine's
+            // `@`/`:`-prefixed attributes to harmless `data-pbat-*` / `data-pbcolon-*`
+            // placeholders the canvas accepts, and on the way OUT (getHtml → the
+            // PUBLISHED snapshot) we restore the real Alpine directives — so editing
+            // never corrupts the page's interactivity. Plain `x-data`/`x-show`/etc.
+            // are valid attribute names and pass through untouched.
+            const pbToSafe = (html) => (html || '')
+                .replace(/(\s)@([\w.:-]+)=/g, '$1data-pbat-$2=')
+                .replace(/(\s):([\w.-]+)=/g, '$1data-pbcolon-$2=');
+            const pbToAlpine = (html) => (html || '')
+                .replace(/(\s)data-pbat-([\w.:-]+)=/g, '$1@$2=')
+                .replace(/(\s)data-pbcolon-([\w.-]+)=/g, '$1:$2=');
+
+            // --- Page "frame" CSS preservation ------------------------------
+            // GrapesJS imports component styles but DROPS page-frame rules
+            // (`:root` custom properties, `html`/`body`/`*` base rules,
+            // `@font-face`, `@keyframes`). For hand-authored pages whose design
+            // tokens + background live there, the canvas goes white AND saving
+            // would silently strip them from the published page. So we extract
+            // those rules once, inject them into the canvas for a faithful
+            // preview, and re-prepend them to getCss() on save so the round-trip
+            // is lossless. (Brace-aware so nested @keyframes survive.)
+            const pbFrameCss = (css) => {
+                css = (css || '').replace(/\/\*[\s\S]*?\*\//g, '');
+                const out = [];
+                let i = 0; const n = css.length;
+                while (i < n) {
+                    while (i < n && /\s/.test(css[i])) i++;
+                    if (i >= n) break;
+                    let j = i;
+                    while (j < n && css[j] !== '{' && css[j] !== ';') j++;
+                    const prelude = css.slice(i, j).trim();
+                    if (css[j] === ';') { i = j + 1; continue; } // @import / bare ; — skip
+                    let depth = 0; let k = j;
+                    for (; k < n; k++) { if (css[k] === '{') depth++; else if (css[k] === '}') { depth--; if (depth === 0) { k++; break; } } }
+                    const block = css.slice(i, k);
+                    // Keep: @font-face/@keyframes; page-frame selectors; AND any
+                    // rule that DECLARES a custom property (`--x: …`) — GrapesJS
+                    // strips those declarations on import, so re-supplying them is
+                    // what makes `var(--token)` resolve again (background, colors).
+                    const keep = prelude[0] === '@'
+                        ? /^@(font-face|(-webkit-)?keyframes)\b/i.test(prelude)
+                        : (/(^|,)\s*(:root|html|body|\*)\s*(,|$)/i.test(prelude) || /--[\w-]+\s*:/.test(block));
+                    if (keep) out.push(block.trim());
+                    i = k;
+                }
+                return out.join('\n');
+            };
+
             const factory = (config) => ({
                 editor: null,
 
@@ -220,6 +273,18 @@
                     editor.on('load', () => {
                         try {
                             const doc = editor.Canvas.getDocument();
+                            // Page-frame CSS (tokens/fonts/base bg) LAST, so it wins
+                            // over GrapesJS's mangled copies of the same rules (it
+                            // strips custom props + breaks var() backgrounds). The
+                            // frame holds only token-declaring + base/at-rules, never
+                            // component rules — so per-component Style Manager edits
+                            // still take effect.
+                            if (this.frameCss) {
+                                const fs = doc.createElement('style');
+                                fs.id = 'pb-page-frame';
+                                fs.innerHTML = this.frameCss;
+                                doc.head.appendChild(fs);
+                            }
                             const s = doc.createElement('style');
                             s.innerHTML = '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
                             doc.head.appendChild(s);
@@ -329,20 +394,34 @@
                     // Load canonical GrapesJS state if present; otherwise fall
                     // back to importing the stored HTML (pages created by a seed,
                     // an import, or AI have html but no project_data yet).
+                    // Capture page-frame CSS (design tokens, fonts, base bg) from
+                    // the stored html's inline <style> blocks + the css column,
+                    // BEFORE GrapesJS parses and drops them. Reused for the canvas
+                    // preview and to keep the published snapshot lossless on save.
+                    const rawHtml = this.readState('html') || '';
+                    const styleBlocks = [];
+                    rawHtml.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (m, c) => { styleBlocks.push(c); return m; });
+                    this.frameCss = pbFrameCss(styleBlocks.join('\n') + '\n' + (this.readState('css') || ''));
+
                     const existing = this.readState('project_data');
                     if (existing && Object.keys(existing).length) {
                         try { editor.loadProjectData(existing); } catch (e) { /* ignore malformed */ }
                     } else {
                         const html = this.readState('html');
                         const css = this.readState('css');
-                        if (html) { editor.setComponents(html); }
+                        if (html) { editor.setComponents(pbToSafe(html)); }
                         if (css) { editor.setStyle(css); }
                     }
 
                     const sync = () => this.writeState({
                         project_data: editor.getProjectData(),
-                        html: editor.getHtml(),
-                        css: editor.getCss(),
+                        html: pbToAlpine(editor.getHtml()), // restore real Alpine for the published snapshot
+                        // Append the captured frame CSS (tokens/fonts/base bg) that
+                        // GrapesJS drops, so the published page keeps its design
+                        // tokens. Frame goes LAST so it wins over GrapesJS's mangled
+                        // copies; it holds no component rules, so component edits
+                        // (earlier, in getCss) are preserved.
+                        css: this.frameCss ? (editor.getCss() + '\n' + this.frameCss) : editor.getCss(),
                     });
                     // Debounce so rapid edits (typing, dragging) don't spam $wire.
                     let syncT = null;
@@ -359,7 +438,7 @@
                         addAnimTraits(c);
                         this.writeState({
                             selectedComponentId: c.getId(),
-                            selectedComponentHtml: c.toHTML(),
+                            selectedComponentHtml: pbToAlpine(c.toHTML()),
                         });
                     });
                     editor.on('component:deselected', () => this.writeState({
@@ -370,13 +449,13 @@
                     window.addEventListener('page-builder-apply', (e) => {
                         const d = e.detail || {};
                         if (d.mode === 'replace') {
-                            editor.setComponents(d.html || '');
+                            editor.setComponents(pbToSafe(d.html || ''));
                             if (d.css) { editor.setStyle(d.css); }
                         } else if (d.mode === 'insert') {
-                            editor.addComponents(d.html || '');
+                            editor.addComponents(pbToSafe(d.html || ''));
                         } else if (d.mode === 'rewrite' && d.targetId) {
                             const target = editor.getWrapper().find('#' + d.targetId)[0];
-                            if (target) { target.components(d.html || ''); }
+                            if (target) { target.components(pbToSafe(d.html || '')); }
                         }
                         sync();
                     });
