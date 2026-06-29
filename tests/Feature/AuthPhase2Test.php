@@ -300,3 +300,22 @@ it('rejects a reset with an expired token', function (): void {
         ->assertRedirect();
     expect(auth('pb')->check())->toBeTrue();
 });
+
+it('shows the reset form for a valid link but bounces a stale link to forgot', function (): void {
+    phase2User();
+
+    $token = Str::random(64);
+    resetTable()->insert([
+        'email' => 'ada@example.com',
+        'token' => Hash::make($token),
+        'created_at' => now(),
+    ]);
+
+    // Valid link → the reset form renders.
+    $this->get('/login/reset?token='.$token.'&email=ada@example.com')->assertOk();
+
+    // Used / wrong token → redirected to request a new link (no doomed form).
+    $this->get('/login/reset?token=WRONG&email=ada@example.com')
+        ->assertRedirect('/login/forgot')
+        ->assertSessionHasErrors('email');
+});
