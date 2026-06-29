@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Filament\Pages\AppPortability;
 use Andre\AiPageBuilder\Filament\Pages\CollectionsApiDocs;
 use Andre\AiPageBuilder\Filament\Pages\PageBuilderSettings;
 use Andre\AiPageBuilder\Filament\Pages\ThemeSettings;
+use Andre\AiPageBuilder\Filament\Resources\CredentialResource;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource;
 use Andre\AiPageBuilder\Filament\Resources\FlowRunResource;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource;
@@ -59,6 +60,7 @@ class AiPageBuilderPlugin implements Plugin
             PbRoleResource::class,
             PbApiTokenResource::class,
             PartialResource::class,
+            CredentialResource::class,
         ]);
 
         $panel->pages([

@@ -115,6 +115,52 @@ class AccessControl
     }
 
     /**
+     * Field-level access: the field keys $user may see/write for $action on a
+     * collection, or null when ALL fields are allowed (unrestricted, admin, auth
+     * off, or any matching grant that lists no fields). Otherwise the union of
+     * the `fields` lists across matching grants.
+     *
+     * @return array<int,string>|null
+     */
+    public function allowedFields(?Authenticatable $user, string $collectionKey, string $action): ?array
+    {
+        if (! (bool) config('ai-page-builder.auth.enabled', true) || $user === null || $this->isAdmin($user)) {
+            return null;
+        }
+
+        if (! $this->isRestricted('collection', $collectionKey)) {
+            return null;
+        }
+
+        $roleId = $this->roleId($user);
+        if ($roleId === null) {
+            return null; // access itself is gated by can(); no field info to apply
+        }
+
+        $perms = PbPermission::query()
+            ->where('role_id', $roleId)
+            ->where('resource_type', 'collection')
+            ->whereIn('resource_key', [$collectionKey, '*'])
+            ->whereIn('action', [$action, '*'])
+            ->get();
+
+        if ($perms->isEmpty()) {
+            return null;
+        }
+
+        $allowed = [];
+        foreach ($perms as $perm) {
+            $fields = $perm->getAttribute('fields');
+            if (! is_array($fields) || $fields === []) {
+                return null; // a grant with no field restriction = all fields
+            }
+            $allowed = array_merge($allowed, array_values($fields));
+        }
+
+        return array_values(array_unique($allowed));
+    }
+
+    /**
      * True when a record satisfies every field in a resolved row rule.
      *
      * @param  array<string,mixed>  $record

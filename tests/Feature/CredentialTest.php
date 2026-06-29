@@ -9,12 +9,6 @@ use Andre\AiPageBuilder\Support\Schema as PbSchema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
-// The base TestCase requires migrations explicitly by path; the credentials
-// table is registered by the host app, so load it here for the suite.
-beforeEach(function (): void {
-    (require __DIR__.'/../../database/migrations/create_page_builder_credentials_table.php')->up();
-});
-
 it('stores the secret encrypted and returns it decrypted via the accessor', function (): void {
     $credential = Credential::query()->create([
         'name' => 'Acme API',

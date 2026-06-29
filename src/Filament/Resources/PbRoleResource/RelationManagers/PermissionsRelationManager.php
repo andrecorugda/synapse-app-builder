@@ -61,6 +61,13 @@ class PermissionsRelationManager extends RelationManager
                     ->nullable()
                     ->helperText('Optional row-level rule for collections.')
                     ->columnSpanFull(),
+
+                Forms\Components\TagsInput::make('fields')
+                    ->label('Fields (column-level)')
+                    ->placeholder('Add a field key')
+                    ->nullable()
+                    ->helperText('Optional: restrict this action to these field keys only. Leave empty for all fields.')
+                    ->columnSpanFull(),
             ]);
     }
 

@@ -10,6 +10,7 @@ use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Arr;
 
 /**
  * Directus-style auto REST API over user-defined models. Every model is exposed
@@ -38,7 +39,13 @@ class RecordApiController extends Controller
         $params = $this->applyRowRule($request->query(), $model, 'read');
         $paginator = $this->records->list($this->resolve($model), $params);
 
-        return response()->json($paginator->toArray());
+        $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'read');
+        $data = $paginator->toArray();
+        if ($allowed !== null) {
+            $data['data'] = array_map(fn ($row) => $this->project((array) $row, $allowed), $data['data']);
+        }
+
+        return response()->json($data);
     }
 
     public function show(Request $request, string $model, int|string $id): JsonResponse
@@ -53,7 +60,10 @@ class RecordApiController extends Controller
             return response()->json(['message' => 'Record not found.'], 404);
         }
 
-        return response()->json(['data' => $record]);
+        $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'read');
+        $arr = $record->toArray();
+
+        return response()->json(['data' => $allowed === null ? $arr : $this->project($arr, $allowed)]);
     }
 
     public function store(Request $request, string $model): JsonResponse
@@ -62,9 +72,13 @@ class RecordApiController extends Controller
             return $deny;
         }
 
+        // Field-level write restriction: keep only the fields this role may set.
+        $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'create');
+        $input = $allowed === null ? $request->all() : Arr::only($request->all(), $allowed);
+
         // Stamp ownership: a "$CURRENT_USER" create rule forces those fields to
-        // the acting user so new rows are owned by their creator.
-        $data = array_merge($request->all(), $this->access->rowRule($this->access->currentUser(), $model, 'create'));
+        // the acting user so new rows are owned by their creator (overrides input).
+        $data = array_merge($input, $this->access->rowRule($this->access->currentUser(), $model, 'create'));
 
         $record = $this->records->create($this->resolve($model), $data);
 
@@ -82,7 +96,10 @@ class RecordApiController extends Controller
             return response()->json(['message' => 'Record not found.'], 404);
         }
 
-        $record = $this->records->update($this->resolve($model), $id, $request->all());
+        $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'update');
+        $input = $allowed === null ? $request->all() : Arr::only($request->all(), $allowed);
+
+        $record = $this->records->update($this->resolve($model), $id, $input);
 
         return response()->json(['data' => $record]);
     }
@@ -116,6 +133,19 @@ class RecordApiController extends Controller
         $params = $this->applyRowRule($request->query(), $model, 'read');
 
         return response()->json($this->records->aggregate($this->resolve($model), $params));
+    }
+
+    /**
+     * Keep only the field-level-allowed keys of a record row (id is always kept
+     * so rows stay addressable).
+     *
+     * @param  array<string,mixed>  $row
+     * @param  array<int,string>  $allowed
+     * @return array<string,mixed>
+     */
+    private function project(array $row, array $allowed): array
+    {
+        return array_intersect_key($row, array_flip([...['id'], ...$allowed]));
     }
 
     /** 403 JsonResponse when the current user can't perform $action, else null. */
