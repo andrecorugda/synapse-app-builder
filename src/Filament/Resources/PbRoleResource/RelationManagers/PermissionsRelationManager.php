@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources\PbRoleResource\RelationManagers;
 
+use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\PbModel;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -34,13 +37,16 @@ class PermissionsRelationManager extends RelationManager
                             'page' => 'Page',
                         ])
                         ->required()
-                        ->default('collection'),
+                        ->default('collection')
+                        ->live(),
 
-                    Forms\Components\TextInput::make('resource_key')
+                    Forms\Components\Select::make('resource_key')
+                        ->options(fn (Get $get): array => static::resourceKeyOptions($get('resource_type')))
+                        ->searchable()
                         ->required()
                         ->default('*')
-                        ->maxLength(160)
-                        ->helperText('Collection key / page slug, or * for all'),
+                        ->live()
+                        ->helperText('Collection / page to grant, or * for all'),
 
                     Forms\Components\Select::make('action')
                         ->options([
@@ -62,13 +68,76 @@ class PermissionsRelationManager extends RelationManager
                     ->helperText('Optional row-level rule for collections.')
                     ->columnSpanFull(),
 
-                Forms\Components\TagsInput::make('fields')
+                Forms\Components\Select::make('fields')
                     ->label('Fields (column-level)')
-                    ->placeholder('Add a field key')
+                    ->multiple()
+                    ->searchable()
+                    ->options(fn (Get $get): array => static::fieldOptions($get('resource_type'), $get('resource_key')))
+                    ->live()
                     ->nullable()
                     ->helperText('Optional: restrict this action to these field keys only. Leave empty for all fields.')
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * Options for the resource_key select, scoped to the chosen resource type:
+     * collection names keyed by collection key, page titles keyed by slug, each
+     * prefixed with an "All resources" (*) catch-all.
+     *
+     * @return array<string,string>
+     */
+    protected static function resourceKeyOptions(?string $resourceType): array
+    {
+        if ($resourceType === 'collection') {
+            /** @var class-string<PbModel> $modelClass */
+            $modelClass = config('ai-page-builder.models.model', PbModel::class);
+
+            return $modelClass::query()
+                ->orderBy('name')
+                ->pluck('name', 'key')
+                ->prepend('All resources', '*')
+                ->all();
+        }
+
+        if ($resourceType === 'page') {
+            /** @var class-string<Page> $pageClass */
+            $pageClass = config('ai-page-builder.models.page', Page::class);
+
+            return $pageClass::query()
+                ->pages()
+                ->orderBy('title')
+                ->pluck('title', 'slug')
+                ->prepend('All resources', '*')
+                ->all();
+        }
+
+        return ['*' => 'All resources'];
+    }
+
+    /**
+     * Field options (label keyed by field key) for the chosen collection. Empty
+     * unless a concrete collection (non-* resource_key) is selected — pages and
+     * the "all" wildcard have no column-level field list.
+     *
+     * @return array<string,string>
+     */
+    protected static function fieldOptions(?string $resourceType, ?string $resourceKey): array
+    {
+        if ($resourceType !== 'collection' || $resourceKey === null || $resourceKey === '' || $resourceKey === '*') {
+            return [];
+        }
+
+        /** @var class-string<PbModel> $modelClass */
+        $modelClass = config('ai-page-builder.models.model', PbModel::class);
+
+        $model = $modelClass::query()->where('key', $resourceKey)->first();
+
+        if ($model === null) {
+            return [];
+        }
+
+        return $model->fields()->pluck('label', 'key')->all();
     }
 
     public function table(Table $table): Table

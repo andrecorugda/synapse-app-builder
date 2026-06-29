@@ -113,6 +113,7 @@ class FlowResource extends Resource
                                 ->label('Collection')
                                 ->options(fn (): array => PbModel::query()->orderBy('name')->pluck('name', 'key')->all())
                                 ->searchable()
+                                ->live()
                                 ->required(fn (Get $get): bool => $get('trigger_type') === 'collection')
                                 ->helperText('Records this flow listens to.')
                                 ->visible(fn (Get $get): bool => $get('trigger_type') === 'collection'),
@@ -134,8 +135,19 @@ class FlowResource extends Resource
                                 ->label('Criteria (optional)')
                                 ->helperText('All rows must match for the flow to fire. Leave empty to fire on every event.')
                                 ->schema([
-                                    Forms\Components\TextInput::make('field')
-                                        ->required(),
+                                    Forms\Components\Select::make('field')
+                                        ->searchable()
+                                        ->required()
+                                        ->options(function (Get $get): array {
+                                            $collectionKey = $get('../../collection');
+
+                                            if (! $collectionKey) {
+                                                return [];
+                                            }
+
+                                            return PbModel::where('key', $collectionKey)
+                                                ->first()?->fields->pluck('label', 'key')->all() ?? [];
+                                        }),
                                     Forms\Components\Select::make('op')
                                         ->options([
                                             'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',

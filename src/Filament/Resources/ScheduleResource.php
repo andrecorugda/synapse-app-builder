@@ -55,6 +55,19 @@ class ScheduleResource extends Resource
                             ->required()
                             ->maxLength(160),
 
+                        Forms\Components\Select::make('cron_preset')
+                            ->label('Cron preset')
+                            ->options([
+                                '*/5 * * * *' => 'Every 5 minutes',
+                                '0 * * * *' => 'Hourly',
+                                '0 9 * * *' => 'Daily at 09:00',
+                                '0 9 * * 1' => 'Weekly (Mon 09:00)',
+                            ])
+                            ->live()
+                            ->dehydrated(false)
+                            ->afterStateUpdated(fn ($state, callable $set) => $state ? $set('cron_expression', $state) : null)
+                            ->helperText('Pick a preset or type your own below.'),
+
                         Forms\Components\TextInput::make('cron_expression')
                             ->label('Cron expression')
                             ->required()
@@ -88,9 +101,13 @@ class ScheduleResource extends Resource
                             ->options(fn (Get $get): array => self::targetOptions((string) $get('target_type')))
                             ->helperText('The flow or function (by slug) to run when due.'),
 
-                        Forms\Components\TextInput::make('timezone')
-                            ->maxLength(64)
-                            ->placeholder('UTC')
+                        Forms\Components\Select::make('timezone')
+                            ->searchable()
+                            ->options(fn (): array => collect(\DateTimeZone::listIdentifiers())
+                                ->mapWithKeys(fn (string $tz): array => [$tz => $tz])
+                                ->all())
+                            ->nullable()
+                            ->placeholder('App default')
                             ->helperText('Optional. Evaluate the cron in this timezone (e.g. Europe/Paris). '
                                 .'Defaults to the app timezone.'),
 
