@@ -1,6 +1,6 @@
 {
     "name": "andrecorugda/synapse",
-    "description": "Synapse — a full-stack, AI-powered low-code app builder for Laravel + Filament: visual pages, your own database collections with an instant REST API, an n8n-style flow engine, functions, reactive state, end-user auth with roles and row-level permissions, email, and AI that generates and refines whole apps. Self-hosted, MIT.",
+    "description": "Synapse — a full-stack, AI-powered low-code app builder for Laravel + Filament: visual pages, database collections, flows, auth, and AI that builds whole apps. Self-hosted.",
     "keywords": [
         "laravel",
         "filament",
