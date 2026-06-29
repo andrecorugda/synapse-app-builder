@@ -6,10 +6,12 @@ namespace Andre\AiPageBuilder\Filament\Resources;
 
 use Andre\AiPageBuilder\Filament\Forms\Components\FlowCanvasField;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource\Pages;
+use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\PbModel;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas;
 use Filament\Schemas\Components\Utilities\Get;
@@ -210,6 +212,25 @@ class FlowResource extends Resource
                     ->label('Active'),
             ])
             ->recordActions([
+                Actions\Action::make('run')
+                    ->label('Run now')
+                    ->icon('heroicon-m-play')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Run this flow now')
+                    ->modalDescription('Runs the flow immediately with empty input and records a run (see Flow Runs).')
+                    ->action(function (Flow $record): void {
+                        try {
+                            $ctx = app(FlowManager::class)->run($record, []);
+                            Notification::make()
+                                ->status($ctx->failed ? 'warning' : 'success')
+                                ->title($ctx->failed ? 'Flow ran with an error' : 'Flow ran')
+                                ->body($ctx->failed ? ($ctx->error ?? 'See Flow Runs for details.') : (count($ctx->actions).' action(s) returned.'))
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()->danger()->title('Run failed')->body($e->getMessage())->send();
+                        }
+                    }),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])
