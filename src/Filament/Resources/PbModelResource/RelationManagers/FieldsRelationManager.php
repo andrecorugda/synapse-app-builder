@@ -84,10 +84,10 @@ class FieldsRelationManager extends RelationManager
                     ->visible(fn (Get $get): bool => $get('type') === FieldType::Select->value),
 
                 Forms\Components\Select::make('options.relation_model')
-                    ->label('Related collection')
+                    ->label('Belongs to')
                     ->options(fn (): array => PbModelResource::relationModelOptions())
                     ->searchable()
-                    ->helperText('The collection this field belongs to (stored as {key}_id).')
+                    ->helperText('App users or another collection this field references (stored as {key}_id). Name the field for its role — e.g. author, approver, assignee.')
                     ->visible(fn (Get $get): bool => $get('type') === FieldType::Relation->value),
             ]);
     }

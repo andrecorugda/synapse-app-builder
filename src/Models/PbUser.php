@@ -26,6 +26,14 @@ class PbUser extends Authenticatable implements AuthenticatableContract
 {
     use Notifiable;
 
+    /**
+     * Sentinel `relation_model` value marking a relation field that targets the
+     * app's users table instead of another collection. A collection can carry
+     * several user relations (author, approver, assignee…), each a foreign id to
+     * a PbUser — so "ownership" is just a named relation, not a special column.
+     */
+    public const RELATION_TARGET = '__users';
+
     protected $guarded = [];
 
     protected $hidden = ['password', 'remember_token'];
