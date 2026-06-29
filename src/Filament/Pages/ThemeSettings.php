@@ -40,7 +40,7 @@ class ThemeSettings extends FilamentPage
 
     public static function getNavigationGroup(): ?string
     {
-        return config('ai-page-builder.filament.navigation_group', 'Content');
+        return config('ai-page-builder.filament.navigation_groups.system', 'System');
     }
 
     public static function getNavigationSort(): ?int

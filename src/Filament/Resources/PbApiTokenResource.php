@@ -41,7 +41,7 @@ class PbApiTokenResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return config('ai-page-builder.filament.navigation_group', 'Content');
+        return config('ai-page-builder.filament.navigation_groups.developer', 'Developer');
     }
 
     public static function getNavigationSort(): ?int

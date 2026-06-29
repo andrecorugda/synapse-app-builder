@@ -14,6 +14,7 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page as FilamentPage;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Throwable;
@@ -43,12 +44,12 @@ class PageBuilderSettings extends FilamentPage
 
     public function getTitle(): string
     {
-        return 'Page Builder Settings';
+        return 'Synapse Settings';
     }
 
     public static function getNavigationGroup(): ?string
     {
-        return config('ai-page-builder.filament.navigation_group', 'Content');
+        return config('ai-page-builder.filament.navigation_groups.system', 'System');
     }
 
     public static function getNavigationSort(): ?int
@@ -140,168 +141,180 @@ class PageBuilderSettings extends FilamentPage
         return $schema
             ->statePath('data')
             ->components([
-                Section::make('Home page')
-                    ->description('Choose which published page is served as the home page.')
-                    ->compact()
+                Tabs::make('settings')
                     ->schema([
-                        Forms\Components\Select::make('home_page')
-                            ->label('Home page')
-                            ->options(fn (): array => $this->pageOptions())
-                            ->searchable()
-                            ->native(false)
-                            ->placeholder('None — no home page')
-                            ->helperText($this->homeHelpText()),
+                        Tabs\Tab::make('General')
+                            ->schema([
+                                Section::make('Home page')
+                                    ->description('Choose which published page is served as the home page.')
+                                    ->compact()
+                                    ->schema([
+                                        Forms\Components\Select::make('home_page')
+                                            ->label('Home page')
+                                            ->options(fn (): array => $this->pageOptions())
+                                            ->searchable()
+                                            ->native(false)
+                                            ->placeholder('None — no home page')
+                                            ->helperText($this->homeHelpText()),
 
-                        Forms\Components\Placeholder::make('home_url')
-                            ->label('Will be served at')
-                            ->content(fn (Get $get): string => $this->homeUrlPreview($get('home_page'))),
-                    ]),
+                                        Forms\Components\Placeholder::make('home_url')
+                                            ->label('Will be served at')
+                                            ->content(fn (Get $get): string => $this->homeUrlPreview($get('home_page'))),
+                                    ]),
 
-                Section::make('Site behaviour')
-                    ->description('Maintenance mode and the pages shown for 404 / downtime. Built-in defaults ship seeded; admins bypass maintenance mode.')
-                    ->compact()
-                    ->schema([
-                        Forms\Components\Toggle::make('maintenance_mode')
-                            ->label('Maintenance mode')
-                            ->helperText('When on, visitors get the maintenance page (HTTP 503). Signed-in admins still see the live site.'),
-                        Forms\Components\Select::make('not_found_page')
-                            ->label('404 page')
-                            ->options(fn (): array => $this->pageOptions())
-                            ->searchable()
-                            ->native(false)
-                            ->placeholder('Built-in default')
-                            ->helperText('Shown for unknown / unpublished URLs.'),
-                        Forms\Components\Select::make('maintenance_page')
-                            ->label('Maintenance page')
-                            ->options(fn (): array => $this->pageOptions())
-                            ->searchable()
-                            ->native(false)
-                            ->placeholder('Built-in default')
-                            ->helperText('Shown to visitors while maintenance mode is on.'),
-                    ]),
+                                Section::make('Site behaviour')
+                                    ->description('Maintenance mode and the pages shown for 404 / downtime. Built-in defaults ship seeded; admins bypass maintenance mode.')
+                                    ->compact()
+                                    ->schema([
+                                        Forms\Components\Toggle::make('maintenance_mode')
+                                            ->label('Maintenance mode')
+                                            ->helperText('When on, visitors get the maintenance page (HTTP 503). Signed-in admins still see the live site.'),
+                                        Forms\Components\Select::make('not_found_page')
+                                            ->label('404 page')
+                                            ->options(fn (): array => $this->pageOptions())
+                                            ->searchable()
+                                            ->native(false)
+                                            ->placeholder('Built-in default')
+                                            ->helperText('Shown for unknown / unpublished URLs.'),
+                                        Forms\Components\Select::make('maintenance_page')
+                                            ->label('Maintenance page')
+                                            ->options(fn (): array => $this->pageOptions())
+                                            ->searchable()
+                                            ->native(false)
+                                            ->placeholder('Built-in default')
+                                            ->helperText('Shown to visitors while maintenance mode is on.'),
+                                    ]),
+                            ]),
 
-                Section::make('Email (SMTP)')
-                    ->description('Transport used by the "Send Email" flow node. Stored encrypted; isolated from the host app\'s mailer.')
-                    ->compact()
-                    ->columns(2)
-                    ->schema([
-                        Forms\Components\TextInput::make('mail_host')
-                            ->label('SMTP host')
-                            ->placeholder('smtp.example.com'),
-                        Forms\Components\TextInput::make('mail_port')
-                            ->label('Port')
-                            ->numeric()
-                            ->default(587),
-                        Forms\Components\TextInput::make('mail_username')
-                            ->label('Username')
-                            ->autocomplete('off'),
-                        Forms\Components\TextInput::make('mail_password')
-                            ->label('Password')
-                            ->password()
-                            ->revealable()
-                            ->autocomplete('new-password')
-                            ->placeholder(fn (): string => app(Settings::class)->has('mail_password') ? '•••••• (leave blank to keep)' : '')
-                            ->helperText('Leave blank to keep the current password.'),
-                        Forms\Components\Select::make('mail_encryption')
-                            ->label('Encryption')
-                            ->options(['tls' => 'TLS / STARTTLS', 'ssl' => 'SSL', '' => 'None'])
-                            ->default('tls')
-                            ->native(false),
-                        Forms\Components\TextInput::make('mail_from_address')
-                            ->label('From address')
-                            ->email()
-                            ->placeholder('no-reply@example.com'),
-                        Forms\Components\TextInput::make('mail_from_name')
-                            ->label('From name')
-                            ->placeholder('My App')
-                            ->columnSpanFull(),
-                    ]),
+                        Tabs\Tab::make('Identity & Auth')
+                            ->schema([
+                                Section::make('Sign-in')
+                                    ->description('How existing end-users authenticate into the built app.')
+                                    ->compact()
+                                    ->schema([
+                                        Forms\Components\Toggle::make('password_login')
+                                            ->label('Allow password sign-in')
+                                            ->helperText('Turn off for SSO-only apps.'),
+                                    ]),
 
-                Section::make('Sign-in')
-                    ->description('How existing end-users authenticate into the built app.')
-                    ->compact()
-                    ->schema([
-                        Forms\Components\Toggle::make('password_login')
-                            ->label('Allow password sign-in')
-                            ->helperText('Turn off for SSO-only apps.'),
-                    ]),
+                                Section::make('Registration')
+                                    ->description('Self-registration for new end-users and how they are onboarded.')
+                                    ->compact()
+                                    ->schema([
+                                        Forms\Components\Toggle::make('registration_enabled')
+                                            ->label('Enable self-registration')
+                                            ->live(),
+                                        Forms\Components\Select::make('registration_mode')
+                                            ->label('Registration mode')
+                                            ->options([
+                                                'open' => 'Open (use immediately)',
+                                                'approval' => 'Approval required',
+                                                'invite_only' => 'Invite only',
+                                            ])
+                                            ->native(false)
+                                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
+                                        Forms\Components\Select::make('default_role')
+                                            ->label('Default role')
+                                            ->options(fn (): array => $this->roleOptions())
+                                            ->native(false)
+                                            ->nullable()
+                                            ->placeholder('No role')
+                                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
+                                        Forms\Components\TagsInput::make('allowed_email_domains')
+                                            ->label('Allowed email domains')
+                                            ->helperText('Leave empty to allow any email domain.')
+                                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
+                                        Forms\Components\TextInput::make('reset_token_ttl')
+                                            ->label('Reset token TTL (seconds)')
+                                            ->numeric()
+                                            ->default(3600),
+                                    ]),
 
-                Section::make('Registration')
-                    ->description('Self-registration for new end-users and how they are onboarded.')
-                    ->compact()
-                    ->schema([
-                        Forms\Components\Toggle::make('registration_enabled')
-                            ->label('Enable self-registration')
-                            ->live(),
-                        Forms\Components\Select::make('registration_mode')
-                            ->label('Registration mode')
-                            ->options([
-                                'open' => 'Open (use immediately)',
-                                'approval' => 'Approval required',
-                                'invite_only' => 'Invite only',
-                            ])
-                            ->native(false)
-                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
-                        Forms\Components\Select::make('default_role')
-                            ->label('Default role')
-                            ->options(fn (): array => $this->roleOptions())
-                            ->native(false)
-                            ->nullable()
-                            ->placeholder('No role')
-                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
-                        Forms\Components\TagsInput::make('allowed_email_domains')
-                            ->label('Allowed email domains')
-                            ->helperText('Leave empty to allow any email domain.')
-                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
-                        Forms\Components\TextInput::make('reset_token_ttl')
-                            ->label('Reset token TTL (seconds)')
-                            ->numeric()
-                            ->default(3600),
-                    ]),
+                                Section::make('Single sign-on (SSO)')
+                                    ->description('Enable OAuth providers and restrict who may sign in. Credentials come from your .env; only the per-provider toggle and restrictions are edited here.')
+                                    ->compact()
+                                    ->schema([
+                                        Forms\Components\Toggle::make('sso_google_enabled')
+                                            ->label('Google')
+                                            ->live(),
+                                        Forms\Components\Placeholder::make('sso_google_status')
+                                            ->label('Credentials')
+                                            ->content(fn (): string => $this->ssoCredentialStatus('google'))
+                                            ->visible(fn (Get $get): bool => (bool) $get('sso_google_enabled')),
+                                        Forms\Components\TagsInput::make('sso_google_domains')
+                                            ->label('Allowed email domains')
+                                            ->helperText('Restrict to these Google Workspace hosted domains. Empty = any Google account.')
+                                            ->visible(fn (Get $get): bool => (bool) $get('sso_google_enabled')),
 
-                Section::make('Single sign-on (SSO)')
-                    ->description('Enable OAuth providers and restrict who may sign in. Credentials come from your .env; only the per-provider toggle and restrictions are edited here.')
-                    ->compact()
-                    ->schema([
-                        Forms\Components\Toggle::make('sso_google_enabled')
-                            ->label('Google')
-                            ->live(),
-                        Forms\Components\Placeholder::make('sso_google_status')
-                            ->label('Credentials')
-                            ->content(fn (): string => $this->ssoCredentialStatus('google'))
-                            ->visible(fn (Get $get): bool => (bool) $get('sso_google_enabled')),
-                        Forms\Components\TagsInput::make('sso_google_domains')
-                            ->label('Allowed email domains')
-                            ->helperText('Restrict to these Google Workspace hosted domains. Empty = any Google account.')
-                            ->visible(fn (Get $get): bool => (bool) $get('sso_google_enabled')),
+                                        Forms\Components\Toggle::make('sso_microsoft_enabled')
+                                            ->label('Microsoft')
+                                            ->live(),
+                                        Forms\Components\Placeholder::make('sso_microsoft_status')
+                                            ->label('Credentials')
+                                            ->content(fn (): string => $this->ssoCredentialStatus('microsoft'))
+                                            ->visible(fn (Get $get): bool => (bool) $get('sso_microsoft_enabled')),
+                                        Forms\Components\TextInput::make('sso_microsoft_tenant')
+                                            ->label('Tenant')
+                                            ->helperText('Restrict to a specific Azure AD tenant id (single-org login). Leave blank for multi-tenant.')
+                                            ->visible(fn (Get $get): bool => (bool) $get('sso_microsoft_enabled')),
+                                        Forms\Components\TagsInput::make('sso_microsoft_domains')
+                                            ->label('Allowed email domains')
+                                            ->helperText('Empty = any account in the configured tenant.')
+                                            ->visible(fn (Get $get): bool => (bool) $get('sso_microsoft_enabled')),
 
-                        Forms\Components\Toggle::make('sso_microsoft_enabled')
-                            ->label('Microsoft')
-                            ->live(),
-                        Forms\Components\Placeholder::make('sso_microsoft_status')
-                            ->label('Credentials')
-                            ->content(fn (): string => $this->ssoCredentialStatus('microsoft'))
-                            ->visible(fn (Get $get): bool => (bool) $get('sso_microsoft_enabled')),
-                        Forms\Components\TextInput::make('sso_microsoft_tenant')
-                            ->label('Tenant')
-                            ->helperText('Restrict to a specific Azure AD tenant id (single-org login). Leave blank for multi-tenant.')
-                            ->visible(fn (Get $get): bool => (bool) $get('sso_microsoft_enabled')),
-                        Forms\Components\TagsInput::make('sso_microsoft_domains')
-                            ->label('Allowed email domains')
-                            ->helperText('Empty = any account in the configured tenant.')
-                            ->visible(fn (Get $get): bool => (bool) $get('sso_microsoft_enabled')),
+                                        Forms\Components\Toggle::make('sso_github_enabled')
+                                            ->label('GitHub')
+                                            ->live(),
+                                        Forms\Components\Placeholder::make('sso_github_status')
+                                            ->label('Credentials')
+                                            ->content(fn (): string => $this->ssoCredentialStatus('github'))
+                                            ->visible(fn (Get $get): bool => (bool) $get('sso_github_enabled')),
+                                        Forms\Components\TagsInput::make('sso_github_orgs')
+                                            ->label('Allowed organisations')
+                                            ->helperText('Restrict to members of these GitHub org logins. Empty = any GitHub account.')
+                                            ->visible(fn (Get $get): bool => (bool) $get('sso_github_enabled')),
+                                    ]),
+                            ]),
 
-                        Forms\Components\Toggle::make('sso_github_enabled')
-                            ->label('GitHub')
-                            ->live(),
-                        Forms\Components\Placeholder::make('sso_github_status')
-                            ->label('Credentials')
-                            ->content(fn (): string => $this->ssoCredentialStatus('github'))
-                            ->visible(fn (Get $get): bool => (bool) $get('sso_github_enabled')),
-                        Forms\Components\TagsInput::make('sso_github_orgs')
-                            ->label('Allowed organisations')
-                            ->helperText('Restrict to members of these GitHub org logins. Empty = any GitHub account.')
-                            ->visible(fn (Get $get): bool => (bool) $get('sso_github_enabled')),
+                        Tabs\Tab::make('Email')
+                            ->schema([
+                                Section::make('Email (SMTP)')
+                                    ->description('Transport used by the "Send Email" flow node. Stored encrypted; isolated from the host app\'s mailer.')
+                                    ->compact()
+                                    ->columns(2)
+                                    ->schema([
+                                        Forms\Components\TextInput::make('mail_host')
+                                            ->label('SMTP host')
+                                            ->placeholder('smtp.example.com'),
+                                        Forms\Components\TextInput::make('mail_port')
+                                            ->label('Port')
+                                            ->numeric()
+                                            ->default(587),
+                                        Forms\Components\TextInput::make('mail_username')
+                                            ->label('Username')
+                                            ->autocomplete('off'),
+                                        Forms\Components\TextInput::make('mail_password')
+                                            ->label('Password')
+                                            ->password()
+                                            ->revealable()
+                                            ->autocomplete('new-password')
+                                            ->placeholder(fn (): string => app(Settings::class)->has('mail_password') ? '•••••• (leave blank to keep)' : '')
+                                            ->helperText('Leave blank to keep the current password.'),
+                                        Forms\Components\Select::make('mail_encryption')
+                                            ->label('Encryption')
+                                            ->options(['tls' => 'TLS / STARTTLS', 'ssl' => 'SSL', '' => 'None'])
+                                            ->default('tls')
+                                            ->native(false),
+                                        Forms\Components\TextInput::make('mail_from_address')
+                                            ->label('From address')
+                                            ->email()
+                                            ->placeholder('no-reply@example.com'),
+                                        Forms\Components\TextInput::make('mail_from_name')
+                                            ->label('From name')
+                                            ->placeholder('My App')
+                                            ->columnSpanFull(),
+                                    ]),
+                            ]),
                     ]),
             ]);
     }

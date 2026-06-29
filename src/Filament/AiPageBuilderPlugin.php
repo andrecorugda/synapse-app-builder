@@ -69,6 +69,15 @@ class AiPageBuilderPlugin implements Plugin
             AppPortability::class,
             CollectionsApiDocs::class,
         ]);
+
+        // Render the Synapse menu groups in a sensible top-down order. Distinct
+        // labels only (so merging groups via config still works).
+        $groups = array_values(array_unique(array_values(
+            (array) config('ai-page-builder.filament.navigation_groups', []),
+        )));
+        if ($groups !== []) {
+            $panel->navigationGroups($groups);
+        }
     }
 
     public function boot(Panel $panel): void

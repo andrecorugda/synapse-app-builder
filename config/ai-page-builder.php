@@ -341,8 +341,22 @@ return [
     |--------------------------------------------------------------------------
     */
     'filament' => [
+        // Legacy single-group fallback (kept for backward compat).
         'navigation_group' => 'Content',
         'navigation_sort' => 10,
+
+        // Resources + pages are grouped by purpose for a tidy, scannable menu.
+        // Override a label to rename a group, or set several keys to the SAME
+        // label to merge groups (e.g. fold everything under one "Synapse" group
+        // in a busy host panel). The panel renders them in this order.
+        'navigation_groups' => [
+            'content' => 'Content',       // pages, partials, media
+            'data' => 'Data',             // collections, states
+            'automation' => 'Automation', // flows, functions, schedules
+            'access' => 'Access',         // users, roles, invites
+            'developer' => 'Developer',   // credentials, API tokens, API docs, import/export
+            'system' => 'System',         // settings, theme
+        ],
     ],
 
     /*
