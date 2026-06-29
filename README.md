@@ -10,8 +10,9 @@
 </p>
 
 <p align="center">
+  <a href="https://synapse-app.site"><strong>Website</strong></a> ·
+  <a href="https://synapse-app.site/docs/">Documentation</a> ·
   <a href="#quick-start">Quick start</a> ·
-  <a href="docs/README.md">Documentation</a> ·
   <a href="#what-you-can-build">What you can build</a> ·
   <a href="#the-ai-layer">The AI layer</a>
 </p>

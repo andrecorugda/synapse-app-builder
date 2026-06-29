@@ -20,8 +20,13 @@
         "internal-tools",
         "cms"
     ],
-    "homepage": "https://github.com/andrecorugda/synapse-app-builder",
+    "homepage": "https://synapse-app.site",
     "license": "MIT",
+    "support": {
+        "docs": "https://synapse-app.site/docs/",
+        "issues": "https://github.com/andrecorugda/synapse-app-builder/issues",
+        "source": "https://github.com/andrecorugda/synapse-app-builder"
+    },
     "authors": [
         {
             "name": "Andre Corugda",
