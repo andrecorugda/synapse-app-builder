@@ -22,7 +22,7 @@ class RunsRelationManager extends RelationManager
 
     protected static ?string $title = 'Runs';
 
-    protected static ?string $icon = 'heroicon-o-clock';
+    protected static string|\BackedEnum|null $icon = 'heroicon-o-clock';
 
     public function form(Schema $schema): Schema
     {
