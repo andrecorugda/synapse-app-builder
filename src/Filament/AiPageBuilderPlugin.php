@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament;
 
+use Andre\AiPageBuilder\Filament\Pages\AppPortability;
+use Andre\AiPageBuilder\Filament\Pages\CollectionsApiDocs;
 use Andre\AiPageBuilder\Filament\Pages\PageBuilderSettings;
+use Andre\AiPageBuilder\Filament\Pages\ThemeSettings;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource;
+use Andre\AiPageBuilder\Filament\Resources\FlowRunResource;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource;
 use Andre\AiPageBuilder\Filament\Resources\MediaResource;
 use Andre\AiPageBuilder\Filament\Resources\PageResource;
+use Andre\AiPageBuilder\Filament\Resources\PbApiTokenResource;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource;
 use Andre\AiPageBuilder\Filament\Resources\PbRoleResource;
 use Andre\AiPageBuilder\Filament\Resources\PbUserResource;
@@ -44,16 +49,21 @@ class AiPageBuilderPlugin implements Plugin
             PageResource::class,
             MediaResource::class,
             FlowResource::class,
+            FlowRunResource::class,
             FunctionResource::class,
             VariableResource::class,
             ScheduleResource::class,
             PbModelResource::class,
             PbUserResource::class,
             PbRoleResource::class,
+            PbApiTokenResource::class,
         ]);
 
         $panel->pages([
             PageBuilderSettings::class,
+            ThemeSettings::class,
+            AppPortability::class,
+            CollectionsApiDocs::class,
         ]);
     }
 

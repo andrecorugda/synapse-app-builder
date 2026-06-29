@@ -55,6 +55,7 @@ final class SystemPromptBuilder
             $this->contract(),
             $this->example(),
             $this->componentCatalog(),
+            $this->themeTokens(),
             $this->fieldTypes(),
             $this->nodeTypes(),
             $this->rules(),
@@ -202,6 +203,22 @@ final class SystemPromptBuilder
         }
 
         return rtrim(implode("\n", $lines));
+    }
+
+    private function themeTokens(): string
+    {
+        return <<<'TXT'
+        ## Theme tokens
+
+        A global theme exposes these CSS custom properties on `:root`. PREFER them
+        in `custom_css` for brand consistency, so the whole site re-skins from one
+        place instead of hard-coding colours:
+        - `var(--pb-primary)`, `var(--pb-accent)` — brand colours
+        - `var(--pb-ink)` — body text; `var(--pb-muted)` — secondary text
+        - `var(--pb-bg)` — page background; `var(--pb-surface)` — cards/sections; `var(--pb-border)` — borders
+        - `var(--pb-font)` — body font; `var(--pb-heading-font)` — headings
+        - `var(--pb-radius)` — corner radius; `var(--pb-max)` — content max-width
+        TXT;
     }
 
     private function fieldTypes(): string

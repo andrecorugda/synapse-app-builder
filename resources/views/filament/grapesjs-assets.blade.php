@@ -42,6 +42,7 @@
         window.__pbPages = @js($pbPages);
         window.__pbStates = @js($pbStates);
         window.__pbCollections = @js($pbCollections);
+        window.__pbThemeCss = @js(app(\Andre\AiPageBuilder\Services\Theme::class)->css());
     </script>
     <style>
         /* CSS-based maximize (native fullscreen is unreliable inside the panel). */
@@ -273,6 +274,14 @@
                     editor.on('load', () => {
                         try {
                             const doc = editor.Canvas.getDocument();
+                            // Global theme tokens first (base :root vars) so the
+                            // canvas previews with the site's brand — pages bind to var(--pb-*).
+                            if (window.__pbThemeCss) {
+                                const ts = doc.createElement('style');
+                                ts.id = 'pb-theme';
+                                ts.innerHTML = window.__pbThemeCss;
+                                doc.head.insertBefore(ts, doc.head.firstChild);
+                            }
                             // Page-frame CSS (tokens/fonts/base bg) LAST, so it wins
                             // over GrapesJS's mangled copies of the same rules (it
                             // strips custom props + breaks var() backgrounds). The
