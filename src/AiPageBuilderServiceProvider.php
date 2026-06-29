@@ -6,7 +6,9 @@ namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Ai\AppBuilderService;
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Console\ExportAppCommand;
 use Andre\AiPageBuilder\Console\ExportSiteCommand;
+use Andre\AiPageBuilder\Console\ImportAppCommand;
 use Andre\AiPageBuilder\Console\InstallDemoCommand;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\RunSchedulesCommand;
@@ -31,6 +33,7 @@ use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
 use Andre\AiPageBuilder\Http\Controllers\AuthController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
+use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder;
@@ -80,13 +83,16 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_requires_auth_to_pages_table',
                 'create_schedules_table',
                 'create_page_revisions_table',
+                'create_page_builder_api_tokens_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
             ->hasCommand(RunSchedulesCommand::class)
             ->hasCommand(SeedSystemPagesCommand::class)
             ->hasCommand(InstallDemoCommand::class)
-            ->hasCommand(ExportSiteCommand::class);
+            ->hasCommand(ExportSiteCommand::class)
+            ->hasCommand(ExportAppCommand::class)
+            ->hasCommand(ImportAppCommand::class);
     }
 
     public function packageRegistered(): void
@@ -243,7 +249,10 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
         Route::group([
             'prefix' => $prefix,
-            'middleware' => (array) config('ai-page-builder.data.api_middleware', ['api']),
+            // ResolveApiToken runs last: a Bearer token authenticates the `pb`
+            // guard for programmatic callers (AccessControl then scopes them);
+            // no token → session auth still applies.
+            'middleware' => array_merge((array) config('ai-page-builder.data.api_middleware', ['api']), [ResolveApiToken::class]),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
         });
