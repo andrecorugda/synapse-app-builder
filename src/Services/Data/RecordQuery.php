@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Services\Data;
 
+use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -44,7 +46,11 @@ class RecordQuery
 
         $perPage = $this->perPage($params['per_page'] ?? null);
 
-        return $query->paginate($perPage, $columns, 'page', (int) ($params['page'] ?? 1));
+        $paginator = $query->paginate($perPage, $columns, 'page', (int) ($params['page'] ?? 1));
+
+        $this->expand($model, $paginator->getCollection(), $this->expandKeys($params));
+
+        return $paginator;
     }
 
     /**
@@ -54,8 +60,109 @@ class RecordQuery
     {
         $columns = $this->projection($model, (string) ($params['fields'] ?? ''));
 
-        /** @var Record|null */
-        return Record::for($model)->newQuery()->find($id, $columns);
+        /** @var Record|null $record */
+        $record = Record::for($model)->newQuery()->find($id, $columns);
+
+        if ($record !== null) {
+            $this->expand($model, collect([$record]), $this->expandKeys($params));
+        }
+
+        return $record;
+    }
+
+    /**
+     * Parse `expand=a,b` (string or array) into a clean list of keys.
+     *
+     * @param  array<string,mixed>  $params
+     * @return array<int,string>
+     */
+    private function expandKeys(array $params): array
+    {
+        $raw = $params['expand'] ?? '';
+        $keys = is_array($raw) ? $raw : explode(',', (string) $raw);
+
+        return array_values(array_filter(array_map('trim', $keys)));
+    }
+
+    /**
+     * Attach related records to a result set. Supports two directions, keyed by
+     * the requested expand name:
+     *   - belongs-to: a `relation` field's key (e.g. `manager`) → the single
+     *     related row under that key (resolved from `{key}_id`);
+     *   - has-many (reverse): another collection's key (e.g. `tasks`) whose
+     *     `relation` field points back at this model → the array of child rows.
+     * Batched (no N+1). Related rows are loaded through Record so casts apply.
+     *
+     * @param  Collection<int,Record>  $records
+     * @param  array<int,string>  $expand
+     */
+    private function expand(PbModel $model, Collection $records, array $expand): void
+    {
+        if ($expand === [] || $records->isEmpty()) {
+            return;
+        }
+
+        $fields = $model->fields()->get();
+        $relationFields = $fields->filter(fn ($f) => $f->fieldType() === FieldType::Relation)->keyBy('key');
+
+        /** @var class-string<PbModel> $pbModelClass */
+        $pbModelClass = config('ai-page-builder.models.model', PbModel::class);
+
+        foreach ($expand as $name) {
+            // Forward belongs-to: `name` is a relation field on this model.
+            if ($relationFields->has($name)) {
+                $field = $relationFields->get($name);
+                $relatedKey = $field->options['relation_model'] ?? null;
+                $column = $field->columnName();
+
+                if (! is_string($relatedKey) || $relatedKey === '') {
+                    continue;
+                }
+
+                $ids = $records->pluck($column)->filter()->unique()->values()->all();
+                try {
+                    $relatedById = $ids === []
+                        ? collect()
+                        : Record::for($relatedKey)->newQuery()->whereIn('id', $ids)->get()->keyBy('id');
+                } catch (\Throwable) {
+                    continue;
+                }
+
+                foreach ($records as $record) {
+                    $fk = $record->getAttribute($column);
+                    $record->setAttribute($name, $fk !== null ? $relatedById->get($fk)?->toArray() : null);
+                }
+
+                continue;
+            }
+
+            // Reverse has-many: `name` is another collection that has a relation
+            // field pointing at THIS model.
+            $childModel = $pbModelClass::query()->where('key', $name)->first();
+            if ($childModel === null) {
+                continue;
+            }
+
+            $backRef = $childModel->fields()->get()->first(
+                fn ($f) => $f->fieldType() === FieldType::Relation && ($f->options['relation_model'] ?? null) === $model->key,
+            );
+            if ($backRef === null) {
+                continue;
+            }
+
+            $column = $backRef->columnName();
+            $parentIds = $records->pluck('id')->all();
+            try {
+                $childrenByParent = Record::for($childModel)->newQuery()->whereIn($column, $parentIds)->get()->groupBy($column);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            foreach ($records as $record) {
+                $children = $childrenByParent->get($record->getAttribute('id'));
+                $record->setAttribute($name, $children ? $children->map->toArray()->values()->all() : []);
+            }
+        }
     }
 
     /**
@@ -253,6 +360,22 @@ class RecordQuery
             $mapped[$column] = $value;
 
             $fieldRules = $type->validationRules((array) ($field->options ?? []));
+
+            // Referential integrity: a relation value must reference a real row
+            // in the related collection's table.
+            if ($type === FieldType::Relation) {
+                $relatedKey = $field->options['relation_model'] ?? null;
+                if (is_string($relatedKey) && $relatedKey !== '') {
+                    try {
+                        $related = Record::for($relatedKey);
+                        $conn = $related->getConnectionName();
+                        $fieldRules[] = 'exists:'.($conn ? $conn.'.' : '').$related->getTable().',id';
+                    } catch (\Throwable) {
+                        // Related collection not resolvable — skip the exists check.
+                    }
+                }
+            }
+
             if ($partial) {
                 $fieldRules = array_values(array_diff($fieldRules, ['required']));
                 array_unshift($fieldRules, 'sometimes');
