@@ -24,6 +24,12 @@ class SchemaSynchronizer
      */
     public function sync(PbModel $model): void
     {
+        // External collections map to an existing table on another connection —
+        // the package reads them but never creates/alters their schema.
+        if ($model->isExternal()) {
+            return;
+        }
+
         $builder = $this->builder();
         $fields = $model->fields()->get();
 
@@ -95,6 +101,11 @@ class SchemaSynchronizer
 
     public function dropTable(PbModel $model): void
     {
+        // Never drop a table the package doesn't own.
+        if ($model->isExternal()) {
+            return;
+        }
+
         $this->builder()->dropIfExists($model->table_name);
     }
 

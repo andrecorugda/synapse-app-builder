@@ -71,6 +71,9 @@ class RecordApiController extends Controller
         if ($deny = $this->gate('create', $model)) {
             return $deny;
         }
+        if ($deny = $this->readOnlyDeny($model)) {
+            return $deny;
+        }
 
         // Field-level write restriction: keep only the fields this role may set.
         $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'create');
@@ -90,6 +93,9 @@ class RecordApiController extends Controller
         if ($deny = $this->gate('update', $model)) {
             return $deny;
         }
+        if ($deny = $this->readOnlyDeny($model)) {
+            return $deny;
+        }
 
         $existing = $this->records->find($this->resolve($model), $id);
         if ($existing === null || ! $this->matchesRule($existing->toArray(), $model, 'update')) {
@@ -107,6 +113,9 @@ class RecordApiController extends Controller
     public function destroy(string $model, int|string $id): JsonResponse
     {
         if ($deny = $this->gate('delete', $model)) {
+            return $deny;
+        }
+        if ($deny = $this->readOnlyDeny($model)) {
             return $deny;
         }
 
@@ -146,6 +155,16 @@ class RecordApiController extends Controller
     private function project(array $row, array $allowed): array
     {
         return array_intersect_key($row, array_flip([...['id'], ...$allowed]));
+    }
+
+    /** 403 when the collection is read-only (external or flagged), else null. */
+    private function readOnlyDeny(string $model): ?JsonResponse
+    {
+        if ($this->resolve($model)->isReadOnly()) {
+            return response()->json(['message' => 'This collection is read-only.'], 403);
+        }
+
+        return null;
     }
 
     /** 403 JsonResponse when the current user can't perform $action, else null. */
