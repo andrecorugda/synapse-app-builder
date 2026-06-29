@@ -9,26 +9,26 @@ connector breadth). "Foundation" notes call out what already exists to build on.
 
 ## Wave 1 — committed near-term
 
-- [ ] **Dynamic crons** — a `schedules` table + a single `Kernel::schedule()` hook that loops
+- [x] **Dynamic crons** — a `schedules` table + a single `Kernel::schedule()` hook that loops
   registered rows (cron expression each) and dispatches flows/functions.
   *Foundation: `RunCronFlowsCommand` already runs flow crons.* Must stay route/cache-safe — no
   closures capturing outer state (that broke a deploy before). Pairs with the **schedule trigger** (Wave 2).
-- [ ] **Charts / dashboard pack** — server-side aggregate endpoint on `RecordQuery`
+- [x] **Charts / dashboard pack** — server-side aggregate endpoint on `RecordQuery`
   (group / count / sum / avg / time-bucket) → chart blocks (line / bar / donut / area) + KPI cards,
   bound to a collection or a State. Vendored Chart.js (no CDN), with BlockVocabulary + AI support.
-- [ ] ⭐ **Page versioning** — `page_revisions` table snapshotting
+- [x] ⭐ **Page versioning** — `page_revisions` table snapshotting
   `{project_data, html, css, custom_css, custom_js, meta}` on every save/publish; diff + "restore
   this version" UI. The safety net that makes AI edits non-scary. *Not started.*
-- [ ] ⭐ **AI uses the custom CSS / JS channels** — teach `SystemPromptBuilder` + `BuildPlanApplier`
+- [x] ⭐ **AI uses the custom CSS / JS channels** — teach `SystemPromptBuilder` + `BuildPlanApplier`
   to route styles into `custom_css` and behavior into `custom_js` (and reference shared theme
   tokens) instead of inlining everything → keeps generated pages configurable.
   *Foundation: `custom_css` / `custom_js` columns exist; integrates with the editor frame-CSS
   preservation already shipped.*
-- [ ] ⭐ **Flow error handling** — (1) an `on-error` branch / try-node on the canvas,
+- [x] ⭐ **Flow error handling** — (1) an `on-error` branch / try-node on the canvas,
   (2) per-node retry + a `failed` `FlowRun` status with the error captured, (3) a **notify result
   action** (toast / banner / email) so failures surface instead of dying silently.
   *Foundation: `FlowRun` telemetry + ResultNode actions exist.*
-- [ ] **New components** — iframe / embed (host allow-list), autocomplete bound to a collection
+- [x] **New components** — iframe / embed (host allow-list), autocomplete bound to a collection
   (typeahead against `/api/pb/{collection}`), pagination control for the data table / list.
 
 ## Wave 2 — high leverage
