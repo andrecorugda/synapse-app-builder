@@ -344,7 +344,16 @@
                         html: editor.getHtml(),
                         css: editor.getCss(),
                     });
+                    // Debounce so rapid edits (typing, dragging) don't spam $wire.
+                    let syncT = null;
+                    const syncSoon = () => { clearTimeout(syncT); syncT = setTimeout(sync, 250); };
+                    // `update` is the catch-all for COMPONENT changes, but Style
+                    // Manager / CSS-rule edits (e.g. a background colour) do NOT
+                    // reliably fire it — so the css never synced and the published
+                    // page lost those styles. `change:changesCount` increments on
+                    // EVERY tracked change (components AND styles), so bind to both.
                     editor.on('update', sync);
+                    editor.on('change:changesCount style:update styleable:change rule:add rule:update rule:remove', syncSoon);
 
                     editor.on('component:selected', (c) => {
                         addAnimTraits(c);
