@@ -24,6 +24,10 @@ use Illuminate\Support\Carbon;
  * @property bool $is_active
  * @property string $status
  * @property Carbon|null $email_verified_at
+ * @property string|null $two_factor_method
+ * @property string|null $two_factor_secret
+ * @property array<int,string>|null $two_factor_recovery_codes
+ * @property Carbon|null $two_factor_confirmed_at
  */
 class PbUser extends Authenticatable implements AuthenticatableContract
 {
@@ -52,12 +56,21 @@ class PbUser extends Authenticatable implements AuthenticatableContract
         'is_active' => 'boolean',
         'password' => 'hashed',
         'email_verified_at' => 'datetime',
+        'two_factor_secret' => 'encrypted',
+        'two_factor_recovery_codes' => 'encrypted:array',
+        'two_factor_confirmed_at' => 'datetime',
     ];
 
     /** True when the account may sign in (active + not soft-deactivated). */
     public function canLogin(): bool
     {
         return $this->is_active && $this->getAttribute('status') === self::STATUS_ACTIVE;
+    }
+
+    /** True once the user has enrolled AND verified two-factor (so it gates login). */
+    public function hasTwoFactorEnabled(): bool
+    {
+        return $this->getAttribute('two_factor_confirmed_at') !== null;
     }
 
     public function getConnectionName(): ?string

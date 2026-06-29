@@ -6,6 +6,8 @@ namespace Andre\AiPageBuilder\Http\Controllers;
 
 use Andre\AiPageBuilder\Auth\AuthSettings;
 use Andre\AiPageBuilder\Auth\SocialProviders;
+use Andre\AiPageBuilder\Auth\TwoFactorService;
+use Andre\AiPageBuilder\Http\Controllers\TwoFactorController as TwoFactor;
 use Andre\AiPageBuilder\Models\PbUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -74,6 +76,25 @@ class AuthController
                     ? 'Your account is awaiting approval.'
                     : 'Your account has been suspended.'])
                 ->onlyInput('email');
+        }
+
+        // Two-factor gate: credentials are correct, but hold off on a full
+        // session until the second factor is verified. Stash the pending user +
+        // remember choice and send them to the challenge (emailing a code first
+        // for the email method).
+        $tfa = app(TwoFactorService::class);
+        if ($user instanceof PbUser && $tfa->policyEnabled() && $tfa->isEnabled($user)) {
+            $remember = $request->boolean('remember');
+            Auth::guard($this->guard())->logout();
+
+            $request->session()->put(TwoFactor::PENDING_KEY, $user->getKey());
+            $request->session()->put(TwoFactor::REMEMBER_KEY, $remember);
+
+            if ($user->getAttribute('two_factor_method') === TwoFactorService::METHOD_EMAIL) {
+                $tfa->sendEmailCode($user);
+            }
+
+            return redirect('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/').'/two-factor');
         }
 
         $request->session()->regenerate();
