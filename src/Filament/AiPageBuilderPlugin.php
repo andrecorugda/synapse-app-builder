@@ -10,7 +10,6 @@ use Andre\AiPageBuilder\Filament\Pages\PageBuilderSettings;
 use Andre\AiPageBuilder\Filament\Pages\ThemeSettings;
 use Andre\AiPageBuilder\Filament\Resources\CredentialResource;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource;
-use Andre\AiPageBuilder\Filament\Resources\FlowRunResource;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource;
 use Andre\AiPageBuilder\Filament\Resources\MediaResource;
 use Andre\AiPageBuilder\Filament\Resources\PageResource;
@@ -51,7 +50,6 @@ class AiPageBuilderPlugin implements Plugin
             PageResource::class,
             MediaResource::class,
             FlowResource::class,
-            FlowRunResource::class,
             FunctionResource::class,
             VariableResource::class,
             ScheduleResource::class,

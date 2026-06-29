@@ -301,6 +301,13 @@ class FlowResource extends Resource
         return $data;
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            FlowResource\RelationManagers\RunsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
