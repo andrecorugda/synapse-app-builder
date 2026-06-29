@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Support\PageDataMapper;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Facades\URL;
 
 class EditPage extends EditRecord
 {
@@ -52,6 +53,18 @@ class EditPage extends EditRecord
                         ->title($publishing ? 'Page published' : 'Page unpublished')
                         ->send();
                 }),
+            Actions\Action::make('preview')
+                ->label('Preview')
+                ->icon('heroicon-m-eye')
+                ->color('gray')
+                ->url(
+                    fn (): string => URL::temporarySignedRoute(
+                        'ai-page-builder.preview',
+                        now()->addHours(24),
+                        ['slug' => $this->record->slug],
+                    ),
+                    shouldOpenInNewTab: true,
+                ),
             Actions\Action::make('view_live')
                 ->label('View live')
                 ->icon('heroicon-m-arrow-top-right-on-square')
