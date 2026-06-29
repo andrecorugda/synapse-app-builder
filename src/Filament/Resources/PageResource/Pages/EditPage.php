@@ -26,6 +26,11 @@ class EditPage extends EditRecord
         return PageDataMapper::split($data);
     }
 
+    protected function afterSave(): void
+    {
+        $this->record->snapshot('save');
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -39,6 +44,8 @@ class EditPage extends EditRecord
                     $record->status = $publishing ? PageStatus::Published : PageStatus::Draft;
                     $record->published_at = $publishing ? now() : null;
                     $record->save();
+
+                    $record->snapshot($publishing ? 'publish' : 'save');
 
                     Notification::make()
                         ->success()

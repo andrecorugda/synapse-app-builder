@@ -7,6 +7,7 @@ use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\FlowRun;
 use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\PageRevision;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\PbPermission;
@@ -30,6 +31,7 @@ return [
         'connection' => env('AI_PAGE_BUILDER_DB_CONNECTION'),
         'tables' => [
             'pages' => 'pages',
+            'page_revisions' => 'page_revisions',
             'media' => 'page_builder_media',
             'flows' => 'page_builder_flows',
             'flow_runs' => 'page_builder_flow_runs',
@@ -57,6 +59,7 @@ return [
     */
     'models' => [
         'page' => Page::class,
+        'page_revision' => PageRevision::class,
         'media' => MediaItem::class,
         'flow' => Flow::class,
         'flow_run' => FlowRun::class,

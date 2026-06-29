@@ -76,6 +76,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_permissions_table',
                 'add_requires_auth_to_pages_table',
                 'create_schedules_table',
+                'create_page_revisions_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)

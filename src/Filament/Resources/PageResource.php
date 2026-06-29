@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Enums\PageStatus;
 use Andre\AiPageBuilder\Filament\Forms\Components\CodeField;
 use Andre\AiPageBuilder\Filament\Forms\Components\GrapesJsField;
 use Andre\AiPageBuilder\Filament\Resources\PageResource\Pages;
+use Andre\AiPageBuilder\Filament\Resources\PageResource\RelationManagers;
 use Andre\AiPageBuilder\Models\Page;
 use Filament\Actions;
 use Filament\Forms;
@@ -181,6 +182,13 @@ class PageResource extends Resource
                     Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\RevisionsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
