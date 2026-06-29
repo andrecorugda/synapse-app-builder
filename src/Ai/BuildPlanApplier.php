@@ -423,13 +423,27 @@ class BuildPlanApplier
     {
         $settings = $build->settings();
 
-        $home = $settings['home_page'] ?? null;
-        if (is_string($home) && $home !== '') {
+        // Page-pointer settings (slug of a page): home + the 404/maintenance pages.
+        foreach (['home_page', 'not_found_page', 'maintenance_page'] as $key) {
+            $value = $settings[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                try {
+                    $this->settings->set($key, $value);
+                    $summary['created']['settings'][] = "{$key}={$value}";
+                } catch (Throwable $e) {
+                    $summary['errors'][] = "settings.{$key} ('{$value}'): ".$e->getMessage();
+                }
+            }
+        }
+
+        // Maintenance-mode toggle (boolean).
+        if (array_key_exists('maintenance_mode', $settings)) {
             try {
-                $this->settings->set('home_page', $home);
-                $summary['created']['settings'][] = "home_page={$home}";
+                $on = (bool) $settings['maintenance_mode'];
+                $this->settings->set('maintenance_mode', $on);
+                $summary['created']['settings'][] = 'maintenance_mode='.($on ? 'on' : 'off');
             } catch (Throwable $e) {
-                $summary['errors'][] = "settings.home_page ('{$home}'): ".$e->getMessage();
+                $summary['errors'][] = 'settings.maintenance_mode: '.$e->getMessage();
             }
         }
     }
