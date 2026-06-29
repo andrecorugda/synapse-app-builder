@@ -25,10 +25,14 @@ class FlowManager
 
         try {
             $context = $this->runner->run((array) $flow->definition, $input);
-            $this->record($flow, $input, $context, 'ok', null, $startedAt);
+            // The runner handles node failures in-band (retry / on-error branch /
+            // graceful toast) and flags an unhandled failure on the context, so a
+            // failed run still returns its actions (e.g. the error notify).
+            $this->record($flow, $input, $context, $context->failed ? 'error' : 'ok', $context->error, $startedAt);
 
             return $context;
         } catch (\Throwable $e) {
+            // Backstop for an unexpected error outside node handling.
             $context = new FlowContext($input);
             $this->record($flow, $input, $context, 'error', $e->getMessage(), $startedAt);
 
