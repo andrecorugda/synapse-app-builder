@@ -5,6 +5,14 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-06-29
+
+### Fixed
+- Editor canvas now faithfully renders hand-authored Alpine pages (including the bundled Nimbus and Synapse demos). An Alpine attribute bridge stops GrapesJS throwing on `@click`/`:class` (which previously aborted the import and left the canvas white), and page-frame CSS — design tokens, `@font-face`, base background — is preserved so token-driven and dark-themed pages render correctly instead of appearing white. Saving is lossless: interactivity (`@click`) and design tokens survive the editor round-trip.
+
+### Changed
+- Homepage now points to the official site (https://synapse-app.site); added `support` docs/issues/source links and Website + Documentation links in the README.
+
 ## [1.0.1] - 2026-06-29
 
 ### Changed
