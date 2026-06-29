@@ -14,15 +14,27 @@ connector breadth). "Foundation" notes call out what already exists to build on.
   collections **API tokens + API docs** (Bearer auth), seeded/settable **404 +
   maintenance + home** pages, **page versioning** (preview + apply a version),
   **draft preview** (signed URL), and a flow **"Run now"** action.
-- **Wave 3 — 🟡 partial (growing).** Shipped: **CSV import/export**, **SEO**
-  (sitemap.xml + robots.txt), the **+12 components** batch, the **AI HtmlSanitizer**
-  on the AI path, **API-token auth**, **credentials store**, the **image field**,
-  and **field-level permissions**. Still open are the larger initiatives —
-  external data sources, a hosted marketplace, full SSO/social/2FA + self-
-  registration, record history, the remaining AI-depth items (edit-section,
-  image-gen, streaming, usage panel), i18n, and platform/observability.
+- **Wave 3 — ✅ flagship complete (1.0).** Every ⭐ headline feature + the big
+  subsystems shipped, tested, live-verified, and documented: ⭐ **external data
+  sources**, the full **Identity & Auth subsystem** (password toggle, forgot/reset,
+  self-registration + onboarding modes, **SSO** Google/Microsoft/GitHub with
+  org/domain/tenant restriction, email **invites**, **2FA** email-OTP + TOTP +
+  recovery, **logout** trait + flow action, guest-redirect), **record ownership**
+  (user-relation fields), **credentials store**, plus the earlier CSV import/export,
+  SEO (sitemap/robots), +12 components, AI HtmlSanitizer, API-token auth, image
+  field, and field-level permissions. The admin menu is purpose-grouped and the
+  product is branded **Synapse** throughout (site + docs aligned, AI positioned as
+  an optional accelerator).
 
-The package test suite is green (198 passing; the only failures are GD-dependent
+- **Post-1.0 backlog (deferred — depth & ecosystem, none blocking):**
+  ⭐⭐ template/component **marketplace** (mostly community/hosting, not package code);
+  **record history** (data revisions); **AI depth** (edit-existing-section, image
+  generation, streaming chat, usage/cost panel); **SEO/i18n** extras (OG-image/JSON-LD
+  helpers, multi-language content); **more components** (rich-text/markdown, maps,
+  kanban, steppers, conditional visibility); **platform** (backups/snapshots, Sentry/
+  observability, CLI scaffolder); **external HTTP/REST API** as a virtual collection.
+
+The package test suite is green (271 passing; the only failures are GD-dependent
 media tests on the bare CI image) and phpstan is clean. All shipped work is on `main`.
 
 ---
@@ -67,6 +79,10 @@ media tests on the bare CI image) and phpstan is clean. All shipped work is on `
 - [x] **Reusable partials / symbols** — one header/footer edited once, used across pages.
 
 ## Wave 3 — depth & moat
+
+> **1.0 status:** the ⭐ flagship items below are shipped. Items still marked `[ ]`
+> or `[~]` are the **post-1.0 backlog** (depth & ecosystem) — deferred, not gaps.
+
 
 - [x] ⭐ **External data sources ✅ SHIPPED 2026-06-29** — a collection can be `external`: it maps to an
   EXISTING table on any configured DB connection (`source_type`/`source_connection`/`table_name`), which
