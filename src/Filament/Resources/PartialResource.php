@@ -39,7 +39,7 @@ class PartialResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return config('ai-page-builder.filament.navigation_group', 'Content');
+        return config('ai-page-builder.filament.navigation_groups.content', 'Content');
     }
 
     public static function getNavigationSort(): ?int
