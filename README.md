@@ -83,7 +83,7 @@ Everything below was **built with the package itself** — run `php artisan ai-p
 **Requirements:** PHP 8.2+ · Laravel 11/12/13 · Filament 4/5
 
 ```bash
-composer require andrecorugda/ai-page-builder
+composer require andrecorugda/synapse
 php artisan vendor:publish --tag="ai-page-builder-migrations"
 php artisan migrate
 ```

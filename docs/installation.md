@@ -19,7 +19,7 @@ The AI layer is optional and additive. It is unlocked by installing the [AI Open
 ## 1. Require the package
 
 ```bash
-composer require andrecorugda/ai-page-builder
+composer require andrecorugda/synapse
 ```
 
 The service provider `Andre\AiPageBuilder\AiPageBuilderServiceProvider` and the `PageBuilder` facade alias are auto-discovered (see `composer.json` → `extra.laravel`).
