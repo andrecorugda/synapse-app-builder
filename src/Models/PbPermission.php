@@ -30,6 +30,7 @@ class PbPermission extends Model
 
     protected $casts = [
         'rule' => 'array',
+        'fields' => 'array',
     ];
 
     public function getConnectionName(): ?string
