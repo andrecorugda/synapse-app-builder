@@ -35,6 +35,7 @@ use Andre\AiPageBuilder\Http\Controllers\AuthController;
 use Andre\AiPageBuilder\Http\Controllers\PasswordResetController;
 use Andre\AiPageBuilder\Http\Controllers\RegistrationController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
+use Andre\AiPageBuilder\Http\Controllers\SocialAuthController;
 use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
@@ -93,6 +94,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_credentials_table',
                 'add_auth_fields_to_page_builder_users_table',
                 'create_page_builder_password_resets_table',
+                'add_sso_fields_to_page_builder_users_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -381,6 +383,16 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             Route::post($login.'/forgot', [PasswordResetController::class, 'sendReset'])->middleware('throttle:6,1');
             Route::get($login.'/reset', [PasswordResetController::class, 'showReset'])->name('ai-page-builder.password.reset');
             Route::post($login.'/reset', [PasswordResetController::class, 'reset'])->middleware('throttle:6,1');
+
+            // SSO (optional — only functional with laravel/socialite + a
+            // configured, enabled provider; otherwise the controller redirects
+            // back to login). Provider is constrained to the known drivers.
+            Route::get($login.'/sso/{provider}', [SocialAuthController::class, 'redirect'])
+                ->whereIn('provider', ['google', 'microsoft', 'github'])
+                ->name('ai-page-builder.sso.redirect');
+            Route::get($login.'/sso/{provider}/callback', [SocialAuthController::class, 'callback'])
+                ->whereIn('provider', ['google', 'microsoft', 'github'])
+                ->name('ai-page-builder.sso.callback');
         });
     }
 

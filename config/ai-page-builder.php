@@ -210,6 +210,48 @@ return [
         'reset' => [
             'token_ttl' => (int) env('AI_PAGE_BUILDER_RESET_TTL', 3600),
         ],
+
+        // SSO providers (optional — requires laravel/socialite, and
+        // socialiteproviders/microsoft for the Microsoft driver). Credentials
+        // come from env; the per-provider `enabled` flag and the org/domain/
+        // tenant restrictions are also runtime-overridable on the Identity &
+        // Auth screen. A provider only appears on the login page when it is
+        // enabled AND has a client id/secret AND Socialite is installed.
+        'providers' => [
+            'google' => [
+                'enabled' => (bool) env('AI_PAGE_BUILDER_GOOGLE_ENABLED', false),
+                'client_id' => env('AI_PAGE_BUILDER_GOOGLE_CLIENT_ID'),
+                'client_secret' => env('AI_PAGE_BUILDER_GOOGLE_CLIENT_SECRET'),
+                'redirect' => env('AI_PAGE_BUILDER_GOOGLE_REDIRECT'),
+                // Restrict to one or more Google Workspace hosted domains, e.g.
+                // ['acme.com']. Empty = any Google account.
+                'allowed_domains' => array_values(array_filter(
+                    explode(',', (string) env('AI_PAGE_BUILDER_GOOGLE_DOMAINS', '')),
+                )),
+            ],
+            'microsoft' => [
+                'enabled' => (bool) env('AI_PAGE_BUILDER_MICROSOFT_ENABLED', false),
+                'client_id' => env('AI_PAGE_BUILDER_MICROSOFT_CLIENT_ID'),
+                'client_secret' => env('AI_PAGE_BUILDER_MICROSOFT_CLIENT_SECRET'),
+                'redirect' => env('AI_PAGE_BUILDER_MICROSOFT_REDIRECT'),
+                // Restrict to a specific Azure AD tenant id (single-org login).
+                'tenant' => env('AI_PAGE_BUILDER_MICROSOFT_TENANT'),
+                'allowed_domains' => array_values(array_filter(
+                    explode(',', (string) env('AI_PAGE_BUILDER_MICROSOFT_DOMAINS', '')),
+                )),
+            ],
+            'github' => [
+                'enabled' => (bool) env('AI_PAGE_BUILDER_GITHUB_ENABLED', false),
+                'client_id' => env('AI_PAGE_BUILDER_GITHUB_CLIENT_ID'),
+                'client_secret' => env('AI_PAGE_BUILDER_GITHUB_CLIENT_SECRET'),
+                'redirect' => env('AI_PAGE_BUILDER_GITHUB_REDIRECT'),
+                // Restrict to members of these GitHub orgs, e.g. ['acme-inc'].
+                // Empty = any GitHub account (public sign-in).
+                'allowed_orgs' => array_values(array_filter(
+                    explode(',', (string) env('AI_PAGE_BUILDER_GITHUB_ORGS', '')),
+                )),
+            ],
+        ],
     ],
 
     /*
