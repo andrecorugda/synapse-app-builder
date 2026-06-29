@@ -22,16 +22,21 @@ class PageRenderer
     public function render(Page $page, bool $static = false): View
     {
         // Expand reusable partials (<div data-pb-partial="slug">) into their
-        // current html, collecting their css — so editing a partial reflects
-        // on every page that embeds it.
-        [$html, $css] = $this->expandPartials((string) $page->html, (string) $page->css);
+        // current html, collecting their css and custom css/js — so editing a
+        // partial reflects on every page that embeds it.
+        [$html, $css, $partialsCustomCss, $partialsCustomJs] = $this->expandPartials((string) $page->html, (string) $page->css);
+
+        // Page custom CSS first, then partials'. Partials' JS runs first and the
+        // page's own JS runs last, consistent with it being the final escape hatch.
+        $customCss = trim((string) ($page->custom_css ?? '')."\n".$partialsCustomCss);
+        $customJs = trim($partialsCustomJs."\n".(string) ($page->custom_js ?? ''));
 
         return view('ai-page-builder::render.page', [
             'page' => $page,
             'html' => $html,
             'css' => $css,
-            'customCss' => (string) ($page->custom_css ?? ''),
-            'customJs' => (string) ($page->custom_js ?? ''),
+            'customCss' => $customCss,
+            'customJs' => $customJs,
             // Seed the published page's reactive Store from persistent States.
             'state' => app(VariableStore::class)->all(),
             'meta' => is_array($page->meta) ? $page->meta : [],
@@ -44,25 +49,27 @@ class PageRenderer
 
     /**
      * Replace `<el data-pb-partial="slug">…</el>` placeholders with the referenced
-     * partial's html (dropping the editor placeholder), and append each used
-     * partial's css once.
+     * partial's html (dropping the editor placeholder), append each used partial's
+     * css once, and collect each used partial's custom css/js once.
      *
-     * @return array{0:string,1:string}
+     * @return array{0:string,1:string,2:string,3:string} [$html, $css, $partialsCustomCss, $partialsCustomJs]
      */
     private function expandPartials(string $html, string $css): array
     {
         if (! str_contains($html, 'data-pb-partial=')) {
-            return [$html, $css];
+            return [$html, $css, '', ''];
         }
 
         /** @var class-string<Model> $model */
         $model = config('ai-page-builder.models.partial', Partial::class);
 
         $extraCss = [];
+        $extraCustomCss = [];
+        $extraCustomJs = [];
 
         $html = preg_replace_callback(
             '/<([a-zA-Z0-9]+)\b[^>]*\bdata-pb-partial="([A-Za-z0-9\-_]+)"[^>]*>.*?<\/\1>/s',
-            function (array $m) use ($model, &$extraCss): string {
+            function (array $m) use ($model, &$extraCss, &$extraCustomCss, &$extraCustomJs): string {
                 $partial = $model::query()->where('slug', $m[2])->first();
                 if ($partial === null) {
                     return '';
@@ -70,6 +77,14 @@ class PageRenderer
                 $partialCss = (string) $partial->getAttribute('css');
                 if ($partialCss !== '') {
                     $extraCss[$m[2]] = $partialCss; // keyed by slug = used once
+                }
+                $partialCustomCss = (string) $partial->getAttribute('custom_css');
+                if ($partialCustomCss !== '') {
+                    $extraCustomCss[$m[2]] = $partialCustomCss; // keyed by slug = used once
+                }
+                $partialCustomJs = (string) $partial->getAttribute('custom_js');
+                if ($partialCustomJs !== '') {
+                    $extraCustomJs[$m[2]] = $partialCustomJs; // keyed by slug = used once
                 }
 
                 return (string) $partial->getAttribute('html');
@@ -81,7 +96,7 @@ class PageRenderer
             $css = $css."\n".implode("\n", $extraCss);
         }
 
-        return [$html, $css];
+        return [$html, $css, implode("\n", $extraCustomCss), implode("\n", $extraCustomJs)];
     }
 
     /** Render for static export (no backend runtime calls, no cache). */

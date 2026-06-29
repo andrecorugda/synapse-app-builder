@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property ?array<string,mixed> $project_data
  * @property ?string $html
  * @property ?string $css
+ * @property ?string $custom_css
+ * @property ?string $custom_js
  */
 class Partial extends Model
 {

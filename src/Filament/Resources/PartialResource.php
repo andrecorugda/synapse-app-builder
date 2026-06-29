@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Forms\Components\CodeField;
 use Andre\AiPageBuilder\Filament\Forms\Components\GrapesJsField;
 use Andre\AiPageBuilder\Filament\Resources\PartialResource\Pages;
 use Andre\AiPageBuilder\Models\Partial;
@@ -81,6 +82,24 @@ class PartialResource extends Resource
                     ->label('Partial content')
                     ->default(['project_data' => [], 'html' => '', 'css' => ''])
                     ->columnSpanFull(),
+
+                Schemas\Components\Section::make('Advanced')
+                    ->collapsed()
+                    ->schema([
+                        CodeField::make('custom_css')
+                            ->label('Custom CSS')
+                            ->language('css')
+                            ->height(240)
+                            ->helperText('Raw CSS appended to any page that uses this partial. Target your element classes, e.g. .pb-header__brand { letter-spacing: -0.02em; }')
+                            ->columnSpanFull(),
+
+                        CodeField::make('custom_js')
+                            ->label('Custom JavaScript')
+                            ->language('javascript')
+                            ->height(240)
+                            ->helperText('Raw JS injected before </body> on every page that embeds this partial. Runs on your own site; no sandboxing.')
+                            ->columnSpanFull(),
+                    ]),
             ])
             ->columns(1);
     }
