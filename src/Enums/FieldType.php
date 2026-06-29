@@ -25,6 +25,7 @@ enum FieldType: string
     case Json = 'json';
     case Select = 'select';
     case Relation = 'relation';
+    case Image = 'image';
 
     public function label(): string
     {
@@ -39,6 +40,7 @@ enum FieldType: string
             self::Json => 'JSON',
             self::Select => 'Select (choices)',
             self::Relation => 'Relation (belongs to)',
+            self::Image => 'Image',
         };
     }
 
@@ -72,6 +74,7 @@ enum FieldType: string
             self::DateTime => $table->dateTime($name),
             self::Json => $table->json($name),
             self::Relation => $table->unsignedBigInteger($name),
+            self::Image => $table->string($name, 2048),
         };
 
         $column->nullable($nullable);
@@ -120,6 +123,7 @@ enum FieldType: string
             self::Date, self::DateTime => 'date',
             self::Json => 'array',
             self::Select => 'string',
+            self::Image => 'string',
         };
 
         if ($this === self::String || $this === self::Select) {

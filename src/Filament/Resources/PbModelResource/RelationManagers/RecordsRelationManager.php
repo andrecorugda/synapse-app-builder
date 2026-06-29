@@ -338,6 +338,11 @@ class RecordsRelationManager extends RelationManager
                 ->searchable()
                 ->sortable(),
 
+            FieldType::Image => Tables\Columns\ImageColumn::make($name)
+                ->label($field->label)
+                ->disk($this->mediaDisk())
+                ->square(),
+
             default => Tables\Columns\TextColumn::make($name)
                 ->label($field->label)
                 ->searchable()
@@ -401,6 +406,12 @@ class RecordsRelationManager extends RelationManager
                 ->searchable()
                 ->native(false),
 
+            FieldType::Image => Forms\Components\FileUpload::make($name)
+                ->image()
+                ->disk($this->mediaDisk())
+                ->directory($this->mediaDirectory())
+                ->visibility('public'),
+
             default => Forms\Components\TextInput::make($name)
                 ->maxLength((int) ($options['length'] ?? 255)),
         };
@@ -412,6 +423,23 @@ class RecordsRelationManager extends RelationManager
         }
 
         return $component;
+    }
+
+    /**
+     * The filesystem disk image uploads are stored on — the same disk the media
+     * library uses, so record images live alongside other uploaded media.
+     */
+    private function mediaDisk(): string
+    {
+        return (string) config('ai-page-builder.media.disk', 'public');
+    }
+
+    /**
+     * The directory image uploads are stored in, matching the media library.
+     */
+    private function mediaDirectory(): string
+    {
+        return trim((string) config('ai-page-builder.media.directory', 'page-builder'), '/');
     }
 
     /**
