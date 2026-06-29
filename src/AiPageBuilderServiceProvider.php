@@ -84,6 +84,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_schedules_table',
                 'create_page_revisions_table',
                 'create_page_builder_api_tokens_table',
+                'create_page_builder_partials_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)

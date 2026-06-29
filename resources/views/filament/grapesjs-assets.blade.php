@@ -36,12 +36,20 @@
         } catch (\Throwable $e) {
             $pbCollections = [];
         }
+        // Reusable partials → draggable blocks that insert a data-pb-partial placeholder.
+        try {
+            $pbPartials = (config('ai-page-builder.models.partial', \Andre\AiPageBuilder\Models\Partial::class))::query()
+                ->orderBy('name')->get()->map(fn ($p) => ['slug' => $p->slug, 'name' => $p->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbPartials = [];
+        }
     @endphp
     <script>
         window.__pbFlows = @js($pbFlows);
         window.__pbPages = @js($pbPages);
         window.__pbStates = @js($pbStates);
         window.__pbCollections = @js($pbCollections);
+        window.__pbPartials = @js($pbPartials);
         window.__pbThemeCss = @js(app(\Andre\AiPageBuilder\Services\Theme::class)->css());
     </script>
     <style>
@@ -204,6 +212,24 @@
                                 model: { defaults: { name: b.label } },
                             });
                         }
+                    });
+
+                    // Reusable partials → blocks that drop a data-pb-partial
+                    // placeholder. The page stores ONLY the placeholder; the
+                    // renderer expands it to the partial's current html, so editing
+                    // the partial updates every page. The placeholder's label is
+                    // editor-only (the renderer replaces the whole element).
+                    (window.__pbPartials || []).forEach((p) => {
+                        const ph = '<div data-pb-partial="' + p.slug + '" class="pb-partial-ph" style="padding:1rem 1.25rem;border:1px dashed #94a3b8;border-radius:.5rem;color:#64748b;text-align:center;font:600 14px/1.4 ui-sans-serif,system-ui,sans-serif;">▦ ' + (p.name || p.slug) + '</div>';
+                        editor.BlockManager.add('partial:' + p.slug, {
+                            label: p.name || p.slug,
+                            category: 'Partials',
+                            content: ph,
+                        });
+                    });
+                    editor.DomComponents.addType('pb-partial', {
+                        isComponent: (el) => el.getAttribute && el.getAttribute('data-pb-partial'),
+                        model: { defaults: { name: 'Partial', draggable: true, droppable: false } },
                     });
 
                     // Open the media picker as soon as an empty image is dropped. The

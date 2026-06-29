@@ -13,6 +13,7 @@ use Andre\AiPageBuilder\Filament\Resources\FlowRunResource;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource;
 use Andre\AiPageBuilder\Filament\Resources\MediaResource;
 use Andre\AiPageBuilder\Filament\Resources\PageResource;
+use Andre\AiPageBuilder\Filament\Resources\PartialResource;
 use Andre\AiPageBuilder\Filament\Resources\PbApiTokenResource;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource;
 use Andre\AiPageBuilder\Filament\Resources\PbRoleResource;
@@ -57,6 +58,7 @@ class AiPageBuilderPlugin implements Plugin
             PbUserResource::class,
             PbRoleResource::class,
             PbApiTokenResource::class,
+            PartialResource::class,
         ]);
 
         $panel->pages([
