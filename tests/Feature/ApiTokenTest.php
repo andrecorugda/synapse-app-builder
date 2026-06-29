@@ -9,11 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-/** The api_tokens table isn't in the package's default test migrations. */
-beforeEach(function (): void {
-    (require __DIR__.'/../../database/migrations/create_page_builder_api_tokens_table.php')->up();
-});
-
 function pbApiTokenUser(array $attrs = []): PbUser
 {
     return PbUser::query()->create(array_merge([
