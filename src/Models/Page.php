@@ -116,7 +116,9 @@ class Page extends Model
         /** @var class-string<PageRevision> $revisionModel */
         $revisionModel = config('ai-page-builder.models.page_revision', PageRevision::class);
 
-        return $this->hasMany($revisionModel)->latest();
+        // Newest first; order by id (not created_at) so same-second snapshots
+        // stay deterministically ordered.
+        return $this->hasMany($revisionModel)->orderByDesc('id');
     }
 
     /**

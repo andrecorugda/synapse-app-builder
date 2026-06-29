@@ -6,13 +6,6 @@ use Andre\AiPageBuilder\Enums\PageStatus;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PageRevision;
 
-beforeEach(function (): void {
-    // The base TestCase doesn't know about this migration (it predates the
-    // package's timestamped migration), so run it for these tests. It lives
-    // inside RefreshDatabase's per-test transaction, which is fine for sqlite.
-    (require __DIR__.'/../../database/migrations/2026_06_29_120000_create_page_revisions_table.php')->up();
-});
-
 it('snapshots the current state into a revision', function (): void {
     $page = Page::factory()->create(['title' => 'Original']);
 

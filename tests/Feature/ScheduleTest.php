@@ -10,12 +10,6 @@ use Andre\AiPageBuilder\Models\Schedule;
 use Andre\AiPageBuilder\Services\ScheduleRunner;
 use Illuminate\Support\Carbon;
 
-// The base TestCase migrates the core package tables; the schedules table ships
-// after it, so bring it up explicitly here (mirrors how TestCase loads the rest).
-beforeEach(function (): void {
-    (require __DIR__.'/../../database/migrations/2026_06_29_120500_create_schedules_table.php')->up();
-});
-
 it('runs a due flow schedule and stamps last_run_at / last_status', function (): void {
     Flow::create([
         'slug' => 'nightly',
