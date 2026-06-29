@@ -32,6 +32,8 @@ use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
 use Andre\AiPageBuilder\Http\Controllers\AuthController;
+use Andre\AiPageBuilder\Http\Controllers\PasswordResetController;
+use Andre\AiPageBuilder\Http\Controllers\RegistrationController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
 use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
@@ -89,6 +91,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_custom_fields_to_page_builder_partials_table',
                 'add_fields_to_permissions_table',
                 'create_page_builder_credentials_table',
+                'add_auth_fields_to_page_builder_users_table',
+                'create_page_builder_password_resets_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -365,9 +369,18 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             'middleware' => (array) config('ai-page-builder.routes.render_middleware', ['web']),
         ], function () use ($login): void {
             Route::get($login, [AuthController::class, 'show'])->name('ai-page-builder.login');
-            Route::post($login, [AuthController::class, 'login']);
+            Route::post($login, [AuthController::class, 'login'])->middleware('throttle:10,1');
             Route::post('pb-logout', [AuthController::class, 'logout'])->name('ai-page-builder.logout');
             Route::get('pb-auth/me', [AuthController::class, 'me'])->name('ai-page-builder.me');
+
+            // Self-registration (gated at the controller by the onboarding policy)
+            // and self-contained forgot/reset password. All POSTs are throttled.
+            Route::get($login.'/register', [RegistrationController::class, 'show'])->name('ai-page-builder.register');
+            Route::post($login.'/register', [RegistrationController::class, 'register'])->middleware('throttle:6,1');
+            Route::get($login.'/forgot', [PasswordResetController::class, 'showForgot'])->name('ai-page-builder.password.request');
+            Route::post($login.'/forgot', [PasswordResetController::class, 'sendReset'])->middleware('throttle:6,1');
+            Route::get($login.'/reset', [PasswordResetController::class, 'showReset'])->name('ai-page-builder.password.reset');
+            Route::post($login.'/reset', [PasswordResetController::class, 'reset'])->middleware('throttle:6,1');
         });
     }
 

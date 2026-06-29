@@ -9,6 +9,7 @@ use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 
 /**
  * An end-user of the BUILT app — the person who logs into the published site /
@@ -21,6 +22,8 @@ use Illuminate\Notifications\Notifiable;
  * @property string $password
  * @property int|null $role_id
  * @property bool $is_active
+ * @property string $status
+ * @property Carbon|null $email_verified_at
  */
 class PbUser extends Authenticatable implements AuthenticatableContract
 {
@@ -34,6 +37,13 @@ class PbUser extends Authenticatable implements AuthenticatableContract
      */
     public const RELATION_TARGET = '__users';
 
+    /** Account lifecycle (see add_auth_fields_to_page_builder_users_table). */
+    public const STATUS_ACTIVE = 'active';
+
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_SUSPENDED = 'suspended';
+
     protected $guarded = [];
 
     protected $hidden = ['password', 'remember_token'];
@@ -41,7 +51,14 @@ class PbUser extends Authenticatable implements AuthenticatableContract
     protected $casts = [
         'is_active' => 'boolean',
         'password' => 'hashed',
+        'email_verified_at' => 'datetime',
     ];
+
+    /** True when the account may sign in (active + not soft-deactivated). */
+    public function canLogin(): bool
+    {
+        return $this->is_active && $this->getAttribute('status') === self::STATUS_ACTIVE;
+    }
 
     public function getConnectionName(): ?string
     {

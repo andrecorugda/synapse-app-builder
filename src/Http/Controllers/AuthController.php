@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Http\Controllers;
 
+use Andre\AiPageBuilder\Auth\AuthSettings;
 use Andre\AiPageBuilder\Models\PbUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,11 +21,26 @@ class AuthController
 {
     public function show(): View
     {
-        return view('ai-page-builder::auth.login');
+        $auth = app(AuthSettings::class);
+
+        // Drive which doors the login page shows (password form, register link,
+        // forgot link, SSO buttons added in Phase 3).
+        return view('ai-page-builder::auth.login', [
+            'passwordLogin' => $auth->passwordLoginEnabled(),
+            'registrationAllowed' => $auth->publicRegistrationAllowed(),
+            'loginPath' => trim((string) config('ai-page-builder.auth.login_path', 'login'), '/'),
+        ]);
     }
 
     public function login(Request $request): RedirectResponse
     {
+        // Honour the password-login toggle: SSO-only apps reject password sign-in.
+        if (! app(AuthSettings::class)->passwordLoginEnabled()) {
+            return back()
+                ->withErrors(['email' => 'Password sign-in is disabled for this app.'])
+                ->onlyInput('email');
+        }
+
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -39,6 +55,20 @@ class AuthController
         if (! $ok) {
             return back()
                 ->withErrors(['email' => 'Those credentials do not match our records.'])
+                ->onlyInput('email');
+        }
+
+        // Account-status gate (only revealed to someone who passed the password
+        // check, so it isn't an email-enumeration oracle): pending awaits admin
+        // approval, suspended is blocked.
+        $user = Auth::guard($this->guard())->user();
+        if ($user instanceof PbUser && ! $user->canLogin()) {
+            Auth::guard($this->guard())->logout();
+
+            return back()
+                ->withErrors(['email' => $user->getAttribute('status') === PbUser::STATUS_PENDING
+                    ? 'Your account is awaiting approval.'
+                    : 'Your account has been suspended.'])
                 ->onlyInput('email');
         }
 

@@ -48,6 +48,8 @@ return [
             'users' => 'page_builder_users',
             'roles' => 'page_builder_roles',
             'permissions' => 'page_builder_permissions',
+            'password_resets' => 'page_builder_password_resets',
+            'user_invites' => 'page_builder_user_invites',
         ],
     ],
 
@@ -178,6 +180,36 @@ return [
         'login_path' => env('AI_PAGE_BUILDER_LOGIN_PATH', 'login'),
         // Where to send a user after login / where "home" is when none given.
         'redirect_after_login' => env('AI_PAGE_BUILDER_AUTH_REDIRECT', '/'),
+
+        // The values below are install-time DEFAULTS. They are overridable at
+        // runtime by the admin on the "Identity & Auth" settings screen (stored
+        // via the Settings service under the same dotted keys, e.g.
+        // `auth.password_login`). Read them through Auth\AuthSettings, never
+        // config() directly, so the admin's choice wins.
+
+        // Allow email + password sign-in. Turn off for SSO-only apps.
+        'password_login' => (bool) env('AI_PAGE_BUILDER_PASSWORD_LOGIN', true),
+
+        // Self-registration. Disabled by default (safer); the admin opts in and
+        // picks how new users are onboarded — it depends on the app's nature.
+        'registration' => [
+            'enabled' => (bool) env('AI_PAGE_BUILDER_REGISTRATION', false),
+            // open         — register and use the app immediately
+            // approval     — register, then an admin must approve (status=pending)
+            // invite_only  — no public registration; admins send invites (Phase 4)
+            'mode' => env('AI_PAGE_BUILDER_REGISTRATION_MODE', 'approval'),
+            // Role slug assigned to a newly-registered user (null = no role).
+            'default_role' => env('AI_PAGE_BUILDER_REGISTRATION_ROLE'),
+            // Optional allow-list of email domains, e.g. ['acme.com']. Empty = any.
+            'allowed_email_domains' => array_values(array_filter(
+                explode(',', (string) env('AI_PAGE_BUILDER_REGISTRATION_DOMAINS', '')),
+            )),
+        ],
+
+        // Forgot/reset password token lifetime (seconds) + throttle window.
+        'reset' => [
+            'token_ttl' => (int) env('AI_PAGE_BUILDER_RESET_TTL', 3600),
+        ],
     ],
 
     /*
