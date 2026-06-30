@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="art/cover.png" alt="Synapse — the AI app builder for Laravel + Filament" width="100%">
+  <img src="art/cover.png" alt="Synapse — the app builder for Laravel + Filament" width="100%">
 </p>
 
 <h1 align="center">Synapse — App Builder</h1>
 
 <p align="center">
-  <strong>Describe an app. Watch it get built. Then refine it by chatting.</strong><br>
-  A full-stack, low-code app builder for Laravel + Filament — pages, real data, automations, auth and live UI — with AI as your companion. Free, open, and entirely self-hosted.
+  <strong>A data-driven app builder that lives inside your own Laravel + Filament admin.</strong><br>
+  Visual pages, typed data + an instant REST API, an n8n-style flow engine, end-user auth (SSO/2FA) and external data — configurable on the fly. <strong>Drops into an existing Laravel app as a package and lives alongside it, no clash.</strong> AI is an optional accelerator that builds and refines for you. Free, MIT, entirely self-hosted.
 </p>
 
 <p align="center">
@@ -25,9 +25,11 @@ Building an internal tool, a SaaS UI, or a marketing site usually means stitchin
 
 **Synapse is all of that, in one package, inside the Laravel + Filament admin you already run.** Drag pages together, define your own data tables, wire automations that react to clicks and data changes, gate it behind your own users and roles — and when you'd rather just *say what you want*, the built-in AI generates the whole thing and keeps refining it as you chat.
 
+**It lives *alongside* your existing app.** Synapse is a package, not a platform: its tables are prefixed (`page_builder_*` / `pb_<key>`), it registers its **own** end-user auth guard without touching yours, its admin UI is an **opt-in** Filament plugin, and its routes defer to your app's (it never claims `/`). Drop it into a Laravel app you already run and it coexists — no clash, fully configurable (connection, table names, guard, routes, models are all overridable).
+
 Nothing leaves your server. There's no SaaS, no per-seat pricing, no lock-in. It's MIT-licensed and yours.
 
-> **You bring the idea. Synapse brings the pages, the database, the logic, the login screen — and an AI that builds alongside you.**
+> **You bring the idea. Synapse brings the pages, the database, the logic, the login screen — and an optional AI that builds alongside you.**
 
 ---
 
@@ -36,10 +38,10 @@ Nothing leaves your server. There's no SaaS, no per-seat pricing, no lock-in. It
 | Pillar | What it gives you |
 |---|---|
 | 🧩 **Pages & components** | A GrapesJS visual builder + a real UI kit (cards, modals, drawers, tabs, forms, **data tables**), per-page CSS/JS, SEO, a cached public render route, and a pickable **home page**. |
-| 🗄️ **Collections (data)** | Define your own models → **real database tables** (`pb_<key>`, Directus-style) with typed fields, schema sync, an instant **REST API** (filter/sort/search/paginate) and a records browser. |
+| 🗄️ **Collections (data)** | Define your own models → **real database tables** (`pb_<key>`, Directus-style) with typed fields, schema sync, an instant **REST API** (filter/sort/search/paginate) and a records browser. Or map an **existing external table** as a read-through virtual collection — same API/blocks/flows, never schema-managed. |
 | ⚡ **Flows (the brain)** | An n8n-style visual canvas. Triggers (a click, a record event, cron, an API call) run nodes: CRUD, HTTP, AI invoke, functions, conditions, set-state, **send email**, page actions. |
 | ƒ **Functions & States** | Reusable logic (expression / callable / PHP) and a persistent, app-wide **reactive store** that components bind to and flows update live. |
-| 🔐 **Auth & permissions** | The built app's **own** users, roles and permissions — a static login, per-page gating, opt-in per-collection CRUD rules, **row-level security**, and component visibility by role. Optional: a public site ignores it entirely. |
+| 🔐 **Auth & permissions** | The built app's **own** users, roles and permissions — sign in once, every gated page just works. Password / **SSO** (Google · Microsoft · GitHub, org-restricted) / **2FA** (email-OTP + authenticator), self-registration + email **invites**, per-page gating, opt-in CRUD rules, **row-/field-level security** and record ownership. Optional: a public site ignores it entirely. |
 | ✉️ **Email** | An isolated SMTP transport (configured in Settings) + a `send_email` flow node that uses any page as an interpolated **email template**. |
 | ✦ **AI generation** | Describe an app in plain language → review a validated plan → apply it. A **floating chat** follows you across the admin to refine what you've built. Powered by the [AI OpenRouter Gateway](https://github.com/andrecorugda/ai-openrouter-gateway). |
 
