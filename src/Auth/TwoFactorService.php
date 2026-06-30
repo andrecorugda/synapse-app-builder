@@ -16,8 +16,10 @@ use PragmaRX\Google2FA\Google2FA;
  * Two-factor auth for the pb guard: authenticator-app TOTP (optional
  * pragmarx/google2fa) and email one-time codes (no dependency), plus single-use
  * recovery codes. Used for enrolment (begin → confirm), the login challenge, and
- * admin reset. Secrets + recovery codes are stored encrypted on PbUser (model
- * casts); email codes live hashed in the cache with a short TTL.
+ * admin reset. The TOTP secret is stored encrypted on PbUser; recovery codes are
+ * stored as bcrypt HASHES (under the encrypted:array cast, so the hashes are also
+ * encrypted at rest) and verified with Hash::check — never compared in plaintext.
+ * Email codes live hashed in the cache with a short TTL.
  */
 class TwoFactorService
 {
@@ -111,8 +113,13 @@ class TwoFactorService
 
         $codes = $this->generateRecoveryCodes();
 
+        // Persist only bcrypt HASHES of the codes; the plaintext is returned to
+        // the user once here and never stored.
         $user->forceFill([
-            'two_factor_recovery_codes' => $codes,
+            'two_factor_recovery_codes' => array_map(
+                static fn (string $code): string => Hash::make($code),
+                $codes,
+            ),
             'two_factor_confirmed_at' => now(),
         ])->save();
 
@@ -174,22 +181,33 @@ class TwoFactorService
         return false;
     }
 
-    /** Consume a single-use recovery code. */
+    /**
+     * Consume a single-use recovery code. Stored codes are bcrypt hashes, so we
+     * compare each with Hash::check and, on a match, drop that one hash.
+     */
     public function verifyRecoveryCode(PbUser $user, string $code): bool
     {
         $code = trim($code);
-        /** @var array<int,string> $codes */
-        $codes = (array) $user->getAttribute('two_factor_recovery_codes');
-
-        if (! in_array($code, $codes, true)) {
+        if ($code === '') {
             return false;
         }
 
-        $user->forceFill([
-            'two_factor_recovery_codes' => array_values(array_diff($codes, [$code])),
-        ])->save();
+        /** @var array<int,string> $hashes */
+        $hashes = (array) $user->getAttribute('two_factor_recovery_codes');
 
-        return true;
+        foreach ($hashes as $index => $hash) {
+            if (is_string($hash) && Hash::check($code, $hash)) {
+                unset($hashes[$index]);
+
+                $user->forceFill([
+                    'two_factor_recovery_codes' => array_values($hashes),
+                ])->save();
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Login-challenge verification: a method code OR a recovery code. */

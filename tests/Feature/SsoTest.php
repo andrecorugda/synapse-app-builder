@@ -31,8 +31,14 @@ function ssoEnable(string $provider): void
     ssoSetting("auth.providers.{$provider}.enabled", true);
 }
 
-/** A fake Socialite identity (the contract the resolver receives). */
-function ssoUser(string $id, ?string $email, string $name = 'Ada Lovelace'): SocialiteUser
+/**
+ * A fake Socialite identity (the contract the resolver receives).
+ *
+ * By default the provider asserts the email is verified (Google/Microsoft
+ * behaviour). Pass $emailVerified=false to model a provider that has NOT
+ * verified the email, or null to omit the claim entirely.
+ */
+function ssoUser(string $id, ?string $email, string $name = 'Ada Lovelace', ?bool $emailVerified = true): SocialiteUser
 {
     $user = new SocialiteUser;
     $user->id = $id;
@@ -41,6 +47,12 @@ function ssoUser(string $id, ?string $email, string $name = 'Ada Lovelace'): Soc
     $user->email = $email;
     $user->avatar = null;
     $user->token = 'tok';
+
+    $raw = ['sub' => $id, 'email' => $email];
+    if ($emailVerified !== null) {
+        $raw['email_verified'] = $emailVerified;
+    }
+    $user->setRaw($raw);
 
     return $user;
 }
@@ -179,6 +191,66 @@ it('links an existing account with the same email', function (): void {
     expect($resolved->getAttribute('provider'))->toBe('google');
     expect($resolved->getAttribute('provider_id'))->toBe('g99');
     expect(PbUser::query()->count())->toBe(1);
+});
+
+it('does NOT link an existing account when the provider email is unverified (takeover guard)', function (): void {
+    $existing = PbUser::query()->create([
+        'name' => 'Existing',
+        'email' => 'victim@example.com',
+        'password' => 'local-pass',
+        'is_active' => true,
+        'status' => PbUser::STATUS_ACTIVE,
+    ]);
+
+    expect(fn () => resolver()->resolve('google', ssoUser('attacker-1', 'victim@example.com', emailVerified: false)))
+        ->toThrow(SocialAuthException::class);
+
+    // The local account is untouched: no provider link, no auto-verification.
+    $existing->refresh();
+    expect($existing->getAttribute('provider'))->toBeNull()
+        ->and($existing->getAttribute('provider_id'))->toBeNull()
+        ->and($existing->getAttribute('email_verified_at'))->toBeNull()
+        ->and(PbUser::query()->count())->toBe(1);
+});
+
+it('does NOT link an existing account when the provider omits the verified claim', function (): void {
+    PbUser::query()->create([
+        'name' => 'Existing',
+        'email' => 'victim@example.com',
+        'password' => 'local-pass',
+        'is_active' => true,
+        'status' => PbUser::STATUS_ACTIVE,
+    ]);
+
+    expect(fn () => resolver()->resolve('google', ssoUser('attacker-1', 'victim@example.com', emailVerified: null)))
+        ->toThrow(SocialAuthException::class);
+});
+
+it('links an existing account when the provider email is verified', function (): void {
+    $existing = PbUser::query()->create([
+        'name' => 'Existing',
+        'email' => 'existing@example.com',
+        'password' => 'local-pass',
+        'is_active' => true,
+        'status' => PbUser::STATUS_ACTIVE,
+    ]);
+
+    $resolved = resolver()->resolve('google', ssoUser('g99', 'existing@example.com', emailVerified: true));
+
+    expect($resolved->id)->toBe($existing->id)
+        ->and($resolved->getAttribute('provider'))->toBe('google')
+        ->and($resolved->getAttribute('provider_id'))->toBe('g99')
+        ->and($resolved->getAttribute('email_verified_at'))->not->toBeNull()
+        ->and(PbUser::query()->count())->toBe(1);
+});
+
+it('creates a brand-new account regardless of the verified claim (no collision)', function (): void {
+    // No existing local user with this email → unverified claim still creates fine.
+    $user = resolver()->resolve('google', ssoUser('g500', 'fresh@example.com', emailVerified: false));
+
+    expect($user->getAttribute('provider'))->toBe('google')
+        ->and($user->getAttribute('email'))->toBe('fresh@example.com')
+        ->and(PbUser::query()->count())->toBe(1);
 });
 
 it('rejects a sign-in when the provider shares no email', function (): void {
