@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow;
 
+use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
@@ -11,9 +12,10 @@ use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 /**
  * Thin, sandboxed wrapper around Symfony ExpressionLanguage (v7).
  *
- * Only pure expression evaluation is exposed — no PHP functions, no eval,
- * no file/DB/exec/network access. The ExpressionLanguage sandbox provides
- * safe arithmetic, comparison, string operations, and array access.
+ * No raw PHP, no eval — the only callable surface is the curated helper library
+ * (db.* / ui.* / auth.* / util.*) registered from the {@see HelperRegistry}, plus
+ * `state()`/`global()`. This is the eval-free power path: a Function composes
+ * documented, allow-listed helpers instead of executing arbitrary code.
  *
  * Variables passed by callers (e.g. ['input' => ..., 'vars' => ..., 'args' => ...])
  * are forwarded verbatim to ExpressionLanguage::evaluate().
@@ -22,7 +24,7 @@ class ExpressionEvaluator
 {
     private readonly ExpressionLanguage $el;
 
-    public function __construct()
+    public function __construct(HelperRegistry $helpers)
     {
         $this->el = new ExpressionLanguage;
 
@@ -34,6 +36,16 @@ class ExpressionEvaluator
 
         $this->el->register('state', $compiler, $reader);
         $this->el->register('global', $compiler, $reader);
+
+        // Expose every registered helper as a sandbox function (db_create, ui_notify, …).
+        foreach ($helpers->definitions() as $def) {
+            $name = $def->key;
+            $this->el->register(
+                $name,
+                static fn (...$args): string => sprintf('app(\Andre\AiPageBuilder\Capabilities\HelperRegistry::class)->call(%s, %s)', var_export($name, true), implode(', ', $args)),
+                static fn (array $values, ...$args): mixed => $helpers->call($name, ...$args),
+            );
+        }
     }
 
     /**
