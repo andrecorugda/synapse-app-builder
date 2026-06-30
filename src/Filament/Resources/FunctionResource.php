@@ -17,6 +17,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\HtmlString;
 
 class FunctionResource extends Resource
 {
@@ -97,7 +98,11 @@ class FunctionResource extends Resource
                     ->language('javascript')
                     ->height(320)
                     ->helpers()
-                    ->helperText('Symfony ExpressionLanguage over input/vars/args, e.g. args["price"] * 1.2. Read app State with state(\'key\') or states[\'key\'].')
+                    ->helperText(new HtmlString(
+                        '<a href="https://symfony.com/doc/current/reference/formats/expression_language.html" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">Symfony ExpressionLanguage ↗</a>'
+                        .' over <code>input</code>/<code>vars</code>/<code>args</code> — e.g. <code>args["price"] * 1.2</code>. '
+                        .'Call built-in helpers from the <strong>ƒ Insert helper…</strong> menu (db.*, ui.*, auth.*, util.*). Read app State with <code>state(\'key\')</code>.'
+                    ))
                     ->visible(fn (Get $get): bool => $get('runtime') === 'expression'),
 
                 Forms\Components\Select::make('body')
