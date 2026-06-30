@@ -7,7 +7,12 @@ namespace Andre\AiPageBuilder\Flow;
 /**
  * Walks a flow definition graph from its start node, running each node's handler
  * and following the returned next-node ids. Bounded by a max-step cap so a
- * malformed/cyclic graph can't loop forever.
+ * malformed/cyclic graph — or a runaway loop — can't run forever.
+ *
+ * Sub-sequences: loop / transaction nodes run a BODY sub-graph against the same
+ * {@see FlowContext} via {@see runBody()}. The body shares the global step budget
+ * (so loops are bounded by the same cap) but gets its own visited set, so the
+ * same body nodes can legitimately re-run on every iteration.
  */
 class FlowRunner
 {
@@ -21,25 +26,53 @@ class FlowRunner
     {
         $context = new FlowContext($input);
 
-        /** @var array<string,array<string,mixed>> $nodes */
-        $nodes = (array) ($definition['nodes'] ?? []);
+        $nodes = $this->nodesOf($definition);
         $start = (string) ($definition['start'] ?? '');
-
         if ($start === '' || ! isset($nodes[$start])) {
             return $context;
         }
 
-        $maxSteps = (int) config('ai-page-builder.flow.max_steps', 200);
+        $this->walk($nodes, $start, $context, notifyOnFailure: true);
+
+        return $context;
+    }
+
+    /**
+     * Run a body sub-graph (loop iteration / transaction body) against an EXISTING
+     * context — vars and actions accumulate into the parent run. Failure inside a
+     * body is left on `$context->failed` for the enclosing node to act on (route a
+     * branch, roll back) rather than surfacing a toast directly.
+     *
+     * @param  array<string,mixed>  $definition  { start, nodes }
+     */
+    public function runBody(array $definition, FlowContext $context): void
+    {
+        $nodes = $this->nodesOf($definition);
+        $start = (string) ($definition['start'] ?? '');
+        if ($start === '' || ! isset($nodes[$start])) {
+            return;
+        }
+
+        $context->failed = false;
+        $context->error = null;
+        $this->walk($nodes, $start, $context, notifyOnFailure: false);
+    }
+
+    /**
+     * @param  array<string,array<string,mixed>>  $nodes
+     */
+    private function walk(array $nodes, string $start, FlowContext $context, bool $notifyOnFailure): void
+    {
+        $maxSteps = (int) config('ai-page-builder.flow.max_steps', 1000);
         $queue = [$start];
         $visited = [];
-        $steps = 0;
 
-        while ($queue !== [] && $steps < $maxSteps) {
-            $steps++;
-            $id = array_shift($queue);
+        while ($queue !== [] && $context->stepCount < $maxSteps) {
+            $context->stepCount++;
+            $id = (string) array_shift($queue);
 
             // A node may be reached by several branches (fan-in / diamond). Run
-            // it at most once per flow so a join doesn't double-fire its handler.
+            // it at most once per walk so a join doesn't double-fire its handler.
             if (isset($visited[$id])) {
                 continue;
             }
@@ -59,8 +92,7 @@ class FlowRunner
             }
 
             // Per-node error handling: retry up to `retry` attempts, then route to
-            // an `on_error` node if one is declared, else fail the run gracefully
-            // (a toast is surfaced to the page rather than a dead 500).
+            // an `on_error` node if one is declared, else fail the run gracefully.
             $attempts = max(1, (int) ($node['retry'] ?? ($node['config']['retry'] ?? 1)));
             $lastError = null;
             $ran = false;
@@ -96,18 +128,30 @@ class FlowRunner
                 continue;
             }
 
-            // Unhandled: mark failed, surface a toast (configurable), and stop.
+            // Unhandled: mark failed. At top level surface a toast (configurable);
+            // inside a body, stay silent so the enclosing node owns the failure.
             $context->failed = true;
-            if (config('ai-page-builder.flow.error_notify', true)) {
+            if ($notifyOnFailure && config('ai-page-builder.flow.error_notify', true)) {
                 $context->addAction([
                     'type' => 'notify',
                     'level' => 'error',
                     'message' => (string) config('ai-page-builder.flow.error_message', 'Something went wrong. Please try again.'),
                 ]);
             }
-            break;
-        }
 
-        return $context;
+            return;
+        }
+    }
+
+    /**
+     * @param  array<string,mixed>  $definition
+     * @return array<string,array<string,mixed>>
+     */
+    private function nodesOf(array $definition): array
+    {
+        /** @var array<string,array<string,mixed>> $nodes */
+        $nodes = (array) ($definition['nodes'] ?? []);
+
+        return $nodes;
     }
 }

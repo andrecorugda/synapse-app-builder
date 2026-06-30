@@ -25,10 +25,12 @@ use Andre\AiPageBuilder\Flow\Nodes\AiInvokeNode;
 use Andre\AiPageBuilder\Flow\Nodes\ConditionNode;
 use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
+use Andre\AiPageBuilder\Flow\Nodes\LoopNode;
 use Andre\AiPageBuilder\Flow\Nodes\RecordNode;
 use Andre\AiPageBuilder\Flow\Nodes\ResultNode;
 use Andre\AiPageBuilder\Flow\Nodes\SendEmailNode;
 use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
+use Andre\AiPageBuilder\Flow\Nodes\TransactionNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
 use Andre\AiPageBuilder\Http\Controllers\AuthController;
@@ -131,6 +133,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             $registry->register($app->make(RecordNode::class));
             $registry->register($app->make(SetVariableNode::class));
             $registry->register($app->make(SendEmailNode::class));
+            $registry->register(new LoopNode);
+            $registry->register(new TransactionNode);
 
             return $registry;
         });
