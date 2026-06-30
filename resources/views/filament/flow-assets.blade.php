@@ -224,14 +224,14 @@
         .ai-pb-drawer {
             position: absolute;
             top: 0;
-            right: 0;
+            left: 0;
             height: 100%;
             width: 320px;
             max-width: 90%;
             background: #0f172a;
-            border-left: 1px solid #334155;
-            box-shadow: -8px 0 24px rgb(0 0 0 / 0.4);
-            transform: translateX(100%);
+            border-right: 1px solid #334155;
+            box-shadow: 8px 0 24px rgb(0 0 0 / 0.4);
+            transform: translateX(-100%);
             transition: transform 0.18s ease;
             z-index: 21;
             display: flex;

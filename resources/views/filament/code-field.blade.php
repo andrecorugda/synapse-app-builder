@@ -38,12 +38,12 @@
             helperDefs: @js($helperDefs),
         })"
         x-init="boot()"
-        style="border:1px solid rgb(255 255 255 / 0.1);border-radius:0.5rem;overflow:hidden;background:#1e1e1e;"
+        style="border:1px solid rgb(255 255 255 / 0.1);border-radius:0.5rem;overflow:visible;background:#1e1e1e;position:relative;"
     >
         @if (in_array($language, ['php', 'javascript'], true))
             {{-- Insert a State reference (state('key') / $states['key']) at the
                  cursor; each option shows the State's data type. --}}
-            <div style="display:flex;justify-content:flex-end;gap:.4rem;padding:.3rem .4rem;border-bottom:1px solid rgb(255 255 255 / 0.08);background:#181f33;">
+            <div style="display:flex;justify-content:flex-end;gap:.4rem;padding:.3rem .4rem;border-bottom:1px solid rgb(255 255 255 / 0.08);background:#181f33;border-radius:0.5rem 0.5rem 0 0;">
                 {{-- Function-helper dropdown: pick a helper to insert its usage
                      snippet at the cursor. Rendered only when helperDefs is
                      non-empty (the Function body editor opted in). --}}
@@ -53,7 +53,7 @@
                         title="Insert a function helper at the cursor"
                         style="background:#0f172a;color:#c7d2fe;border:1px solid #6366f166;border-radius:.3rem;font-size:.72rem;padding:.15rem .55rem;cursor:pointer;"
                         x-text="helpersOpen ? '✕ Helpers' : 'ƒ Insert helper…'"></button>
-                    <div x-show="helpersOpen" x-transition.opacity @click.outside="helpersOpen = false" style="display:none;position:absolute;right:0;top:calc(100% + .25rem);z-index:50;width:320px;max-height:340px;overflow-y:auto;background:#0f172a;border:1px solid #334155;border-radius:.5rem;box-shadow:0 12px 32px rgba(0,0,0,.45);padding:.4rem;">
+                    <div x-show="helpersOpen" x-transition.opacity @click.outside="helpersOpen = false" style="display:none;position:absolute;right:0;top:calc(100% + .25rem);z-index:1000;width:340px;max-height:460px;overflow-y:auto;background:#0f172a;border:1px solid #334155;border-radius:.5rem;box-shadow:0 18px 48px rgba(0,0,0,.6);padding:.4rem;">
                         <input type="text" x-model="helperSearch" placeholder="Search helpers…"
                             style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;border-radius:.35rem;padding:.3rem .5rem;font-size:.74rem;color:#e2e8f0;outline:none;margin-bottom:.4rem;" />
                         <template x-for="group in helperGroups()" :key="group.category">
@@ -90,6 +90,7 @@
                 </select>
             </div>
         @endif
-        <div x-ref="editor" style="width:100%;height:{{ (int) $height }}px;"></div>
+        @php $editorRadius = in_array($language, ['php', 'javascript'], true) ? '0 0 0.5rem 0.5rem' : '0.5rem'; @endphp
+        <div x-ref="editor" style="width:100%;height:{{ (int) $height }}px;border-radius:{{ $editorRadius }};overflow:hidden;"></div>
     </div>
 </x-dynamic-component>
