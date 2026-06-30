@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Blocks;
 
+use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
+
 /**
  * The source of truth for the editor's blocks.
  *
@@ -600,45 +602,57 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block (sections + basics + shapes + components + forms + data) for
-     * the GrapesJS block manager.
+     * The raw built-in blocks (sections + basics + shapes + components + forms
+     * + data). This is the seed for {@see ComponentRegistry} — the public
+     * accessors below delegate back to that registry, so building it from the
+     * public all() would recurse. Consumers should read all()/keys()/find()/
+     * toArray() (which include registered third-party blocks); only the
+     * registry seeding reads builtins().
      *
      * @return array<int,SectionBlock>
      */
-    public static function all(): array
+    public static function builtins(): array
     {
         return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms(), ...self::data()];
     }
 
     /**
-     * Section keys only — the vocabulary the AI is allowed to emit.
+     * Every block for the GrapesJS block manager — built-ins plus any blocks
+     * registered through {@see ComponentRegistry} (third-party / premium).
+     * Delegates to the registry so registered components are visible here.
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function all(): array
+    {
+        return app(ComponentRegistry::class)->all();
+    }
+
+    /**
+     * Every block key — the vocabulary the AI is allowed to emit, including any
+     * registered third-party / premium block. Delegates to the registry.
      *
      * @return array<int,string>
      */
     public static function keys(): array
     {
-        return array_map(static fn (SectionBlock $b): string => $b->key, self::sections());
+        return app(ComponentRegistry::class)->keys();
     }
 
     public static function find(string $key): ?SectionBlock
     {
-        foreach (self::all() as $block) {
-            if ($block->key === $key) {
-                return $block;
-            }
-        }
-
-        return null;
+        return app(ComponentRegistry::class)->find($key);
     }
 
     /**
-     * Serializable form for the GrapesJS block manager (JS side).
+     * Serializable form for the GrapesJS block manager (JS side) — built-ins
+     * plus registered blocks. Delegates to the registry.
      *
-     * @return array<int,array{key:string,label:string,category:string,template:string,description:string}>
+     * @return array<int,array{key:string,label:string,category:string,template:string,description:string,icon:string}>
      */
     public static function toArray(): array
     {
-        return array_map(static fn (SectionBlock $b): array => $b->toArray(), self::all());
+        return app(ComponentRegistry::class)->toArray();
     }
 
     private static function block(string $key, string $label, string $description, string $template, string $category = 'Sections'): SectionBlock
