@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Models;
 
+use Andre\AiPageBuilder\Ai\HtmlSanitizer;
 use Andre\AiPageBuilder\Database\Factories\PageFactory;
 use Andre\AiPageBuilder\Enums\PageStatus;
 use Andre\AiPageBuilder\Services\PageRenderer;
@@ -172,6 +173,20 @@ class Page extends Model
 
     protected static function booted(): void
     {
+        // Sanitize the rendered `html` snapshot on EVERY write path — the
+        // GrapesJS editor save, the REST API, AND the AI/import applier — not
+        // just the AI path. `html` is served verbatim to visitors, so it is the
+        // XSS surface; running it through HtmlSanitizer here closes the gap where
+        // a hand-built editor save could persist a <script>/onload payload.
+        //
+        // `custom_css` / `custom_js` are intentionally NOT sanitized: they are
+        // the trusted-author raw escape hatch and are emitted raw by design.
+        static::saving(static function (Page $page): void {
+            if ($page->isDirty('html') && is_string($page->html) && $page->html !== '') {
+                $page->html = app(HtmlSanitizer::class)->sanitize($page->html);
+            }
+        });
+
         $bust = static function (Page $page): void {
             $renderer = app(PageRenderer::class);
             $renderer->forget($page->slug);

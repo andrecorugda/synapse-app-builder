@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use InvalidArgumentException;
 
 /**
  * One field on a user-defined data model. `type` is a FieldType value; `options`
@@ -31,6 +32,27 @@ class PbField extends Model
         'options' => 'array',
         'sort' => 'integer',
     ];
+
+    /**
+     * Field key charset. A field key becomes a physical column name via
+     * SchemaSynchronizer/FieldType, so — like a collection key — it is a DDL
+     * injection surface on the untrusted AI/import path. Enforce it at the model
+     * layer. Mirrors PbModel::KEY_PATTERN and BuildPlanValidator::isValidSlug.
+     */
+    public const KEY_PATTERN = '/^[a-z][a-z0-9_]*$/';
+
+    protected static function booted(): void
+    {
+        static::saving(static function (PbField $field): void {
+            $key = $field->getAttribute('key');
+            if (! is_string($key) || preg_match(self::KEY_PATTERN, $key) !== 1) {
+                throw new InvalidArgumentException(
+                    "Invalid field key '".(is_string($key) ? $key : gettype($key))
+                    ."': must match ".self::KEY_PATTERN.' (lowercase letter, then letters/digits/underscore).'
+                );
+            }
+        });
+    }
 
     public function getConnectionName(): ?string
     {

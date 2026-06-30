@@ -37,6 +37,7 @@ class BuildPlanApplier
         private readonly VariableStore $variables,
         private readonly HtmlSanitizer $sanitizer,
         private readonly Settings $settings,
+        private readonly BuildPlanValidator $validator,
     ) {}
 
     /**
@@ -58,6 +59,22 @@ class BuildPlanApplier
             ],
             'errors' => [],
         ];
+
+        // Validate the plan BEFORE touching the DB. Hard errors (bad slugs,
+        // unknown field/node types, …) abort the whole apply so a malicious or
+        // malformed key can never reach Schema::create / column DDL via this
+        // untrusted path. Advisory "(warning)" entries (e.g. an unknown
+        // data-pb-block, or a home_page not in the plan) are NOT blocking.
+        $hardErrors = array_values(array_filter(
+            $this->validator->validate($plan),
+            static fn (string $e): bool => ! str_contains($e, '(warning)'),
+        ));
+
+        if ($hardErrors !== []) {
+            $summary['errors'] = $hardErrors;
+
+            return $summary;
+        }
 
         if ($dryRun) {
             $this->plan($build, $summary);
@@ -382,17 +399,22 @@ class BuildPlanApplier
     }
 
     /**
-     * Pull any inlined `<style>` and inline `<script>` (no src) out of page html
-     * and return [cleanHtml, css, js]. Keeps AI-authored markup clean and routes
-     * styling/behaviour into the page's configurable custom_css / custom_js
-     * channels (the prompt asks for this; this is the backstop when it inlines).
+     * Pull any inlined `<style>` out of page html (CSS only) and return
+     * [cleanHtml, css, '']. Keeps AI-authored markup clean and routes styling
+     * into the page's configurable custom_css channel.
+     *
+     * `<script>` is NOT lifted here. This is the UNTRUSTED AI/import path, and
+     * custom_js is emitted RAW to visitors — lifting a model-authored <script>
+     * body into custom_js would turn arbitrary generated JS into an executable
+     * payload that bypasses the html sanitizer entirely. So inline <script>
+     * bodies are simply DROPPED (the sanitizer would strip the tag from html
+     * anyway; we just make sure the body isn't smuggled into custom_js).
      *
      * @return array{0:string,1:string,2:string}
      */
     private function liftInlineAssets(string $html): array
     {
         $css = [];
-        $js = [];
 
         $html = preg_replace_callback('#<style\b[^>]*>(.*?)</style>#is', function (array $m) use (&$css): string {
             $css[] = trim($m[1]);
@@ -400,17 +422,11 @@ class BuildPlanApplier
             return '';
         }, $html) ?? $html;
 
-        $html = preg_replace_callback('#<script\b([^>]*)>(.*?)</script>#is', function (array $m) use (&$js): string {
-            // Only lift INLINE scripts; a src= script is external/untrusted and is
-            // dropped (the sanitizer would strip it anyway).
-            if (! preg_match('/\bsrc\s*=/i', $m[1])) {
-                $js[] = trim($m[2]);
-            }
+        // Drop inline <script> bodies on this untrusted path — do NOT move them
+        // into the raw-emitted custom_js channel.
+        $html = preg_replace('#<script\b[^>]*>.*?</script>#is', '', $html) ?? $html;
 
-            return '';
-        }, $html) ?? $html;
-
-        return [$html, trim(implode("\n", array_filter($css))), trim(implode("\n", array_filter($js)))];
+        return [$html, trim(implode("\n", array_filter($css))), ''];
     }
 
     /**
