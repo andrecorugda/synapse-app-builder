@@ -14,9 +14,12 @@ use Laravel\Socialite\Contracts\User as SocialiteUser;
  *   - Google / Microsoft → the verified email must be in the allowed domains.
  *   - GitHub             → the user must belong to an allowed org (memberships
  *                          are fetched by the controller and passed in).
- * Then find-or-create by (provider, provider_id), linking an existing account
- * with the same email. New accounts follow the onboarding policy (approval →
- * status=pending) and get the default role; SSO users have no local password.
+ * Then find-or-create by (provider, provider_id). An existing local account
+ * with the same email is linked ONLY when the provider asserts the email is
+ * verified (otherwise the sign-in is rejected, to prevent account takeover via
+ * an unverified provider identity). New accounts follow the onboarding policy
+ * (approval → status=pending) and get the default role; SSO users have no local
+ * password.
  */
 class SocialUserResolver
 {
@@ -50,16 +53,28 @@ class SocialUserResolver
             ->where('provider_id', $providerId)
             ->first();
 
-        // 2) Existing local account with the same (provider-verified) email — link it.
+        // 2) Existing local account with the same email — link it, but ONLY when
+        // the provider asserts the email is verified. Linking on a bare email
+        // match would let an attacker who controls an unverified provider
+        // identity take over an existing local account, so we refuse to merge
+        // (and never stamp email_verified_at) for unverified provider emails.
         if (! $user instanceof PbUser) {
-            $user = $userClass::query()->where('email', $email)->first();
-            if ($user instanceof PbUser) {
-                $user->setAttribute('provider', $provider);
-                $user->setAttribute('provider_id', $providerId);
-                if ($user->getAttribute('email_verified_at') === null) {
-                    $user->setAttribute('email_verified_at', now());
+            $existing = $userClass::query()->where('email', $email)->first();
+            if ($existing instanceof PbUser) {
+                if (! $this->providerVerifiedEmail($provider, $ssoUser)) {
+                    throw new SocialAuthException(
+                        'Your '.$this->providers->label($provider).' account has not verified this email address. '
+                        .'Sign in with your existing method to link '.$this->providers->label($provider).'.'
+                    );
                 }
-                $user->save();
+
+                $existing->setAttribute('provider', $provider);
+                $existing->setAttribute('provider_id', $providerId);
+                if ($existing->getAttribute('email_verified_at') === null) {
+                    $existing->setAttribute('email_verified_at', now());
+                }
+                $existing->save();
+                $user = $existing;
             }
         }
 
@@ -81,6 +96,48 @@ class SocialUserResolver
         }
 
         return $user;
+    }
+
+    /**
+     * Whether the provider asserts the signing-in email is verified, read from
+     * the Socialite user's raw claims:
+     *   - Google / Microsoft → `email_verified` / `verified` (bool or "true"/"1").
+     *   - GitHub (user:email scope) → the primary email's `verified` flag, which
+     *     Socialite surfaces under the raw `email_verified` key.
+     * Absent/falsey claims are treated as NOT verified (fail closed).
+     */
+    private function providerVerifiedEmail(string $provider, SocialiteUser $ssoUser): bool
+    {
+        $raw = method_exists($ssoUser, 'getRaw') ? $ssoUser->getRaw() : [];
+        if (! is_array($raw)) {
+            return false;
+        }
+
+        foreach (['email_verified', 'verified'] as $key) {
+            if (array_key_exists($key, $raw) && $this->isTruthyClaim($raw[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Normalize a provider claim that may arrive as bool, int, or string. */
+    private function isTruthyClaim(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return $value === 1;
+        }
+
+        if (is_string($value)) {
+            return in_array(strtolower(trim($value)), ['1', 'true', 'yes'], true);
+        }
+
+        return false;
     }
 
     private function assertDomainAllowed(string $provider, string $email): void

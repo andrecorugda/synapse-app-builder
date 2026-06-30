@@ -107,6 +107,40 @@ it('consumes a recovery code once via verifyRecoveryCode', function (): void {
         ->and(tfaService()->verifyRecoveryCode($user, $code))->toBeFalse();
 });
 
+it('stores recovery codes hashed, never in plaintext', function (): void {
+    $user = tfaUser();
+
+    $begin = tfaService()->beginTotp($user);
+    $codes = tfaService()->confirm($user, currentOtp($begin['secret']));
+
+    /** @var array<int,string> $stored */
+    $stored = (array) $user->refresh()->getAttribute('two_factor_recovery_codes');
+
+    expect($stored)->toHaveCount(8);
+    foreach ($codes as $plain) {
+        // The plaintext code never appears verbatim in the stored column...
+        expect($stored)->not->toContain($plain);
+    }
+    foreach ($stored as $hash) {
+        // ...and every stored value is a bcrypt hash that matches via Hash::check.
+        expect($hash)->toStartWith('$2y$');
+    }
+    // Sanity: a stored hash verifies against its originating plaintext.
+    expect(Hash::check($codes[0], $stored[0]))->toBeTrue();
+});
+
+it('consuming one recovery code leaves the others usable', function (): void {
+    $user = tfaUser();
+
+    $begin = tfaService()->beginTotp($user);
+    $codes = tfaService()->confirm($user, currentOtp($begin['secret']));
+
+    expect(tfaService()->verifyRecoveryCode($user, $codes[0]))->toBeTrue()
+        ->and(tfaService()->verifyRecoveryCode($user, $codes[0]))->toBeFalse()
+        // A different, still-unspent code remains valid.
+        ->and(tfaService()->verifyRecoveryCode($user, $codes[1]))->toBeTrue();
+});
+
 it('accepts a recovery code at the challenge', function (): void {
     $user = tfaUser();
 
