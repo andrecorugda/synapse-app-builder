@@ -16,7 +16,10 @@ namespace Andre\AiPageBuilder\Flow;
  */
 class FlowRunner
 {
-    public function __construct(private readonly NodeRegistry $registry) {}
+    public function __construct(
+        private readonly NodeRegistry $registry,
+        private readonly FlowRuntime $runtime,
+    ) {}
 
     /**
      * @param  array<string,mixed>  $definition  { start, nodes: { id => node } }
@@ -32,7 +35,14 @@ class FlowRunner
             return $context;
         }
 
-        $this->walk($nodes, $start, $context, notifyOnFailure: true);
+        // Publish the active context so function helpers (ui_notify, ui_redirect,
+        // …) invoked deep in the expression sandbox can queue browser actions.
+        $this->runtime->setContext($context);
+        try {
+            $this->walk($nodes, $start, $context, notifyOnFailure: true);
+        } finally {
+            $this->runtime->setContext(null);
+        }
 
         return $context;
     }

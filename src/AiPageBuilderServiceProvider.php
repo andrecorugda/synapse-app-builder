@@ -6,6 +6,11 @@ namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Ai\AppBuilderService;
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Capabilities\HelperRegistry;
+use Andre\AiPageBuilder\Capabilities\Helpers\AuthHelpers;
+use Andre\AiPageBuilder\Capabilities\Helpers\DbHelpers;
+use Andre\AiPageBuilder\Capabilities\Helpers\UiHelpers;
+use Andre\AiPageBuilder\Capabilities\Helpers\UtilHelpers;
 use Andre\AiPageBuilder\Console\ExportAppCommand;
 use Andre\AiPageBuilder\Console\ExportSiteCommand;
 use Andre\AiPageBuilder\Console\ImportAppCommand;
@@ -18,6 +23,7 @@ use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowDispatcher;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
+use Andre\AiPageBuilder\Flow\FlowRuntime;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Flow\GatewayAiInvoker;
 use Andre\AiPageBuilder\Flow\NodeRegistry;
@@ -122,6 +128,15 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         // Flow engine.
         $this->app->bind(AiInvoker::class, GatewayAiInvoker::class);
         $this->app->singleton(FunctionRegistry::class);
+        $this->app->singleton(FlowRuntime::class);
+        $this->app->singleton(HelperRegistry::class, function ($app): HelperRegistry {
+            $registry = new HelperRegistry;
+            foreach ([DbHelpers::class, UiHelpers::class, AuthHelpers::class, UtilHelpers::class] as $provider) {
+                $app->make($provider)->register($registry);
+            }
+
+            return $registry;
+        });
         $this->app->singleton(NodeRegistry::class, function ($app): NodeRegistry {
             $registry = new NodeRegistry;
             $registry->register(new TriggerNode);
