@@ -23,6 +23,7 @@ These docs are the reference: how it installs, how each subsystem works, the exa
 4. [Authentication & permissions](authentication-and-permissions.md) — the `pb` guard, opt-in permission model, row-level rules.
 5. [Email](email.md) — the isolated SMTP transport and templates.
 6. [Extending](extending.md) — swap models, register custom flow nodes/blocks, the `AiInvoker` contract, observers.
+7. [Extending flow nodes & helpers](extending-flows.md) — the `PageBuilder::registerNode/registerHelper` seam, the capability catalogue, MCP/AI exposure.
 
 ## All pages
 
@@ -39,6 +40,7 @@ These docs are the reference: how it installs, how each subsystem works, the exa
 | [ai.md](ai.md) | The Build Plan contract, "Build with AI," the floating chat, idempotent apply, the code-generated system prompt, safety. |
 | [configuration.md](configuration.md) | A table of **every** key in `config/ai-page-builder.php`, with env var, default and meaning. |
 | [extending.md](extending.md) | Swapping models, custom flow nodes, custom blocks, the `AiInvoker` contract, events/observers. |
+| [extending-flows.md](extending-flows.md) | The public `PageBuilder::registerNode/registerHelper` API, the merged capability catalogue, and MCP/AI tool exposure (`ai-page-builder:capabilities`). |
 
 ## Conventions used in these docs
 
