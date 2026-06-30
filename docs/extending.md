@@ -157,14 +157,20 @@ The package's own models (`Page`, `Flow`, etc.) are ordinary Eloquent models —
 
 ## The `PageBuilder` facade
 
-The package registers a `PageBuilder` facade (auto-aliased via `composer.json` → `extra.laravel.aliases`), fronting `PageBuilderManager`. It currently exposes page rendering:
+The package registers a `PageBuilder` facade (auto-aliased via `composer.json` → `extra.laravel.aliases`), fronting `PageBuilderManager`. It exposes page rendering plus the extensibility seam:
 
 ```php
 use Andre\AiPageBuilder\Facades\PageBuilder;
 
 $html = PageBuilder::render($page);   // fully-rendered (cached) HTML for a published Page
 PageBuilder::forget($page->slug);      // bust the render cache for a slug
+
+PageBuilder::registerNode($handler);             // add a custom flow node
+PageBuilder::registerHelper($definition, $fn);   // add a custom function helper
+PageBuilder::capabilities();                      // the merged node+helper catalogue (MCP/AI tool list)
 ```
+
+See [Extending flow nodes & helpers](extending-flows.md) for the full node/helper registration walkthrough and the MCP/AI capability catalogue.
 
 For data, flows and AI, use the dedicated services directly (`RecordQuery`, `FlowManager`, `BuildPlanApplier`, etc.) as shown throughout these docs.
 

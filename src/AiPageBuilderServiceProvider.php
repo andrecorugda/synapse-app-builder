@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Capabilities\Helpers\AuthHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\DbHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\UiHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\UtilHelpers;
+use Andre\AiPageBuilder\Console\CapabilitiesCommand;
 use Andre\AiPageBuilder\Console\ExportAppCommand;
 use Andre\AiPageBuilder\Console\ExportSiteCommand;
 use Andre\AiPageBuilder\Console\ImportAppCommand;
@@ -116,7 +117,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->hasCommand(InstallDemoCommand::class)
             ->hasCommand(ExportSiteCommand::class)
             ->hasCommand(ExportAppCommand::class)
-            ->hasCommand(ImportAppCommand::class);
+            ->hasCommand(ImportAppCommand::class)
+            ->hasCommand(CapabilitiesCommand::class);
     }
 
     public function packageRegistered(): void
