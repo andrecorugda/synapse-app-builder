@@ -22,6 +22,13 @@ class FlowContext
     /** @var array<int,array<string,mixed>> */
     public array $steps = [];
 
+    /**
+     * Global executed-node counter, shared across the main walk AND every nested
+     * loop/transaction body so the `flow.max_steps` budget bounds the run as a
+     * whole — a runaway loop hits the same cap instead of spinning forever.
+     */
+    public int $stepCount = 0;
+
     /** Set when a node failed and no on-error branch handled it. */
     public bool $failed = false;
 
