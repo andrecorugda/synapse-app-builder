@@ -37,7 +37,11 @@ class RecordQuery
     /**
      * @param  array<string,mixed>  $params
      */
-    public function list(PbModel $model, array $params = []): LengthAwarePaginator
+    /**
+     * @param  array<string,mixed>  $params
+     * @param  (callable(string,bool):(array{rule?:array<string,mixed>,fields?:array<int,string>|null}|false))|null  $authorizeExpand
+     */
+    public function list(PbModel $model, array $params = [], ?callable $authorizeExpand = null): LengthAwarePaginator
     {
         $query = Record::for($model)->newQuery();
 
@@ -51,15 +55,16 @@ class RecordQuery
 
         $paginator = $query->paginate($perPage, $columns, 'page', (int) ($params['page'] ?? 1));
 
-        $this->expand($model, $paginator->getCollection(), $this->expandKeys($params));
+        $this->expand($model, $paginator->getCollection(), $this->expandKeys($params), $authorizeExpand);
 
         return $paginator;
     }
 
     /**
      * @param  array<string,mixed>  $params
+     * @param  (callable(string,bool):(array{rule?:array<string,mixed>,fields?:array<int,string>|null}|false))|null  $authorizeExpand
      */
-    public function find(PbModel $model, int|string $id, array $params = []): ?Record
+    public function find(PbModel $model, int|string $id, array $params = [], ?callable $authorizeExpand = null): ?Record
     {
         $columns = $this->projection($model, (string) ($params['fields'] ?? ''));
 
@@ -67,7 +72,7 @@ class RecordQuery
         $record = Record::for($model)->newQuery()->find($id, $columns);
 
         if ($record !== null) {
-            $this->expand($model, collect([$record]), $this->expandKeys($params));
+            $this->expand($model, collect([$record]), $this->expandKeys($params), $authorizeExpand);
         }
 
         return $record;
@@ -115,10 +120,22 @@ class RecordQuery
      *     `relation` field points back at this model → the array of child rows.
      * Batched (no N+1). Related rows are loaded through Record so casts apply.
      *
+     * Permission-gated at the edge: when an `$authorize` callback is supplied
+     * (the REST API passes one — flows/functions/admin omit it and stay trusted),
+     * each expand target is checked first. The callback receives the related
+     * collection key and whether the target is the users table, and returns
+     * either `false` to drop the expand entirely, or `['rule' => <row filter>,
+     * 'fields' => <allowed field keys|null>]` to scope the attached rows. The
+     * row rule is applied as a query filter (cross-owner rows never load) and
+     * the field list projects every attached related row (null = all fields).
+     * User-target relations are always projected through PbUser's $hidden so
+     * password / 2FA columns never leak.
+     *
      * @param  Collection<int,Record>  $records
      * @param  array<int,string>  $expand
+     * @param  (callable(string,bool):(array{rule?:array<string,mixed>,fields?:array<int,string>|null}|false))|null  $authorize
      */
-    private function expand(PbModel $model, Collection $records, array $expand): void
+    private function expand(PbModel $model, Collection $records, array $expand, ?callable $authorize = null): void
     {
         if ($expand === [] || $records->isEmpty()) {
             return;
@@ -141,18 +158,35 @@ class RecordQuery
                     continue;
                 }
 
+                $isUser = $relatedKey === PbUser::RELATION_TARGET;
+
+                // Edge authorization: drop the expand if the caller may not read
+                // the related collection; otherwise capture its scope.
+                $scope = $this->authorizeExpandTarget($authorize, $relatedKey, $isUser);
+                if ($scope === false) {
+                    foreach ($records as $record) {
+                        $record->setAttribute($name, null);
+                    }
+
+                    continue;
+                }
+
                 $ids = $records->pluck($column)->filter()->unique()->values()->all();
                 try {
-                    $relatedById = $ids === []
+                    $related = $ids === []
                         ? collect()
-                        : $this->relationTarget($relatedKey)->newQuery()->whereIn('id', $ids)->get()->keyBy('id');
+                        : $this->scopedRelatedQuery($relatedKey, $scope['rule'])->whereIn('id', $ids)->get();
                 } catch (\Throwable) {
                     continue;
                 }
 
+                $relatedById = $related
+                    ->map(fn (Model $row) => $this->projectRelated($row, $scope['fields']))
+                    ->keyBy('id');
+
                 foreach ($records as $record) {
                     $fk = $record->getAttribute($column);
-                    $record->setAttribute($name, $fk !== null ? $relatedById->get($fk)?->toArray() : null);
+                    $record->setAttribute($name, $fk !== null ? $relatedById->get($fk) : null);
                 }
 
                 continue;
@@ -172,19 +206,101 @@ class RecordQuery
                 continue;
             }
 
+            // Edge authorization for the child collection.
+            $scope = $this->authorizeExpandTarget($authorize, $childModel->key, false);
+            if ($scope === false) {
+                foreach ($records as $record) {
+                    $record->setAttribute($name, []);
+                }
+
+                continue;
+            }
+
             $column = $backRef->columnName();
             $parentIds = $records->pluck('id')->all();
             try {
-                $childrenByParent = Record::for($childModel)->newQuery()->whereIn($column, $parentIds)->get()->groupBy($column);
+                $childQuery = Record::for($childModel)->newQuery()->whereIn($column, $parentIds);
+                // Scope to the child collection's row rule (scalar => eq) through
+                // applyFilters so it passes the model's column whitelist.
+                $this->applyFilters($childModel, $childQuery, $scope['rule']);
+                $childrenByParent = $childQuery->get()->groupBy($column);
             } catch (\Throwable) {
                 continue;
             }
 
             foreach ($records as $record) {
                 $children = $childrenByParent->get($record->getAttribute('id'));
-                $record->setAttribute($name, $children ? $children->map->toArray()->values()->all() : []);
+                $record->setAttribute($name, $children
+                    ? $children->map(fn (Record $row) => $this->projectRelated($row, $scope['fields']))->values()->all()
+                    : []);
             }
         }
+    }
+
+    /**
+     * Resolve the expand authorization callback to a concrete scope. No callback
+     * (trusted caller) → full access (no rule, all fields). A callback returning
+     * `false` propagates as `false` (drop the expand). Otherwise normalise the
+     * returned scope so callers always get both keys.
+     *
+     * @param  (callable(string,bool):(array{rule?:array<string,mixed>,fields?:array<int,string>|null}|false))|null  $authorize
+     * @return array{rule:array<string,mixed>,fields:array<int,string>|null}|false
+     */
+    private function authorizeExpandTarget(?callable $authorize, string $relatedKey, bool $isUser): array|false
+    {
+        if ($authorize === null) {
+            return ['rule' => [], 'fields' => null];
+        }
+
+        $scope = $authorize($relatedKey, $isUser);
+        if ($scope === false) {
+            return false;
+        }
+
+        return [
+            'rule' => is_array($scope['rule'] ?? null) ? $scope['rule'] : [],
+            'fields' => array_key_exists('fields', $scope) ? $scope['fields'] : null,
+        ];
+    }
+
+    /**
+     * A query for the related target with the related collection's row rule
+     * applied as filters, so cross-owner rows are never loaded into the expand.
+     *
+     * @param  array<string,mixed>  $rule
+     */
+    private function scopedRelatedQuery(string $relatedKey, array $rule): Builder
+    {
+        $query = $this->relationTarget($relatedKey)->newQuery();
+
+        if ($rule !== []) {
+            // Row rules are scalar field => value equality pairs.
+            foreach ($rule as $field => $value) {
+                $query->where($field, $value);
+            }
+        }
+
+        return $query;
+    }
+
+    /**
+     * Project an attached related row to a plain array, dropping any field the
+     * caller may not see. Every row goes through the model's `toArray()`, so a
+     * user-target row is already stripped of password / 2FA via PbUser's
+     * $hidden; `id` is always kept so rows stay addressable.
+     *
+     * @param  array<int,string>|null  $fields
+     * @return array<string,mixed>
+     */
+    private function projectRelated(Model $row, ?array $fields): array
+    {
+        $arr = $row->toArray();
+
+        if ($fields === null) {
+            return $arr;
+        }
+
+        return array_intersect_key($arr, array_flip(['id', ...$fields]));
     }
 
     /**

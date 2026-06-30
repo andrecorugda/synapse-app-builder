@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Andre\AiPageBuilder\Http\Middleware\EnsureDataApiSameOrigin;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\FlowRun;
@@ -90,11 +91,14 @@ return [
         'api_prefix' => env('AI_PAGE_BUILDER_DATA_API_PREFIX', 'api/pb'),
         // Cookie + session are prepended so the built app's logged-in end-user
         // (the `pb` guard) is recognised on same-origin XHR — that's what lets
-        // permission + row-level rules apply. No CSRF is added, so stateless
-        // writes keep working; unrestricted collections stay fully open.
+        // permission + row-level rules apply. EnsureDataApiSameOrigin then guards
+        // cookie-authenticated writes against CSRF with an Origin/Referer check
+        // (Bearer-token and read requests bypass it), so stateless API writes keep
+        // working; unrestricted collections stay fully open.
         'api_middleware' => [
             EncryptCookies::class,
             StartSession::class,
+            EnsureDataApiSameOrigin::class,
             'api',
         ],
         // Drop real columns when their field definition is removed. Off by
@@ -285,7 +289,9 @@ return [
     'media' => [
         'disk' => env('AI_PAGE_BUILDER_MEDIA_DISK', 'public'),
         'directory' => env('AI_PAGE_BUILDER_MEDIA_DIR', 'page-builder'),
-        'accept' => ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'],
+        // SVG is intentionally excluded: an .svg can carry <script>/onload and
+        // become stored XSS when served inline. Re-add only if you sanitize SVGs.
+        'accept' => ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
         'max_kb' => (int) env('AI_PAGE_BUILDER_MEDIA_MAX_KB', 8192),
     ],
 

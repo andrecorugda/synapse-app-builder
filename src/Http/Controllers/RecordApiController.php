@@ -37,7 +37,7 @@ class RecordApiController extends Controller
         }
 
         $params = $this->applyRowRule($request->query(), $model, 'read');
-        $paginator = $this->records->list($this->resolve($model), $params);
+        $paginator = $this->records->list($this->resolve($model), $params, $this->expandAuthorizer());
 
         $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'read');
         $data = $paginator->toArray();
@@ -54,7 +54,7 @@ class RecordApiController extends Controller
             return $deny;
         }
 
-        $record = $this->records->find($this->resolve($model), $id, $request->query());
+        $record = $this->records->find($this->resolve($model), $id, $request->query(), $this->expandAuthorizer());
 
         if ($record === null || ! $this->matchesRule($record->toArray(), $model, 'read')) {
             return response()->json(['message' => 'Record not found.'], 404);
@@ -104,6 +104,16 @@ class RecordApiController extends Controller
 
         $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'update');
         $input = $allowed === null ? $request->all() : Arr::only($request->all(), $allowed);
+
+        // Re-stamp rule-controlled fields so the caller can't reassign the row
+        // (e.g. PATCH owner_id to give it away). The update rule wins over input;
+        // the create rule's $CURRENT_USER fields are folded in too, so ownership
+        // columns established at create stay pinned to the acting user on update.
+        $ruleFields = array_merge(
+            $this->access->rowRule($this->access->currentUser(), $model, 'create'),
+            $this->access->rowRule($this->access->currentUser(), $model, 'update'),
+        );
+        $input = array_merge($input, $ruleFields);
 
         $record = $this->records->update($this->resolve($model), $id, $input);
 
@@ -175,6 +185,37 @@ class RecordApiController extends Controller
         }
 
         return response()->json(['message' => 'This action is not allowed.'], 403);
+    }
+
+    /**
+     * Build the per-expand authorization callback handed to RecordQuery. For each
+     * requested expand target it answers, from the acting user's permissions on
+     * the RELATED collection: drop the expand entirely (no read access), or scope
+     * the attached related rows by that collection's read row-rule + field list.
+     *
+     * User-target relations (the `PbUser::RELATION_TARGET` sentinel) are not a
+     * `collection` resource — they're always allowed and rely on PbUser's $hidden
+     * (password / 2FA stripped) for safe projection, so no field list is forced.
+     *
+     * @return callable(string,bool):(array{rule:array<string,mixed>,fields:array<int,string>|null}|false)
+     */
+    private function expandAuthorizer(): callable
+    {
+        return function (string $relatedKey, bool $isUser): array|false {
+            if ($isUser) {
+                return ['rule' => [], 'fields' => null];
+            }
+
+            $user = $this->access->currentUser();
+            if (! $this->access->can($user, 'read', 'collection', $relatedKey)) {
+                return false;
+            }
+
+            return [
+                'rule' => $this->access->rowRule($user, $relatedKey, 'read'),
+                'fields' => $this->access->allowedFields($user, $relatedKey, 'read'),
+            ];
+        };
     }
 
     /**
