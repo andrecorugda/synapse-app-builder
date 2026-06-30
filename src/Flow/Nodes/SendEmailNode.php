@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow\Nodes;
 
+use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
+use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
+use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
+use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Services\PageBuilderMailer;
@@ -35,13 +39,36 @@ use Throwable;
  * Failure is non-fatal: a missing transport or a send error is recorded in the
  * output var ({ "sent": false, "error": "…" }) and the flow continues.
  */
-class SendEmailNode implements FlowNodeHandler
+class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
 {
     public function __construct(private readonly PageBuilderMailer $mailer) {}
 
     public function type(): string
     {
         return 'send_email';
+    }
+
+    public function definition(): CapabilityDefinition
+    {
+        return new CapabilityDefinition(
+            key: $this->type(),
+            label: 'Send Email',
+            category: CapabilityCategory::Communication,
+            description: 'Sends an email through the builder\'s own SMTP transport. The body is an email-template page selected by slug, or inline HTML; both are interpolated against the flow. Failures are non-fatal and reported in the output variable.',
+            usage: 'to "{{ input.email }}", subject "Welcome {{ input.name }}", template "welcome-email", output "email" → sends, then {{ vars.email.sent }} is true on success.',
+            icon: 'envelope',
+            inputs: [
+                new CapabilityInput('to', 'To', 'string', required: true, help: 'Recipient(s) — a single address, a comma-separated list, or an array (interpolated).'),
+                new CapabilityInput('subject', 'Subject', 'string', help: 'Email subject line (interpolated).'),
+                new CapabilityInput('template', 'Template page', 'string', help: 'Slug of an email-template page used as the HTML body. Takes precedence over the inline body.'),
+                new CapabilityInput('body', 'Inline body', 'text', help: 'Inline HTML body used when no template slug is given (interpolated).'),
+                new CapabilityInput('cc', 'CC', 'string', help: 'Optional carbon-copy recipient(s).'),
+                new CapabilityInput('bcc', 'BCC', 'string', help: 'Optional blind carbon-copy recipient(s).'),
+                new CapabilityInput('reply_to', 'Reply-To', 'string', help: 'Optional reply-to address.'),
+                new CapabilityInput('output', 'Output variable', 'string', default: 'email', help: 'Context variable receiving {sent: bool, error?: string} (default "email").'),
+            ],
+            outputHandles: ['next'],
+        );
     }
 
     /**

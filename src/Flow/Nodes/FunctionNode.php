@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow\Nodes;
 
+use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
+use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
+use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
+use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\ExpressionEvaluator;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
@@ -27,7 +31,7 @@ use Illuminate\Support\Facades\Log;
  *                Variables exposed: input (ctx.input), vars (ctx.vars), args (interpolated args).
  *   callable   — body is a key in FunctionRegistry; the callable receives ($args, $ctx).
  */
-class FunctionNode implements FlowNodeHandler
+class FunctionNode implements FlowNodeHandler, ProvidesNodeDefinition
 {
     public function __construct(
         private readonly FunctionRegistry $registry,
@@ -37,6 +41,24 @@ class FunctionNode implements FlowNodeHandler
     public function type(): string
     {
         return 'function';
+    }
+
+    public function definition(): CapabilityDefinition
+    {
+        return new CapabilityDefinition(
+            key: $this->type(),
+            label: 'Run Function',
+            category: CapabilityCategory::Util,
+            description: 'Runs a saved reusable function (referenced by its slug) and stores the return value in a context variable. The function body can be an expression, a registered callable, or PHP, depending on how it was defined.',
+            usage: 'function "calc-discount", args {amount: "{{ input.total }}"}, output "discount" → exposes {{ vars.discount }} to later nodes.',
+            icon: 'wrench-screwdriver',
+            inputs: [
+                new CapabilityInput('function', 'Function', 'string', required: true, help: 'Slug of the saved function to execute.'),
+                new CapabilityInput('args', 'Arguments', 'keyvalue', help: 'Key/value arguments passed to the function (interpolated). Exposed inside the function as args.'),
+                new CapabilityInput('output', 'Output variable', 'string', default: 'result', help: 'Context variable to receive the return value (default "result").'),
+            ],
+            outputHandles: ['next'],
+        );
     }
 
     /**

@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow\Nodes;
 
+use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
+use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
+use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
+use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
@@ -24,13 +28,40 @@ use Illuminate\Support\Facades\Log;
  *     "output":    "records"            // ctx var to store the result (default "records")
  *   }
  */
-class RecordNode implements FlowNodeHandler
+class RecordNode implements FlowNodeHandler, ProvidesNodeDefinition
 {
     public function __construct(private readonly RecordQuery $records) {}
 
     public function type(): string
     {
         return 'record';
+    }
+
+    public function definition(): CapabilityDefinition
+    {
+        return new CapabilityDefinition(
+            key: $this->type(),
+            label: 'Record',
+            category: CapabilityCategory::Data,
+            description: 'Reads or writes records of a data collection from inside a flow, through the same query layer the REST API uses. The result is stored in a context variable. The collection is author-fixed and never taken from caller input.',
+            usage: 'model "tickets", operation "create", data {title: "{{ input.title }}"}, output "ticket" → creates a record and exposes {{ vars.ticket }}. For list, "filter" applies; for get/update/delete, "id" selects the row.',
+            icon: 'circle-stack',
+            inputs: [
+                new CapabilityInput('model', 'Collection', 'collection', required: true, help: 'Key of the data collection to operate on. Fixed by the author (not interpolated) for security.'),
+                new CapabilityInput('operation', 'Operation', 'select', default: 'list', options: [
+                    'list' => 'list',
+                    'get' => 'get',
+                    'create' => 'create',
+                    'update' => 'update',
+                    'delete' => 'delete',
+                ]),
+                new CapabilityInput('id', 'Record ID', 'expression', help: 'Record id for get / update / delete (interpolated).'),
+                new CapabilityInput('filter', 'Filter', 'json', help: 'Filter object for list, e.g. {"status": {"eq": "open"}} (interpolated).'),
+                new CapabilityInput('data', 'Data', 'json', help: 'Field values for create / update (interpolated).'),
+                new CapabilityInput('output', 'Output variable', 'string', default: 'records', help: 'Context variable to receive the result (default "records").'),
+            ],
+            outputHandles: ['next'],
+        );
     }
 
     /**
@@ -55,11 +86,19 @@ class RecordNode implements FlowNodeHandler
         $result = null;
 
         if ($key !== '') {
+            // A write that fails must SURFACE: it propagates so the flow's error
+            // handling runs and — crucially — a wrapping Transaction node rolls
+            // back. Silently swallowing a failed write would let a transaction
+            // "succeed" on half-written data. Reads stay graceful (null on error).
+            $isWrite = in_array($operation, ['create', 'update', 'delete'], true);
             try {
                 $model = $this->resolve($key);
                 $result = $this->execute($model, $operation, $config);
             } catch (\Throwable $e) {
                 Log::warning('[ai-page-builder] record node failed: '.$e->getMessage());
+                if ($isWrite) {
+                    throw $e;
+                }
             }
         }
 
