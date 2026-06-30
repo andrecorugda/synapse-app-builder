@@ -80,6 +80,8 @@ $this->app->resolving(NodeRegistry::class, function (NodeRegistry $registry) {
 
 `run()` should: read `config` (interpolating strings via `$context->interpolate()` / `interpolateDeep()`), do its work, optionally `$context->set('<output>', $value)` or `$context->addAction([...])`, and return the next node ids. The new type immediately becomes valid in the [`BuildPlanValidator`](ai.md#validation) and is described to the AI by [`SystemPromptBuilder`](ai.md#the-code-generated-system-prompt) (add a `NODE_HINTS` entry by extending that class if you want a tailored prompt hint; unknown types still appear with a generic hint).
 
+> The simpler, modern path is the `PageBuilder::registerNode($handler)` facade (it resolves to this same `NodeRegistry`). Implement `ProvidesNodeDefinition` alongside `FlowNodeHandler` and your node carries its own drawer/MCP metadata (label, category, typed inputs, output handles) and shows up in the canvas drawer and the [capability catalogue](extending-flows.md#mcp--ai-exposure) automatically. See **[Extending flow nodes & helpers](extending-flows.md)** for the full walkthrough — that page is the canonical reference for nodes *and* function helpers.
+
 ## Registering a callable Function
 
 The `callable` Function runtime looks its `body` up in the `FunctionRegistry`. Register callables at boot:
