@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * A user-defined data model (a "collection"). Its metadata describes a REAL
@@ -42,6 +43,15 @@ class PbModel extends Model
 
     public const SOURCE_EXTERNAL = 'external';
 
+    /**
+     * Collection key charset. A collection key flows into the physical table
+     * name and column DDL via SchemaSynchronizer, so an unconstrained key from
+     * the untrusted AI/import path is an injection surface. Enforce it at the
+     * model layer (not just the Filament form) so a malicious key can never
+     * reach Schema::create. Mirrors BuildPlanValidator::isValidSlug.
+     */
+    public const KEY_PATTERN = '/^[a-z][a-z0-9_]*$/';
+
     protected $guarded = [];
 
     protected $casts = [
@@ -51,6 +61,19 @@ class PbModel extends Model
         'is_read_only' => 'boolean',
         'created_by' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(static function (PbModel $model): void {
+            $key = $model->getAttribute('key');
+            if (! is_string($key) || preg_match(self::KEY_PATTERN, $key) !== 1) {
+                throw new InvalidArgumentException(
+                    "Invalid collection key '".(is_string($key) ? $key : gettype($key))
+                    ."': must match ".self::KEY_PATTERN.' (lowercase letter, then letters/digits/underscore).'
+                );
+            }
+        });
+    }
 
     public function getConnectionName(): ?string
     {
