@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
 use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * Small general-purpose helpers — dates, ids, numbers, JSON — for shaping values
@@ -84,6 +85,28 @@ class UtilHelpers implements HelperProvider
                 inputs: [new CapabilityInput('json', 'JSON string', 'string', required: true)],
             ),
             static fn (string $json): mixed => json_decode($json, true),
+        );
+
+        $registry->register(
+            new CapabilityDefinition(
+                key: 'util_assert',
+                label: 'util.assert',
+                category: CapabilityCategory::Util,
+                kind: CapabilityDefinition::KIND_HELPER,
+                description: 'Enforce a precondition: if the condition is falsey, fail the step with the given message. Inside a Transaction this rolls everything back — ideal for business rules like "enough stock".',
+                usage: "util_assert(db_find('products', vars.item.id)['stock'] >= vars.item.qty, 'Insufficient stock')",
+                inputs: [
+                    new CapabilityInput('condition', 'Condition', 'expression', required: true),
+                    new CapabilityInput('message', 'Failure message', 'string', default: 'Assertion failed.'),
+                ],
+            ),
+            static function (mixed $condition, string $message = 'Assertion failed.'): bool {
+                if ($condition === false || $condition === null || $condition === 0 || $condition === '' || $condition === []) {
+                    throw new RuntimeException($message);
+                }
+
+                return true;
+            },
         );
     }
 }

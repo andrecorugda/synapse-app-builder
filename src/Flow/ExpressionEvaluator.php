@@ -58,7 +58,7 @@ class ExpressionEvaluator
     public function evaluate(string $expression, array $variables = []): mixed
     {
         try {
-            return $this->el->evaluate($expression, $variables);
+            return $this->evaluateOrThrow($expression, $variables);
         } catch (\Throwable $e) {
             Log::warning('[ExpressionEvaluator] Failed to evaluate expression.', [
                 'expression' => $expression,
@@ -67,5 +67,17 @@ class ExpressionEvaluator
 
             return null;
         }
+    }
+
+    /**
+     * Like {@see evaluate()} but lets errors propagate — used when running a
+     * Function, so a failing or asserting function surfaces (and a wrapping
+     * Transaction can roll back) instead of silently yielding null.
+     *
+     * @param  array<string,mixed>  $variables
+     */
+    public function evaluateOrThrow(string $expression, array $variables = []): mixed
+    {
+        return $this->el->evaluate($expression, $variables);
     }
 }
