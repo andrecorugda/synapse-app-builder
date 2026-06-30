@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow\Nodes;
 
+use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
+use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
+use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
+use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Models\Credential;
 use Andre\AiPageBuilder\Services\CredentialStore;
@@ -25,7 +29,7 @@ use Illuminate\Support\Facades\Log;
  * redirects are not followed. This matters because a public flow can be triggered
  * unauthenticated and may carry a stored credential. See config `flow.http_*`.
  */
-class HttpRequestNode implements FlowNodeHandler
+class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
 {
     /** @var array<int,string> */
     private const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head'];
@@ -33,6 +37,34 @@ class HttpRequestNode implements FlowNodeHandler
     public function type(): string
     {
         return 'http_request';
+    }
+
+    public function definition(): CapabilityDefinition
+    {
+        return new CapabilityDefinition(
+            key: $this->type(),
+            label: 'HTTP Request',
+            category: CapabilityCategory::Integrations,
+            description: 'Calls an external HTTP endpoint and stores the parsed JSON (or raw body) plus the status code in context variables. Internal/private hosts are blocked (SSRF guard); a stored credential can supply auth headers without exposing secrets in the flow.',
+            usage: 'method "post", url "https://api.example.com/orders", body {id: "{{ input.id }}"}, output "resp" → exposes {{ vars.resp }} and {{ vars.resp_status }}.',
+            icon: 'globe-alt',
+            inputs: [
+                new CapabilityInput('method', 'Method', 'select', default: 'get', options: [
+                    'get' => 'GET',
+                    'post' => 'POST',
+                    'put' => 'PUT',
+                    'patch' => 'PATCH',
+                    'delete' => 'DELETE',
+                    'head' => 'HEAD',
+                ]),
+                new CapabilityInput('url', 'URL', 'string', required: true, help: 'Full http(s) URL to call (interpolated). Private/internal hosts are rejected.'),
+                new CapabilityInput('headers', 'Headers', 'keyvalue', help: 'Request headers as key/value pairs (interpolated).'),
+                new CapabilityInput('body', 'Body', 'json', help: 'Request body for write verbs (interpolated).'),
+                new CapabilityInput('credential', 'Credential', 'string', help: 'Optional stored credential key; its auth headers are merged in and take precedence over inline headers.'),
+                new CapabilityInput('output', 'Output variable', 'string', default: 'http', help: 'Context variable for the response body; the status is written to <output>_status (default "http").'),
+            ],
+            outputHandles: ['next'],
+        );
     }
 
     public function run(array $node, FlowContext $context): array

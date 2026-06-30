@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow\Nodes;
 
+use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
+use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
+use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
+use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
 
 /**
@@ -13,7 +17,7 @@ use Andre\AiPageBuilder\Flow\FlowContext;
  *                     | {type:setState,key,value} | {type:setStates,values:{...}} ] }
  * Action fields are interpolated against the context (so they can carry AI/HTTP output).
  */
-class ResultNode implements FlowNodeHandler
+class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
 {
     /**
      * Action types the page runtime knows how to apply. setState/setStates push
@@ -25,6 +29,22 @@ class ResultNode implements FlowNodeHandler
     public function type(): string
     {
         return 'result';
+    }
+
+    public function definition(): CapabilityDefinition
+    {
+        return new CapabilityDefinition(
+            key: $this->type(),
+            label: 'Result',
+            category: CapabilityCategory::Ui,
+            description: 'Returns one or more UI actions to the page that triggered the flow, driving the live page without a reload. Each action\'s fields are interpolated, so they can carry AI/HTTP output. Unknown action types are skipped.',
+            usage: 'actions [{type:"notify", message:"Saved!", level:"success"}, {type:"setState", key:"saved", value:true}]. Supported types: setHtml, setText, notify, redirect, logout, addClass, removeClass, setState, setStates.',
+            icon: 'bell-alert',
+            inputs: [
+                new CapabilityInput('actions', 'Actions', 'json', required: true, help: 'Array of action objects, each with a "type" and its fields. Supported types: setHtml, setText, notify, redirect, logout, addClass, removeClass, setState, setStates.'),
+            ],
+            outputHandles: ['next'],
+        );
     }
 
     public function run(array $node, FlowContext $context): array
