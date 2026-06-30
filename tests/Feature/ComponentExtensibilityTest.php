@@ -36,9 +36,11 @@ it('registers a custom component via the facade and surfaces it everywhere consu
         'star',
     ));
 
-    // BlockVocabulary accessors (delegating to the registry).
-    expect(BlockVocabulary::keys())->toContain('pro_pricing');
+    // The full block list (all/find/toArray) includes it; keys() is SECTION-scoped
+    // (the AI page-generation vocabulary), so a non-"Sections" component is
+    // intentionally NOT surfaced there — it's a drag-only block.
     expect(collect(BlockVocabulary::all())->pluck('key'))->toContain('pro_pricing');
+    expect(BlockVocabulary::keys())->not->toContain('pro_pricing');
 
     $block = BlockVocabulary::find('pro_pricing');
     expect($block)->toBeInstanceOf(SectionBlock::class)
@@ -52,6 +54,20 @@ it('registers a custom component via the facade and surfaces it everywhere consu
 
     // Built-ins still present (no regression / no clobber).
     expect(BlockVocabulary::keys())->toContain('hero');
+});
+
+it('adds a registered "Sections"-category component to the AI page vocabulary (keys)', function (): void {
+    PageBuilder::registerComponent(new SectionBlock(
+        'pro_hero',
+        'Pro Hero',
+        BlockVocabulary::SECTION_CATEGORY,
+        '<section data-pb-block="pro_hero">...</section>',
+        'A premium hero section.',
+        'star',
+    ));
+
+    expect(BlockVocabulary::keys())->toContain('pro_hero')   // joins the AI section vocab
+        ->and(BlockVocabulary::keys())->toContain('hero');   // built-in section still present
 });
 
 it('overrides an existing key on re-registration, keeping its position stable', function (): void {

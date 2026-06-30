@@ -20,6 +20,9 @@ use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
  */
 final class BlockVocabulary
 {
+    /** Category marking a top-level page section (the AI's page-generation vocabulary). */
+    public const SECTION_CATEGORY = 'Sections';
+
     /**
      * Section blocks — the AI vocabulary.
      *
@@ -629,14 +632,24 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block key — the vocabulary the AI is allowed to emit, including any
-     * registered third-party / premium block. Delegates to the registry.
+     * The SECTION-level vocabulary the AI is allowed to emit for page generation —
+     * the top-level page sections (hero, features, pricing, …), NOT every granular
+     * block. Sourced from the registry and scoped to the "Sections" category, so a
+     * registered third-party / premium component that declares that category joins
+     * the AI section vocabulary while finer-grained blocks stay drag-only (this
+     * preserves the pre-registry behaviour — see all() for the full block list).
      *
      * @return array<int,string>
      */
     public static function keys(): array
     {
-        return app(ComponentRegistry::class)->keys();
+        return array_values(array_map(
+            static fn (SectionBlock $b): string => $b->key,
+            array_filter(
+                app(ComponentRegistry::class)->all(),
+                static fn (SectionBlock $b): bool => $b->category === self::SECTION_CATEGORY,
+            ),
+        ));
     }
 
     public static function find(string $key): ?SectionBlock
@@ -655,7 +668,7 @@ final class BlockVocabulary
         return app(ComponentRegistry::class)->toArray();
     }
 
-    private static function block(string $key, string $label, string $description, string $template, string $category = 'Sections'): SectionBlock
+    private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY): SectionBlock
     {
         return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key));
     }
