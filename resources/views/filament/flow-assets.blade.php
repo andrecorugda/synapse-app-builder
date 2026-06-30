@@ -198,6 +198,138 @@
             background: transparent;
             border-color: #475569;
         }
+        .ai-pb-palette button.ai-pb-add-node-btn {
+            background: #4f46e5;
+            border-color: #6366f1;
+            color: #eef2ff;
+            font-weight: 600;
+        }
+        .ai-pb-palette button.ai-pb-add-node-btn:hover {
+            background: #4338ca;
+            border-color: #818cf8;
+        }
+        /* ── Canvas area (positioning context for the slide-over drawer) ── */
+        .ai-pb-canvas-area {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+        }
+        /* ── Node drawer (GrapesJS block-manager style) ── */
+        .ai-pb-drawer-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgb(2 6 23 / 0.45);
+            z-index: 20;
+        }
+        .ai-pb-drawer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 320px;
+            max-width: 90%;
+            background: #0f172a;
+            border-left: 1px solid #334155;
+            box-shadow: -8px 0 24px rgb(0 0 0 / 0.4);
+            transform: translateX(100%);
+            transition: transform 0.18s ease;
+            z-index: 21;
+            display: flex;
+            flex-direction: column;
+        }
+        .ai-pb-drawer.ai-pb-drawer--open {
+            transform: translateX(0);
+        }
+        .ai-pb-drawer-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.65rem 0.85rem;
+            border-bottom: 1px solid #1e293b;
+        }
+        .ai-pb-drawer-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .ai-pb-drawer-close {
+            background: transparent;
+            border: 0;
+            color: #94a3b8;
+            font-size: 0.95rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0.15rem 0.35rem;
+            border-radius: 0.3rem;
+        }
+        .ai-pb-drawer-close:hover { color: #e2e8f0; background: #1e293b; }
+        .ai-pb-drawer-search { padding: 0.65rem 0.85rem; border-bottom: 1px solid #1e293b; }
+        .ai-pb-drawer-search input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.4rem;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.78rem;
+            color: #e2e8f0;
+            outline: none;
+        }
+        .ai-pb-drawer-search input:focus { border-color: #6366f1; }
+        .ai-pb-drawer-search input::placeholder { color: #64748b; }
+        .ai-pb-drawer-body { flex: 1 1 auto; overflow-y: auto; padding: 0.5rem 0.85rem 1rem; }
+        .ai-pb-drawer-group { margin-top: 0.75rem; }
+        .ai-pb-drawer-group:first-child { margin-top: 0.25rem; }
+        .ai-pb-drawer-group-title {
+            font-size: 0.66rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            margin-bottom: 0.4rem;
+        }
+        .ai-pb-drawer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.45rem;
+        }
+        .ai-pb-tile {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.2rem;
+            text-align: left;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.55rem;
+            cursor: pointer;
+            color: #e2e8f0;
+            line-height: 1.25;
+        }
+        .ai-pb-tile:hover {
+            background: #312e81;
+            border-color: #6366f1;
+        }
+        .ai-pb-tile-icon { font-size: 1.05rem; }
+        .ai-pb-tile-label { font-size: 0.74rem; font-weight: 600; }
+        .ai-pb-tile-desc {
+            font-size: 0.64rem;
+            color: #94a3b8;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .ai-pb-tile:hover .ai-pb-tile-desc { color: #c7d2fe; }
+        .ai-pb-drawer-empty {
+            padding: 1.5rem 0.5rem;
+            text-align: center;
+            font-size: 0.74rem;
+            color: #64748b;
+        }
         /* node type accent colours via title bar */
         .ai-pb-node[data-node-type="trigger"] .ai-pb-node-title { color: #22c55e; }
         .ai-pb-node[data-node-type="ai_invoke"] .ai-pb-node-title { color: #a78bfa; }
@@ -724,6 +856,76 @@
             const factory = (config) => ({
                 editor: null,
                 fullscreen: false,
+
+                // ── Node drawer state ──
+                drawerOpen: false,
+                nodeSearch: '',
+                // The serialised CapabilityDefinition[] injected by the field view.
+                nodeDefs: (config && config.nodeDefs) || [],
+
+                /**
+                 * Map a heroicon-style icon name (the registry's icon())
+                 * to a glyph. No icon-font is bundled here, so the drawer
+                 * renders an emoji; unknown names fall back to a neutral dot.
+                 */
+                iconGlyph(name) {
+                    const map = {
+                        'play': '▶',
+                        'sparkles': '✨',
+                        'globe-alt': '🌐',
+                        'wrench-screwdriver': '🔧',
+                        'circle-stack': '🗃',
+                        'variable': '💾',
+                        'envelope': '✉',
+                        'arrows-right-left': '❓',
+                        'bell-alert': '🔔',
+                        'arrow-path': '🔁',
+                        'shield-check': '🛡',
+                        'puzzle-piece': '🧩',
+                        'lock-closed': '🔒',
+                    };
+                    return map[name] || '●';
+                },
+
+                /** Nodes matching the search box (label / description / category). */
+                filtered() {
+                    const q = (this.nodeSearch || '').trim().toLowerCase();
+                    const defs = this.nodeDefs || [];
+                    if (! q) { return defs; }
+                    return defs.filter(function (d) {
+                        return (
+                            (d.label || '').toLowerCase().indexOf(q) !== -1 ||
+                            (d.description || '').toLowerCase().indexOf(q) !== -1 ||
+                            (d.category_label || '').toLowerCase().indexOf(q) !== -1 ||
+                            (d.key || '').toLowerCase().indexOf(q) !== -1
+                        );
+                    });
+                },
+
+                /**
+                 * The filtered nodes bucketed by category, each group ordered by
+                 * category_order and the groups themselves in that same order —
+                 * so the drawer mirrors the registry's category ordering.
+                 * @returns {{category:string,label:string,order:number,nodes:Array}[]}
+                 */
+                grouped() {
+                    const byCat = {};
+                    this.filtered().forEach(function (d) {
+                        const cat = d.category || 'other';
+                        if (! byCat[cat]) {
+                            byCat[cat] = {
+                                category: cat,
+                                label: d.category_label || cat,
+                                order: (typeof d.category_order === 'number') ? d.category_order : 999,
+                                nodes: [],
+                            };
+                        }
+                        byCat[cat].nodes.push(d);
+                    });
+                    return Object.keys(byCat)
+                        .map(function (k) { return byCat[k]; })
+                        .sort(function (a, b) { return a.order - b.order || a.label.localeCompare(b.label); });
+                },
 
                 boot() {
                     const start = () => {

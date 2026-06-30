@@ -37,6 +37,86 @@
         }, 4000);
     }
 
+    /**
+     * Show a blocking, styled alert dialog (title + message + OK). Falls back
+     * to window.alert if the DOM isn't ready. Mirrors showToast()'s dark look.
+     */
+    function showAlert(title, message) {
+        if (! document.body) {
+            window.alert((title ? title + '\n' : '') + (message || ''));
+            return;
+        }
+        var overlay = document.createElement('div');
+        overlay.style.cssText = [
+            'position:fixed',
+            'inset:0',
+            'z-index:100000',
+            'display:flex',
+            'align-items:center',
+            'justify-content:center',
+            'background:rgba(2,6,23,.55)',
+            'padding:1rem',
+        ].join(';');
+
+        var box = document.createElement('div');
+        box.style.cssText = [
+            'background:#1e293b',
+            'color:#f8fafc',
+            'max-width:24rem',
+            'width:100%',
+            'border-radius:.75rem',
+            'box-shadow:0 12px 40px rgba(0,0,0,.45)',
+            'padding:1.25rem 1.25rem 1rem',
+            'font-size:.9rem',
+        ].join(';');
+
+        if (title) {
+            var h = document.createElement('div');
+            h.style.cssText = 'font-weight:600;font-size:1rem;margin-bottom:.4rem;';
+            h.textContent = String(title);
+            box.appendChild(h);
+        }
+        if (message) {
+            var p = document.createElement('div');
+            p.style.cssText = 'color:#cbd5e1;line-height:1.45;white-space:pre-wrap;';
+            p.textContent = String(message);
+            box.appendChild(p);
+        }
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;margin-top:1rem;';
+        var ok = document.createElement('button');
+        ok.type = 'button';
+        ok.textContent = 'OK';
+        ok.style.cssText = [
+            'background:#4f46e5',
+            'color:#eef2ff',
+            'border:0',
+            'border-radius:.5rem',
+            'padding:.4rem 1.1rem',
+            'font-size:.85rem',
+            'font-weight:600',
+            'cursor:pointer',
+        ].join(';');
+        actions.appendChild(ok);
+        box.appendChild(actions);
+        overlay.appendChild(box);
+
+        function close() {
+            document.removeEventListener('keydown', onKey, true);
+            overlay.parentNode && overlay.parentNode.removeChild(overlay);
+        }
+        function onKey(e) {
+            if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
+        }
+        ok.addEventListener('click', close);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) { close(); } });
+        document.addEventListener('keydown', onKey, true);
+
+        document.body.appendChild(overlay);
+        try { ok.focus(); } catch (e) {}
+    }
+
     /** Apply a single result action to the page. */
     function applyAction(action) {
         var type = action.type;
@@ -55,6 +135,29 @@
 
         if (type === 'notify') {
             showToast(action.message || '');
+            return;
+        }
+
+        if (type === 'alert') {
+            showAlert(action.title || '', action.message || '');
+            return;
+        }
+
+        if (type === 'modal') {
+            var modals = document.querySelectorAll(action.target);
+            modals.forEach(function (el) {
+                if (action.action === 'close') {
+                    el.classList.remove('pb-modal--open');
+                    el.style.display = 'none';
+                    return;
+                }
+                // Default / 'open': optionally swap inner content, then reveal.
+                if (typeof action.html === 'string' && action.html !== '') {
+                    el.innerHTML = action.html;
+                }
+                el.classList.add('pb-modal--open');
+                el.style.display = '';
+            });
             return;
         }
 
