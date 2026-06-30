@@ -20,6 +20,24 @@ class CodeField extends Field
 
     protected int|Closure $height = 260;
 
+    protected bool|Closure $helpers = false;
+
+    /**
+     * Surface the categorized Function-helper dropdown above this editor. Only
+     * the Function body uses it — page/partial CSS/JS code fields leave it off.
+     */
+    public function helpers(bool|Closure $helpers = true): static
+    {
+        $this->helpers = $helpers;
+
+        return $this;
+    }
+
+    public function hasHelpers(): bool
+    {
+        return (bool) $this->evaluate($this->helpers);
+    }
+
     public function language(string|Closure $language): static
     {
         $this->language = $language;

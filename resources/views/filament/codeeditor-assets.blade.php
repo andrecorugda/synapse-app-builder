@@ -65,6 +65,57 @@
                     editor: null,
                     _t: null,
 
+                    // ── Function-helper dropdown state ──
+                    helpersOpen: false,
+                    helperSearch: '',
+                    helperDefs: (config && config.helperDefs) || [],
+
+                    /** Helpers matching the search box (label / description / usage / category). */
+                    filteredHelpers() {
+                        var q = (this.helperSearch || '').trim().toLowerCase();
+                        var defs = this.helperDefs || [];
+                        if (! q) { return defs; }
+                        return defs.filter(function (d) {
+                            return (
+                                (d.label || '').toLowerCase().indexOf(q) !== -1 ||
+                                (d.description || '').toLowerCase().indexOf(q) !== -1 ||
+                                (d.usage || '').toLowerCase().indexOf(q) !== -1 ||
+                                (d.category_label || '').toLowerCase().indexOf(q) !== -1 ||
+                                (d.key || '').toLowerCase().indexOf(q) !== -1
+                            );
+                        });
+                    },
+
+                    /**
+                     * Filtered helpers grouped by category, ordered by category_order
+                     * (the registry already sorts by order then label).
+                     */
+                    helperGroups() {
+                        var byCat = {};
+                        this.filteredHelpers().forEach(function (d) {
+                            var cat = d.category || 'other';
+                            if (! byCat[cat]) {
+                                byCat[cat] = {
+                                    category: cat,
+                                    label: d.category_label || cat,
+                                    order: (typeof d.category_order === 'number') ? d.category_order : 999,
+                                    helpers: [],
+                                };
+                            }
+                            byCat[cat].helpers.push(d);
+                        });
+                        return Object.keys(byCat)
+                            .map(function (k) { return byCat[k]; })
+                            .sort(function (a, b) { return a.order - b.order || a.label.localeCompare(b.label); });
+                    },
+
+                    /** Insert a helper's usage snippet at the cursor and refocus. */
+                    insertHelper(def) {
+                        if (! def || ! this.editor) { return; }
+                        this.editor.insert(def.usage || '');
+                        this.editor.focus();
+                    },
+
                     boot() {
                         var self = this;
                         if (! window.ace) { return setTimeout(function () { self.boot(); }, 50); }
