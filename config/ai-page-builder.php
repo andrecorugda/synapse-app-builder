@@ -127,6 +127,16 @@ return [
         // who trusts their function authors opts in with AI_PAGE_BUILDER_ALLOW_PHP=true.
         // When off, a php-runtime function simply returns null.
         'allow_php_functions' => (bool) env('AI_PAGE_BUILDER_ALLOW_PHP', false),
+
+        // SSRF guard for the HTTP Request flow node. When on (default), requests
+        // to private / reserved / loopback / link-local addresses — including the
+        // cloud metadata endpoint 169.254.169.254 — and non-http(s) schemes are
+        // refused, and redirects are not followed. Optionally restrict outbound
+        // calls to an explicit comma-separated host allow-list.
+        'http_block_private_hosts' => (bool) env('AI_PAGE_BUILDER_HTTP_BLOCK_PRIVATE', true),
+        'http_allowed_hosts' => array_values(array_filter(
+            explode(',', (string) env('AI_PAGE_BUILDER_HTTP_ALLOWED_HOSTS', '')),
+        )),
     ],
 
     /*

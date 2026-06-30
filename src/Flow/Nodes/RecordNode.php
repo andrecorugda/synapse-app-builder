@@ -39,12 +39,18 @@ class RecordNode implements FlowNodeHandler
      */
     public function run(array $node, FlowContext $context): array
     {
-        /** @var array<string,mixed> $config */
-        $config = $context->interpolateDeep((array) ($node['config'] ?? []));
+        $raw = (array) ($node['config'] ?? []);
 
-        $key = (string) ($config['model'] ?? '');
-        $operation = (string) ($config['operation'] ?? 'list');
-        $output = (string) ($config['output'] ?? 'records');
+        // Structural fields are author-fixed and NEVER interpolated from caller
+        // input — otherwise a public/unauthenticated flow's caller could pass
+        // `{{ input.model }}` and redirect the operation to ANY collection (IDOR).
+        // Only the value-bearing fields (filter/data/id/…) below are interpolated.
+        $key = (string) ($raw['model'] ?? '');
+        $operation = (string) ($raw['operation'] ?? 'list');
+        $output = (string) ($raw['output'] ?? 'records');
+
+        /** @var array<string,mixed> $config */
+        $config = $context->interpolateDeep($raw);
 
         $result = null;
 
