@@ -87,10 +87,12 @@ class FunctionNode implements FlowNodeHandler, ProvidesNodeDefinition
             if ($fn !== null) {
                 if ($fn->runtime === 'expression') {
                     // `states` is the primary name; `globals` is kept as an
-                    // identical alias for backward compatibility.
+                    // identical alias for backward compatibility. Errors PROPAGATE
+                    // (evaluateOrThrow) so a failing/asserting function surfaces to
+                    // the engine — letting a wrapping Transaction roll back.
                     $states = app(VariableStore::class)->all();
 
-                    $result = $this->evaluator->evaluate(
+                    $result = $this->evaluator->evaluateOrThrow(
                         (string) $fn->body,
                         [
                             'input' => $context->input,
