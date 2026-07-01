@@ -380,7 +380,11 @@ final class SystemPromptBuilder
         Config attributes per Interactive component:
           - `record_picker`: `data-pb-collection` (collection to search),
             `data-pb-label-field` (tile label field, default `name`),
-            `data-pb-target` (the $store.app state ARRAY key it appends picks to).
+            `data-pb-image-field` (field holding the row's image URL — default `image`; the
+            tile shows it as a thumbnail), `data-pb-price-field` (default `price`; shown on
+            the tile), `data-pb-target` (the $store.app state ARRAY key it appends picks to).
+            Each pick carries `{id, label, image, qty, price}` into the cart, so a product
+            picker automatically shows each product's image + price on its tiles.
           - `editable_grid`: `data-pb-state` (the bound cart array key),
             `data-pb-qty` (qty field, default `qty`), `data-pb-price` (price field,
             default `price`), `data-pb-max` (max rows, 0 = unlimited).

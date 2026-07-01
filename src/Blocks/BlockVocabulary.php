@@ -729,13 +729,17 @@ final class BlockVocabulary
             HTML, 'Interactive'),
 
             self::block('record_picker', 'Record picker', 'A searchable tile grid from a collection — click a tile to add it to a State array.', <<<'HTML'
-            <div data-pb-block="record_picker" class="pb-picker" data-pb-collection="" data-pb-label-field="name" data-pb-target="cart" x-data="pbRecordPicker($el)" style="font-family:inherit;color:#0f172a;max-width:40rem;">
+            <div data-pb-block="record_picker" class="pb-picker" data-pb-collection="" data-pb-label-field="name" data-pb-image-field="image" data-pb-price-field="price" data-pb-target="cart" x-data="pbRecordPicker($el)" style="font-family:inherit;color:#0f172a;max-width:40rem;">
               <input type="text" class="pb-picker__search" x-model="q" data-pb-picker-search placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;color:#0f172a;box-sizing:border-box;margin-bottom:0.75rem;">
               <p class="pb-picker__loading" x-show="loading" x-cloak style="color:#64748b;margin:0.25rem 0;">Loading…</p>
               <p class="pb-picker__empty" x-show="!loading && results.length === 0" x-cloak style="color:#64748b;margin:0.25rem 0;">No matches.</p>
               <div class="pb-picker__grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:0.6rem;">
                 <template x-for="r in results" :key="r.id">
-                  <button type="button" class="pb-picker__tile" data-pb-pick :data-pb-pick-id="r.id" x-text="r.label" style="text-align:left;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s;"></button>
+                  <button type="button" class="pb-picker__tile" data-pb-pick :data-pb-pick-id="r.id" style="display:flex;flex-direction:column;gap:0.4rem;text-align:left;padding:0.6rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s;">
+                    <img :src="r.image" x-show="r.image" x-cloak alt="" style="width:100%;height:5rem;object-fit:cover;border-radius:0.35rem;background:#f1f5f9;">
+                    <span class="pb-picker__tile-label" x-text="r.label" style="font-weight:600;font-size:0.85rem;"></span>
+                    <span class="pb-picker__tile-price" x-show="r.price !== '' && r.price != null" x-text="r.price" style="color:#4f46e5;font-size:0.8rem;font-weight:600;"></span>
+                  </button>
                 </template>
                 <button type="button" class="pb-picker__sample" x-show="false" style="text-align:left;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;">Sample product</button>
               </div>
