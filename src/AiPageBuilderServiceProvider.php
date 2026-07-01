@@ -112,6 +112,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_user_invites_table',
                 'add_two_factor_fields_to_page_builder_users_table',
                 'add_external_source_to_page_builder_models_table',
+                'add_display_field_to_page_builder_models_table',
                 'create_page_builder_record_revisions_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)

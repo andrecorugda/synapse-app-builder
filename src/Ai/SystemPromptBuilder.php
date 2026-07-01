@@ -348,9 +348,32 @@ final class SystemPromptBuilder
         `result` `setState` action writes back into the store so bound components
         re-render WITHOUT a reload. Build genuinely working apps like this:
 
-        - DISPLAY DATA: a data table binds with `x-data="pbTable('<collection key>')"`;
-          KPI / chart blocks read a collection server-side. Bind text with `x-text`,
-          repeat lists with `x-for` over `$store.app.<key>`.
+        - DISPLAY DATA: use the `data_table` block for tabular data — emit ONLY the
+          wrapper `<div data-pb-block="data_table" data-pb-collection="<collection key>"></div>`
+          and let the runtime render it. It fetches the collection SCHEMA and renders
+          each cell by its DECLARED field TYPE (image→thumbnail, boolean→✓/✗,
+          date/datetime→locale-formatted, relation→the related row's display field,
+          json→compact) — NEVER by guessing from a column's name. Config attributes
+          (all optional): `data-pb-columns="key,key:Header"` (explicit columns + order,
+          with optional `key:Header` rename; omit → all fields in schema order),
+          `data-pb-hide="id,created_at"` (hide columns), `data-pb-sortable="true"`
+          (clickable header sort, default on; opt out per-column with
+          `data-pb-no-sort="col"`), `data-pb-searchable="true"` (search box),
+          `data-pb-filters="status,category_id"` (a filter control per named field —
+          select for select/relation/boolean, text otherwise), `data-pb-selectable="true"`
+          (row checkboxes + select-all), `data-pb-bulk="archive:Archive,delete:Delete"`
+          (bulk buttons shown when rows are selected; each click dispatches a `pb:bulk`
+          DOM event `{action, ids, collection}` — the built-in `delete` action also
+          DELETEs each id then reloads), `data-pb-per-page="20"`. STATE MODE: use
+          `data-pb-state="<stateKey>"` INSTEAD of `data-pb-collection` to render rows
+          from `$store.app[<stateKey>]` (an array shaped by flows/functions) reactively;
+          columns come from `data-pb-columns` or the row keys, and values render as-is
+          (no type formatting — the author controls the shape). To set a collection's
+          human label column (used for relation display, pickers, filter options),
+          configure its Display field in the collection editor — otherwise the first
+          text field is used. KPI / chart blocks read a collection server-side. Bind
+          plain text with `x-text`, repeat simple lists with `x-for` over
+          `$store.app.<key>`.
         - WRITE FROM A FORM: put `data-pb-record="<collection key>"` on a `<form>`; the
           named inputs create a record of that collection on submit (no flow needed).
         - MANAGEMENT / ADMIN PAGES (critical — do NOT ship a read-only list when the
@@ -360,17 +383,17 @@ final class SystemPromptBuilder
           input per EDITABLE field — `<input name="<field key>">` (type `number` for
           numeric/decimal, `<select name="...">` with the field's options for a select,
           for a relation field named `<x>_id`, a
-          `<select name="<x>_id" data-pb-options="<related collection>" data-pb-label-field="name"></select>`
-          — the engine fills its options from that collection at runtime, value = the
-          related row id), a submit button, and NO inputs for computed/auto fields; and (2) a
-          `data-pb-block="data_table"` listing the collection (it auto-refreshes when
-          the form creates a row). To DELETE, add a small `component`-triggered flow with
-          a `record` delete node and wire a button with `data-pb-flow`. IMAGES: for an
-          image field emit a file input — `<input type="file" name="<field>" accept="image/*">`;
-          the runtime uploads the chosen image and submits its URL as that field (the
-          upload endpoint is gated + validated). A products/inventory screen therefore =
-          add-form (name, price number, stock number, category select, image file input)
-          + the products table.
+          `<select name="<x>_id" data-pb-options="<related collection>" data-pb-label-field="<display field key>"></select>`
+          — the engine fills its options from that collection at runtime using the
+          related collection's configured display field (check what display field that
+          collection has, or use `id` if unknown), value = the related row id), a submit
+          button, and NO inputs for computed/auto fields; and (2) a
+          `data-pb-block="data_table" data-pb-collection="<collection>"` listing the
+          collection (it auto-refreshes when the form creates a row). To DELETE, add a
+          small `component`-triggered flow with a `record` delete node and wire a button
+          with `data-pb-flow`. IMAGES: for an image field emit a file input —
+          `<input type="file" name="<field>" accept="image/*">`;
+          the runtime uploads the chosen image and submits its URL as that field.
         - TRIGGER A FLOW FROM THE UI: put `data-pb-flow="<flow slug>"` on a button (or on
           a `<form>` with `data-pb-flow-event="submit"`). The nearest form's fields +
           current page state become the flow input; the flow's `result` node then
@@ -392,12 +415,16 @@ final class SystemPromptBuilder
           `<div data-pb-block="record_picker" data-pb-collection="products" data-pb-target="cart_items"></div>`
         Config attributes per Interactive component:
           - `record_picker`: `data-pb-collection` (collection to search),
-            `data-pb-label-field` (tile label field, default `name`),
-            `data-pb-image-field` (field holding the row's image URL — default `image`; the
-            tile shows it as a thumbnail), `data-pb-price-field` (default `price`; shown on
-            the tile), `data-pb-target` (the $store.app state ARRAY key it appends picks to).
-            Each pick carries `{id, label, image, qty, price}` into the cart, so a product
-            picker automatically shows each product's image + price on its tiles.
+            `data-pb-label-field` (the field key for the tile's label — set it to the
+            collection's display field; there is NO default and NO assumed "name"),
+            `data-pb-target` (the $store.app state ARRAY key it appends picks to).
+            OPTIONAL display extras, both opt-in with NO defaults: `data-pb-image-field`
+            (a field key whose value is shown as a thumbnail) and `data-pb-extra-field`
+            (a field key shown as a secondary line on the tile — e.g. a price or SKU
+            column, but the picker assigns it no meaning). A bare picker shows only the
+            label. Each pick appends `{id, label}` to the target array (plus `image` /
+            `extra` only when those attrs are set). The picker adds NO qty/price of its
+            own — quantities and unit prices are the `editable_grid`'s concern.
           - `editable_grid`: `data-pb-state` (the bound cart array key),
             `data-pb-qty` (qty field, default `qty`), `data-pb-price` (price field,
             default `price`), `data-pb-max` (max rows, 0 = unlimited).
@@ -410,11 +437,14 @@ final class SystemPromptBuilder
         Point a `record_picker`'s `data-pb-target` and the paired `editable_grid`'s
         `data-pb-state` at the SAME state key so picks flow into the grid.
 
-        CART-LINE SHAPE (critical — the flow MUST read these exact keys). Each line
-        the `record_picker` / `editable_grid` puts in the cart array is EXACTLY:
+        CART-LINE SHAPE (critical — the flow MUST read these exact keys). A cart line
+        in the shared state array is:
           `{ id, label, qty, price }`
         — `id` is the picked record's id, `label` its label field, `qty` the quantity
-        (default 1, editable in the grid / via a `stepper`), `price` its unit price.
+        (default 1, editable in the `editable_grid` / via a `stepper`), `price` its unit
+        price (edited in the grid). The `record_picker` appends `{id, label}`; the
+        `editable_grid` supplies/edits the `qty` and `price` columns for each line (set
+        its `data-pb-qty` / `data-pb-price` to those key names, the defaults).
         There is NO `quantity`, `unit_price`, `product_id`, or `subtotal` key. So in the
         checkout flow's loop over `input.<cart key>` (item_var `item`) read a line as:
           `vars.item['id']`  → the product id (store it in the order line's product relation)
@@ -426,13 +456,13 @@ final class SystemPromptBuilder
         Reading `vars.item['quantity']` or `vars.item['product_id']` yields NULL and the
         write fails — always `id` / `qty` / `price`.
 
-        A working POS checkout screen = a `record_picker` (products → cart state) + an
-        `editable_grid` (the cart, computing qty×price → subtotal → total) + a Checkout
-        button carrying `data-pb-flow="complete-sale"`. The `complete-sale` flow (trigger
+        A working line-item checkout = a `record_picker` (items → cart state;
+        set `data-pb-label-field` to the items collection's display field) + an
+        `editable_grid` (the cart, computing qty×price → subtotal → total) + a
+        Checkout button carrying `data-pb-flow="complete-sale"`. The flow (trigger
         "component") runs a `transaction` wrapping a `loop` over the cart items (each:
-        create an `order_items` record + decrement the product's stock via a `record`
-        update or a `db_update` helper), then a `result` node that notifies success and
-        clears the cart. Never use a `php` function for this — use nodes + helpers.
+        create a line-item record + update related stock via `db_update`), then a
+        `result` node that notifies success and clears the cart. Never use `php`.
         TXT;
     }
 
@@ -503,7 +533,7 @@ final class SystemPromptBuilder
         - Keep all keys and slugs lowercase; use snake_case for collection/field/state keys and kebab-case for slugs.
         - Reference only collections and states that already exist or are defined in the same plan.
         - Pages use `data-pb-block` blocks with semantic CLASSES — put all CSS in `custom_css` and any JS in `custom_js`; never inline `style="..."`, `<style>` or `<script>` in html. Use DECLARATIVE Alpine bindings (x-text/x-show/x-model/x-for) over `$store.app.<state>` only — never @click/x-on/x-init in html (put behaviour in `custom_js`).
-        - Data tables bind with `x-data="pbTable('<collection key>')"`.
+        - Data tables use `data-pb-block="data_table" data-pb-collection="<collection key>"`. The block renders cells TYPE-DRIVEN from the schema — never by field name. Add `data-pb-columns`, `data-pb-hide`, `data-pb-searchable`, `data-pb-filters`, `data-pb-selectable`, `data-pb-bulk`, `data-pb-per-page`, or `data-pb-state` (state mode) as needed.
         - FUNCTIONS: write bodies in the `expression` runtime calling the built-in helpers (db_*/ui_*/auth_*/util_*). NEVER use the `php` runtime — it is disabled by default and unnecessary.
         - REUSE (compose, don't repeat): factor logic that RECURS or has a clear name into a reusable unit. A one-liner (stock check, price calc, a single write) → a `function`. A multi-step process used by MORE THAN ONE flow (e.g. "create an order line", "recalculate totals") → define it ONCE as its own `flow` and invoke it from each place with a `call_flow` step (it shares the caller's context, so it reads `vars.*`/`input.*` and its outputs flow back). Rules: only `call_flow` a flow you DEFINE IN THIS SAME PLAN or that already exists; a flow may NEVER call itself (no recursion). Do NOT over-factor — logic used in exactly one place stays inline. The point is a small library of named, reusable units, not indirection for its own sake.
         - MULTI-RECORD WRITES (checkout, transfers, batch ops): wrap them in a `transaction` node containing a `loop` over the items, writing with `record` nodes or `db_*` helpers — atomic, all-or-nothing, no php. Do the logic BEFORE the `result` node (never toast "success" before the writes run).
