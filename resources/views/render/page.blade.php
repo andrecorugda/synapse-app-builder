@@ -102,7 +102,14 @@
                 return {
                     rows: [], loading: true, error: false,
                     page: 1, lastPage: 1, total: 0, perPage: 10,
-                    init: function () { this.load(); },
+                    init: function () {
+                        // A curated data-table carries its own x-for row template.
+                        // When the block is a bare shell (no template — the shape the
+                        // AI often emits), fall back to auto-rendering columns from
+                        // the data so the table is never blank.
+                        this._auto = ! this.$el.querySelector('template[x-for], [x-for]');
+                        this.load();
+                    },
                     load: function () {
                         var self = this;
                         self.loading = true; self.error = false;
@@ -113,8 +120,21 @@
                                 self.lastPage = (d && d.last_page) || 1;
                                 self.total = (d && d.total) || self.rows.length;
                                 self.loading = false;
+                                if (self._auto) { self.renderAuto(); }
                             })
                             .catch(function () { self.loading = false; self.error = true; });
+                    },
+                    renderAuto: function () {
+                        var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+                        var human = function (k) { return k.replace(/_id$/, '').replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); }); };
+                        var cell = function (v) { return (v && typeof v === 'object') ? (v.name || v.label || v.title || JSON.stringify(v)) : v; };
+                        if (! this.rows.length) { this.$el.innerHTML = '<p class="pb-table__empty" style="padding:1rem;color:#64748b;font-family:inherit;">No records yet.</p>'; return; }
+                        var keys = Object.keys(this.rows[0]).filter(function (k) { return k !== 'created_at' && k !== 'updated_at' && k !== 'deleted_at'; });
+                        var th = keys.map(function (k) { return '<th style="padding:.6rem .9rem;text-align:left;border-bottom:1px solid #e2e8f0;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:#64748b;">' + esc(human(k)) + '</th>'; }).join('');
+                        var body = this.rows.map(function (row) {
+                            return '<tr style="border-bottom:1px solid #f1f5f9;">' + keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + esc(cell(row[k])) + '</td>'; }).join('') + '</tr>';
+                        }).join('');
+                        this.$el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:.9rem;background:#fff;border:1px solid #e2e8f0;border-radius:.6rem;overflow:hidden;"><thead style="background:#f8fafc;"><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table>';
                     },
                     prev: function () { if (this.page > 1) { this.page--; this.load(); } },
                     next: function () { if (this.page < this.lastPage) { this.page++; this.load(); } },
@@ -307,6 +327,11 @@
                         if (! hit) { return; }
                         var store = window.Alpine.store('app');
                         if (! Array.isArray(store[this.target])) { store[this.target] = []; }
+                        // Picking the same product again MERGES into the existing line
+                        // (bump its qty) rather than adding a duplicate row — expected
+                        // POS/cart behaviour.
+                        var line = store[this.target].filter(function (l) { return String(l.id) === String(hit.id); })[0];
+                        if (line) { line.qty = (Number(line.qty) || 0) + 1; return; }
                         store[this.target].push({ id: hit.id, label: hit.label, qty: 1, price: Number(hit.raw && hit.raw.price) || 0 });
                     },
                 };
