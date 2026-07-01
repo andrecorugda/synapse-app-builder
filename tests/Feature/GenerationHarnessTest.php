@@ -118,6 +118,21 @@ it('renders every generated page with its data-binding wiring intact', function 
         ->assertSee('data-pb-flow="complete-sale"', false);
 });
 
+it('resolves relation names in a list (expand=*) so tables show names not ids', function (): void {
+    $categories = PbModel::where('key', 'categories')->first();
+    $products = PbModel::where('key', 'products')->first();
+    $cat = $this->rq->create($categories, ['name' => 'Drinks'])->toArray();
+    $this->rq->create($products, ['name' => 'Coffee', 'price' => 3.5, 'stock' => 10, 'category_id' => $cat['id']]);
+
+    $row = $this->rq->list($products, ['expand' => '*'])->items()[0]->toArray();
+
+    // The id stays on `category_id`; the expanded row lands on the stripped key
+    // `category` (so the integer cast doesn't clobber it) — the table shows its name.
+    expect($row['category_id'])->toBe($cat['id'])
+        ->and($row['category'])->toBeArray()
+        ->and($row['category']['name'])->toBe('Drinks');
+});
+
 it('runs the generated checkout end to end: order + line items + stock decrement', function (): void {
     $products = PbModel::where('key', 'products')->first();
     $p1 = $this->rq->create($products, ['name' => 'Coffee', 'price' => 3.5, 'stock' => 20])->toArray();
