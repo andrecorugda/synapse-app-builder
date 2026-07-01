@@ -369,7 +369,12 @@
                                 doc.head.appendChild(fs);
                             }
                             const s = doc.createElement('style');
-                            s.innerHTML = '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
+                            // Base reset + THEME FONT on the canvas body, matching the
+                            // rendered page. Injected after GrapesJS's own canvas CSS so
+                            // the theme font (var(--pb-font)) wins over GrapesJS's default
+                            // — otherwise the editor previews in the wrong typeface.
+                            s.innerHTML = 'html,body{font-family:var(--pb-font,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif)}body{margin:0}'
+                                + '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
                             doc.head.appendChild(s);
                             // Inject the page's custom_css into the canvas so the
                             // visual editor matches the real rendered page (WYSIWYG).
