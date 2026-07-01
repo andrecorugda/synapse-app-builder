@@ -396,6 +396,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Editor
+    |--------------------------------------------------------------------------
+    |
+    | livewire_max_nesting_depth — the visual editor syncs a nested GrapesJS
+    | component tree to Livewire; rich pages nest past Livewire's default of 10
+    | (→ MaxNestingDepthExceededException on save). The package raises the host's
+    | limit to this floor (never lowers a higher host value).
+    */
+    'editor' => [
+        'livewire_max_nesting_depth' => (int) env('AI_PAGE_BUILDER_LW_MAX_NESTING', 50),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Filament
     |--------------------------------------------------------------------------
     */
