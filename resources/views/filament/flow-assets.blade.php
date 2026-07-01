@@ -709,8 +709,11 @@
                     const type = n.type || 'trigger';
                     const d = depth[defId] || 0;
                     const row = rowOf[d] || 0; rowOf[d] = row + 1;
-                    const x = 80 + d * 280;
-                    const y = 60 + row * 160;
+                    // Generous spacing so tall nodes (result/record/transaction with
+                    // JSON bodies run ~220-320px) never overlap. Columns are also
+                    // offset vertically per-depth (stagger) so long edges stay readable.
+                    const x = 80 + d * 360;
+                    const y = 40 + row * 300 + (d % 2) * 40;
                     const data = configToData(type, n.config || {});
                     idMap[defId] = editor.addNode(type, nodeInputCount(type), nodeOutputCount(type), x, y, type, data, nodeHtml(type), false);
                 });
@@ -1043,6 +1046,50 @@
                     this.$wire.set(config.statePath, definition, false);
                 },
 
+                // Guarantee no two nodes overlap after an auto-layout (AI/programmatic
+                // reconstruct). Measures each node's REAL rendered size, groups nodes
+                // into columns by x, then stacks each column top-down (gap ≥ node
+                // height) and offsets each column right past the previous column's
+                // widest node — so overlap is structurally impossible at any size.
+                // Only runs after reconstruct, never on a user's hand-arranged layout.
+                reflowNoOverlap() {
+                    const editor = this.editor;
+                    const data = (editor && editor.drawflow && editor.drawflow.drawflow && editor.drawflow.drawflow.Home)
+                        ? editor.drawflow.drawflow.Home.data : null;
+                    if (! data) { return; }
+                    const GAP_X = 80, GAP_Y = 48, COL_TOL = 200;
+                    const items = Object.keys(data).map((id) => {
+                        const el = document.getElementById('node-' + id);
+                        return el ? { id, el, x: data[id].pos_x, y: data[id].pos_y, w: el.offsetWidth || 250, h: el.offsetHeight || 140 } : null;
+                    }).filter(Boolean);
+                    if (! items.length) { return; }
+                    items.sort((a, b) => a.x - b.x);
+                    const cols = [];
+                    items.forEach((it) => {
+                        let col = cols.find((c) => Math.abs(c.x - it.x) < COL_TOL);
+                        if (! col) { col = { x: it.x, items: [] }; cols.push(col); }
+                        col.items.push(it);
+                    });
+                    cols.sort((a, b) => a.x - b.x);
+                    let runX = Math.min.apply(null, items.map((i) => i.x));
+                    cols.forEach((col) => {
+                        col.items.sort((a, b) => a.y - b.y);
+                        let runY = Math.min.apply(null, col.items.map((i) => i.y));
+                        let maxW = 0;
+                        col.items.forEach((it) => {
+                            it.el.style.left = runX + 'px';
+                            it.el.style.top = runY + 'px';
+                            data[it.id].pos_x = runX;
+                            data[it.id].pos_y = runY;
+                            runY += it.h + GAP_Y;
+                            if (it.w > maxW) { maxW = it.w; }
+                        });
+                        runX += maxW + GAP_X;
+                    });
+                    Object.keys(data).forEach((id) => { try { editor.updateConnectionNodes('node-' + id); } catch (_) {} });
+                    this.sync();
+                },
+
                 init() {
                     if (this.editor) { return; }
 
@@ -1078,6 +1125,9 @@
                         try {
                             reconstructFromDefinition(editor, existing);
                             this.sync();
+                            // Auto-laid-out graph → guarantee no overlap once nodes
+                            // have real rendered sizes (a couple frames later).
+                            this._needsReflow = true;
                         } catch (_) {
                             editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
                         }
@@ -1113,6 +1163,12 @@
                     };
                     try { requestAnimationFrame(refreshAllConnections); } catch (_) { setTimeout(refreshAllConnections, 30); }
                     setTimeout(refreshAllConnections, 120);
+                    // After an auto-layout, resolve overlaps once nodes have measured
+                    // sizes, then redraw the connection curves for the new positions.
+                    if (this._needsReflow) {
+                        this._needsReflow = false;
+                        setTimeout(() => { this.reflowNoOverlap(); refreshAllConnections(); }, 160);
+                    }
 
                     // Apply operation-based field visibility to restored record nodes.
                     const self = this;
