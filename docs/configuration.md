@@ -149,7 +149,7 @@ Controls the public image upload endpoint (`POST /pb-upload`) used by generated 
 
 | Key | Env | Default | Meaning |
 |---|---|---|---|
-| `uploads.allow_anonymous` | `AI_PAGE_BUILDER_UPLOADS_ANON` | `false` | Allow unauthenticated uploads. **Off by default** — safe for public sites. Set `true` only when anonymous image submission is intentional. |
-| `uploads.max_kb` | `AI_PAGE_BUILDER_UPLOADS_MAX_KB` | `5120` | Maximum upload size in KB (default 5 MB). Requests over the limit return `413`. |
+| `uploads.allow_anonymous` | `AI_PAGE_BUILDER_ALLOW_ANON_UPLOADS` | `false` | Allow unauthenticated uploads. **Off by default** — safe for public sites. Set `true` only when anonymous image submission is intentional. |
+| `uploads.max_kb` | `AI_PAGE_BUILDER_UPLOAD_MAX_KB` | `5120` | Maximum upload size in KB (default 5 MB). Requests over the limit return `413`. |
 
 Next: [Extending](extending.md).
