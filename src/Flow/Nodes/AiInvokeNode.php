@@ -36,7 +36,7 @@ class AiInvokeNode implements FlowNodeHandler, ProvidesNodeDefinition
             icon: 'sparkles',
             inputs: [
                 new CapabilityInput('integration', 'Integration', 'string', required: true, help: 'Slug of the AI integration to invoke.'),
-                new CapabilityInput('args', 'Arguments', 'json', help: 'Arguments passed to the integration (interpolated).'),
+                new CapabilityInput('args', 'Arguments', 'keyvalue', help: 'Key/value arguments passed to the AI integration (interpolated). Exposed to the integration\'s prompt variables.'),
                 new CapabilityInput('output', 'Output variable', 'string', default: 'ai', help: 'Context variable to receive the generated text (default "ai").'),
             ],
             outputHandles: ['next'],
