@@ -235,6 +235,20 @@
         .ai-pb-step-del { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
         .ai-pb-step-nested { margin: 0.25rem 0 0.25rem 0.5rem; padding-left: 0.4rem; border-left: 1px dashed rgba(148,163,184,0.3); }
         .ai-pb-step-raw { font-size: 0.68rem; color: #94a3b8; font-style: italic; padding: 0.15rem 0; }
+        .ai-pb-step-fields { display: flex; flex-direction: column; }
+        /* Keep transaction/loop nodes compact: fixed width + scroll the step list
+           instead of the card growing tall enough to overlap neighbours. Nothing
+           inside may overflow the card horizontally. */
+        .drawflow .drawflow-node .ai-pb-node[data-node-type="transaction"],
+        .drawflow .drawflow-node .ai-pb-node[data-node-type="loop"],
+        .ai-pb-node[data-node-type="transaction"],
+        .ai-pb-node[data-node-type="loop"] { width: 300px; max-width: 300px; }
+        .ai-pb-node[data-node-type="transaction"] *,
+        .ai-pb-node[data-node-type="loop"] * { max-width: 100%; box-sizing: border-box; }
+        .ai-pb-steps { max-height: 320px; overflow-y: auto; overflow-x: hidden; padding-right: 2px; }
+        .ai-pb-steps::-webkit-scrollbar { width: 7px; }
+        .ai-pb-steps::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 4px; }
+        .ai-pb-step-nested { max-height: 260px; overflow-y: auto; }
         /* ── Entry (START) node badge ── */
         .drawflow .drawflow-node.pb-entry { box-shadow: 0 0 0 2px #22c55e, 0 6px 20px rgba(0,0,0,0.35); }
         .drawflow .drawflow-node.pb-entry::before {
@@ -254,6 +268,21 @@
         }
         /* Disabled palette tile (e.g. a second Trigger) */
         .ai-pb-tile--disabled { opacity: 0.4; cursor: not-allowed; }
+        /* ── Zoom controls ── */
+        .ai-pb-zoom { display: inline-flex; gap: 2px; align-items: center; margin-right: 0.4rem; }
+        .ai-pb-zoom-btn {
+            border: 1px solid rgb(255 255 255 / 0.14);
+            background: rgb(255 255 255 / 0.06);
+            color: #cbd5e1;
+            border-radius: 0.35rem;
+            min-width: 1.7rem;
+            height: 1.7rem;
+            padding: 0 0.4rem;
+            font-size: 0.85rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .ai-pb-zoom-btn:hover { background: rgb(255 255 255 / 0.14); color: #fff; }
         /* ── Toolbar / palette bar (dark) ── */
         .ai-pb-palette {
             display: flex;
@@ -643,6 +672,41 @@
             function pbFnOptions() {
                 return (window.__pbFlowFunctions || []).map(function (f) { return '<option value="' + f.slug + '">' + (f.name || f.slug) + '</option>'; }).join('');
             }
+            function pbEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+            // Node types that can be a step (besides function/flow/loop), shown in the
+            // kind dropdown and edited via their capability-schema fields.
+            var PB_STEP_NODE_TYPES = [
+                { type: 'record', label: '🗄 Record (data op)' },
+                { type: 'set_variable', label: '💾 Set state' },
+                { type: 'condition', label: '❓ Condition' },
+                { type: 'http_request', label: '🌐 HTTP request' },
+                { type: 'send_email', label: '✉ Send email' },
+                { type: 'ai_invoke', label: '✨ AI invoke' },
+                { type: 'result', label: '■ Result' }
+            ];
+            function pbNodeDef(type) { return (window.__pbNodeDefs || []).filter(function (d) { return d.key === type; })[0] || null; }
+            // Render one capability input as an editable control bound to config[key].
+            function pbNodeFieldHtml(input, config) {
+                var key = input.key, val = config[key], showIf = input.show_if || input.showIf;
+                if (showIf && Object.keys(showIf).length && ! Object.keys(showIf).every(function (k) { return (showIf[k] || []).indexOf(config[k]) !== -1; })) { return ''; }
+                var label = '<label class="ai-pb-node-label">' + pbEsc(input.label) + '</label>';
+                if (input.type === 'select') {
+                    var o = Object.keys(input.options || {}).map(function (k) { return '<option value="' + pbEsc(k) + '">' + pbEsc(input.options[k]) + '</option>'; }).join('');
+                    return label + '<select data-cfg="' + key + '">' + o + '</select>';
+                }
+                if (input.type === 'collection') {
+                    var co = (window.__pbCollections || []).map(function (c) { return '<option value="' + pbEsc(c.key) + '">' + pbEsc(c.name || c.key) + '</option>'; }).join('');
+                    return label + '<select data-cfg="' + key + '">' + co + '</select>';
+                }
+                if (input.type === 'boolean') { return label + '<input type="checkbox" data-cfg="' + key + '"' + (val ? ' checked' : '') + ' />'; }
+                if (input.type === 'number') { return label + '<input type="number" data-cfg="' + key + '" value="' + pbEsc(val) + '" />'; }
+                if (input.type === 'json' || input.type === 'keyvalue') {
+                    var jv = (val && typeof val === 'object') ? JSON.stringify(val) : (val || '');
+                    return label + '<textarea data-cfg="' + key + '" data-json placeholder=\'{"key":"value"}\'>' + pbEsc(jv) + '</textarea>';
+                }
+                if (input.type === 'text' || input.type === 'code') { return label + '<textarea data-cfg="' + key + '">' + pbEsc(val) + '</textarea>'; }
+                return label + '<input type="text" data-cfg="' + key + '" value="' + pbEsc(val) + '" />';
+            }
 
             // Render an editable step list into `mount`, persisting to onChange(steps).
             function pbRenderStepList(mount, steps, onChange) {
@@ -658,7 +722,7 @@
                             +   '<option value="function"' + (step.kind === 'function' ? ' selected' : '') + '>ƒ Function</option>'
                             +   '<option value="flow"' + (step.kind === 'flow' ? ' selected' : '') + '>⚙ Flow</option>'
                             +   '<option value="loop"' + (step.kind === 'loop' ? ' selected' : '') + '>🔁 Loop</option>'
-                            +   (step.kind === 'node' ? '<option value="node" selected>▪ ' + (step.type || 'node') + '</option>' : '')
+                            +   PB_STEP_NODE_TYPES.map(function (nt) { return '<option value="node:' + nt.type + '"' + (step.kind === 'node' && step.type === nt.type ? ' selected' : '') + '>' + nt.label + '</option>'; }).join('')
                             + '</select>'
                             + '<span style="flex:1 1 auto"></span>'
                             + '<button type="button" class="ai-pb-step-btn" data-up title="Move up">↑</button>'
@@ -673,7 +737,15 @@
                                 + '<label class="ai-pb-node-label">Item variable</label><input type="text" data-itemvar value="' + (step.item_var || 'item') + '" />'
                                 + '<div class="ai-pb-step-nested" data-nested></div>'
                                 + '<button type="button" class="ai-pb-action-add" data-addnested>+ Add step (per item)</button>';
-                        } else { bodyHtml = '<div class="ai-pb-step-raw">Advanced node — kept as-is</div>'; }
+                        } else { // 'node' — render its capability-schema fields
+                            var def = pbNodeDef(step.type);
+                            if (def && def.inputs && def.inputs.length) {
+                                if (! step.config) { step.config = {}; }
+                                bodyHtml = '<div class="ai-pb-step-fields">' + def.inputs.map(function (inp) { return pbNodeFieldHtml(inp, step.config); }).join('') + '</div>';
+                            } else {
+                                bodyHtml = '<div class="ai-pb-step-raw">' + pbEsc(step.type || 'node') + ' — no editable fields</div>';
+                            }
+                        }
                         card.innerHTML = head + bodyHtml;
 
                         card.querySelector('.ai-pb-step-kind').addEventListener('change', function (e) {
@@ -681,6 +753,7 @@
                             if (k === 'function') { steps[idx] = { kind: 'function', ref: '', args: {}, output: '' }; }
                             else if (k === 'flow') { steps[idx] = { kind: 'flow', ref: '', output: '' }; }
                             else if (k === 'loop') { steps[idx] = { kind: 'loop', over: '', item_var: 'item', index_var: '', steps: [] }; }
+                            else if (k.indexOf('node:') === 0) { steps[idx] = { kind: 'node', type: k.slice(5), config: {} }; }
                             commit();
                         });
                         card.querySelector('[data-up]').addEventListener('click', function () { if (idx > 0) { var t = steps[idx - 1]; steps[idx - 1] = steps[idx]; steps[idx] = t; commit(); } });
@@ -689,6 +762,24 @@
 
                         var refSel = card.querySelector('[data-ref]');
                         if (refSel) { if (step.ref) { refSel.value = step.ref; } refSel.addEventListener('change', function () { step.ref = refSel.value; onChange(steps); }); }
+                        // Node-step schema fields.
+                        if (step.kind === 'node') {
+                            var def2 = pbNodeDef(step.type);
+                            card.querySelectorAll('[data-cfg]').forEach(function (ctl) {
+                                var key = ctl.getAttribute('data-cfg');
+                                if (ctl.tagName === 'SELECT' && step.config[key] != null) { ctl.value = step.config[key]; }
+                                var evt = (ctl.tagName === 'SELECT' || ctl.type === 'checkbox') ? 'change' : 'input';
+                                ctl.addEventListener(evt, function () {
+                                    var v = ctl.type === 'checkbox' ? ctl.checked : ctl.value;
+                                    if (ctl.hasAttribute('data-json')) { try { v = JSON.parse(ctl.value || 'null'); } catch (e) { v = ctl.value; } }
+                                    step.config[key] = v;
+                                    onChange(steps);
+                                    // Re-render if another field's visibility depends on this one.
+                                    var gates = def2 && def2.inputs && def2.inputs.some(function (i) { var sf = i.show_if || i.showIf; return sf && Object.keys(sf).indexOf(key) !== -1; });
+                                    if (gates) { render(); }
+                                });
+                            });
+                        }
                         var over = card.querySelector('[data-over]'); if (over) { over.addEventListener('input', function () { step.over = over.value; onChange(steps); }); }
                         var iv = card.querySelector('[data-itemvar]'); if (iv) { iv.addEventListener('input', function () { step.item_var = iv.value; onChange(steps); }); }
                         var nested = card.querySelector('[data-nested]');
@@ -1305,6 +1396,9 @@
                     // Expose the current flow's slug so the Run-Flow step picker can
                     // exclude it (no direct self-reference).
                     window.__pbCurrentFlowSlug = (config && config.currentFlowSlug) || null;
+                    // Expose node capability schemas so the step-list can render a
+                    // record / set-state / etc. step with its real fields, not a label.
+                    window.__pbNodeDefs = (config && config.nodeDefs) || [];
                     const start = () => {
                         if (! window.Drawflow) { return setTimeout(start, 50); }
                         this.init();
@@ -1314,6 +1408,34 @@
 
                 toggleFullscreen() {
                     this.fullscreen = ! this.fullscreen;
+                },
+
+                // ── Canvas zoom ──
+                zoomIn() { if (this.editor && this.editor.zoom_in) { this.editor.zoom_in(); } },
+                zoomOut() { if (this.editor && this.editor.zoom_out) { this.editor.zoom_out(); } },
+                zoomReset() { if (this.editor && this.editor.zoom_reset) { this.editor.zoom_reset(); } },
+                // Fit all nodes into view: reset zoom, then scale down to fit the
+                // bounding box of every node, and scroll to the top-left node.
+                zoomFit() {
+                    var editor = this.editor;
+                    if (! editor) { return; }
+                    try {
+                        editor.zoom_reset();
+                        var nodes = this.$refs.canvas.querySelectorAll('.drawflow-node');
+                        if (! nodes.length) { return; }
+                        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        nodes.forEach(function (n) {
+                            var x = parseFloat(n.style.left) || 0, y = parseFloat(n.style.top) || 0;
+                            minX = Math.min(minX, x); minY = Math.min(minY, y);
+                            maxX = Math.max(maxX, x + n.offsetWidth); maxY = Math.max(maxY, y + n.offsetHeight);
+                        });
+                        var wrap = this.$refs.canvas.getBoundingClientRect();
+                        var w = maxX - minX + 80, h = maxY - minY + 80;
+                        var z = Math.min(1, Math.min(wrap.width / w, wrap.height / h));
+                        if (z > 0 && z < 1) { editor.zoom = z; editor.zoom_refresh(); }
+                        var prec = this.$refs.canvas.querySelector('.drawflow');
+                        if (prec) { prec.scrollLeft = 0; prec.scrollTop = 0; }
+                    } catch (e) {}
                 },
 
                 /** Re-apply operation-based field visibility to every record node. */
