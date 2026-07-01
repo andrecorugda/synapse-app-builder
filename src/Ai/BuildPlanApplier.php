@@ -158,7 +158,7 @@ class BuildPlanApplier
 
             try {
                 /** @var PbModel $model */
-                $model = PbModel::query()->updateOrCreate(
+                $model = $this->upsertWithTrashed(PbModel::class,
                     ['key' => $key],
                     [
                         'name' => (string) ($collection['name'] ?? $key),
@@ -277,7 +277,7 @@ class BuildPlanApplier
             }
 
             try {
-                FlowFunction::query()->updateOrCreate(
+                $this->upsertWithTrashed(FlowFunction::class,
                     ['slug' => $slug],
                     [
                         'name' => (string) ($fn['name'] ?? $slug),
@@ -315,7 +315,7 @@ class BuildPlanApplier
                     ? (bool) $flow['is_public']
                     : in_array($triggerType, ['component', 'form', 'api'], true);
 
-                Flow::query()->updateOrCreate(
+                $this->upsertWithTrashed(Flow::class,
                     ['slug' => $slug],
                     [
                         'name' => (string) ($flow['name'] ?? $slug),
@@ -336,6 +336,33 @@ class BuildPlanApplier
     /**
      * @param  array{created:array<string,list<string>>,errors:list<string>}  $summary
      */
+    /**
+     * Upsert by a unique key INCLUDING soft-deleted rows, un-deleting a trashed
+     * match. A plain updateOrCreate skips trashed rows, but the unique index still
+     * counts them — so re-applying a slug/key that was ever deleted would INSERT
+     * and hit a duplicate-key error (which made "edit an existing page/flow/
+     * function/collection" impossible once a same-slug row had been trashed). This
+     * finds the row trashed-or-not, fills it, un-deletes it, and saves.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  array<string,mixed>  $match
+     * @param  array<string,mixed>  $values
+     */
+    private function upsertWithTrashed(string $modelClass, array $match, array $values): \Illuminate\Database\Eloquent\Model
+    {
+        $softDeletes = in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($modelClass), true);
+        $query = $softDeletes ? $modelClass::withTrashed() : $modelClass::query();
+        /** @var \Illuminate\Database\Eloquent\Model $model */
+        $model = $query->firstOrNew($match);
+        $model->fill($values);
+        if ($softDeletes && $model->exists && method_exists($model, 'trashed') && $model->trashed()) {
+            $model->{$model->getDeletedAtColumn()} = null;
+        }
+        $model->save();
+
+        return $model;
+    }
+
     private function applyPages(BuildPlan $build, array &$summary): void
     {
         foreach ($build->pages() as $i => $page) {
@@ -369,7 +396,7 @@ class BuildPlanApplier
                     $kind = 'email';
                 }
 
-                Page::query()->updateOrCreate(
+                $this->upsertWithTrashed(Page::class,
                     ['slug' => $slug],
                     [
                         'title' => (string) ($page['title'] ?? $slug),
