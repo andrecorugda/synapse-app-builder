@@ -19,6 +19,7 @@ use Andre\AiPageBuilder\Filament\Resources\PbModelResource;
 use Andre\AiPageBuilder\Filament\Resources\PbRoleResource;
 use Andre\AiPageBuilder\Filament\Resources\PbUserInviteResource;
 use Andre\AiPageBuilder\Filament\Resources\PbUserResource;
+use Andre\AiPageBuilder\Filament\Resources\RecordRevisionResource;
 use Andre\AiPageBuilder\Filament\Resources\ScheduleResource;
 use Andre\AiPageBuilder\Filament\Resources\VariableResource;
 use Filament\Contracts\Plugin;
@@ -55,6 +56,7 @@ class AiPageBuilderPlugin implements Plugin
             VariableResource::class,
             ScheduleResource::class,
             PbModelResource::class,
+            RecordRevisionResource::class,
             PbUserResource::class,
             PbRoleResource::class,
             PbUserInviteResource::class,
