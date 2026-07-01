@@ -261,11 +261,20 @@
             // Inject (or refresh) the live-data overlay for one block element.
             // el: the canvas DOM element with [data-pb-block].
             // Removes any existing [data-pb-live] child first (idempotent).
+            // Signature of an element's live-relevant config (data-pb-* attrs). An
+            // overlay is stamped with it so an unchanged block is SKIPPED on re-run
+            // (no refetch/re-render churn = no flicker); only a changed config or a
+            // missing overlay re-renders.
+            const pbSig = (el) => el.getAttribute('data-pb-block') + '|' + (el.getAttributeNames()
+                .filter((n) => n.indexOf('data-pb-') === 0 && n !== 'data-pb-live' && n !== 'data-pb-sig')
+                .sort().map((n) => n + '=' + el.getAttribute(n)).join('&'));
+
             const pbInjectLive = (el, innerHtml) => {
                 // Remove stale overlay first
                 Array.from(el.children).forEach((c) => { if (c.hasAttribute('data-pb-live')) { c.remove(); } });
                 if (! innerHtml) { return; }
                 const wrap = el.ownerDocument.createElement('div');
+                wrap.setAttribute('data-pb-sig', pbSig(el));
                 // data-pb-live marks this as a preview container (stripped on export).
                 // Rendered in NORMAL FLOW (not absolute) so it takes real height and is
                 // VISIBLE — a data block is often an empty shell in the editor, so an
@@ -286,18 +295,24 @@
                 try { doc = editor.Canvas.getDocument(); } catch (e) { return; }
                 if (! doc) { return; }
 
-                // Global sweep FIRST: remove every live overlay in the canvas, then
-                // rebuild only for currently-present blocks below. Overlays are plain
-                // DOM (not GrapesJS components), and some (the select overlay) live on
-                // an offsetParent OUTSIDE their block — so deleting/duplicating a
-                // component would otherwise orphan them into a "ghost" that lingers
-                // even though the HTML structure is correct. Wiping + rebuilding from
-                // the live component set makes delete/duplicate self-heal.
-                doc.querySelectorAll('[data-pb-live]').forEach((n) => n.remove());
+                // ORPHAN sweep only (NOT a wipe-all — wiping + refetching on every
+                // component:update caused visible flicker). Inside-block overlays are
+                // removed automatically with their block; the only overlays that can
+                // orphan are the select ones (appended to an offsetParent OUTSIDE the
+                // block) — remove those whose <select> is no longer in the document.
+                // This clears the "ghost" left by deleting/duplicating a component
+                // without churning still-valid overlays.
+                doc.querySelectorAll('[data-pb-live="select"]').forEach((o) => {
+                    if (! o.__pbForSel || ! doc.contains(o.__pbForSel)) { o.remove(); }
+                });
 
                 const blocks = doc.querySelectorAll('[data-pb-block]');
                 blocks.forEach((el) => {
                     const blockType = el.getAttribute('data-pb-block');
+
+                    // Skip if this block already has a current overlay (unchanged config).
+                    const existingOverlay = el.querySelector(':scope > [data-pb-live]');
+                    if (existingOverlay && existingOverlay.getAttribute('data-pb-sig') === pbSig(el)) { return; }
 
                     // ── data_table ───────────────────────────────────────────
                     if (blockType === 'data_table') {
@@ -552,11 +567,15 @@
                         const collection = (selEl.getAttribute('data-pb-options') || '').trim();
                         if (! collection) { return; }
                         const labelField = (selEl.getAttribute('data-pb-label-field') || 'name').trim();
-                        // Remove stale live overlay from any prior run.
                         const parent = selEl.parentNode;
                         if (! parent) { return; }
                         const host = selEl.offsetParent || parent;
-                        Array.from(host.children).forEach((c) => { if (c.getAttribute && c.getAttribute('data-pb-live') === 'select' && c.__pbForSel === selEl) { c.remove(); } });
+                        // Skip if this select already has a current overlay (unchanged
+                        // config) — no refetch/re-render, so no flicker.
+                        const sig = pbSig(selEl);
+                        const existingSel = Array.from(host.children).find((c) => c.__pbForSel === selEl && c.getAttribute && c.getAttribute('data-pb-live') === 'select');
+                        if (existingSel && existingSel.getAttribute('data-pb-sig') === sig) { return; }
+                        if (existingSel) { existingSel.remove(); }
                         fetch(apiBase + '/' + collection + '?per_page=5', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
                             .then((r) => r.ok ? r.json() : null).catch(() => null)
                             .then((d) => {
@@ -572,6 +591,7 @@
                                     const first = rows[0][labelField] != null ? String(rows[0][labelField]) : ('#' + rows[0].id);
                                     const wrap = selEl.ownerDocument.createElement('div');
                                     wrap.setAttribute('data-pb-live', 'select');
+                                    wrap.setAttribute('data-pb-sig', sig);
                                     wrap.__pbForSel = selEl;
                                     wrap.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;z-index:1;'
                                         + 'left:' + selEl.offsetLeft + 'px;top:' + selEl.offsetTop + 'px;'
