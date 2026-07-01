@@ -159,6 +159,47 @@
             color: #64748b;
             margin-bottom: 0.1rem;
         }
+        /* ── Result actions low-code builder ── */
+        .ai-pb-action-row {
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 0.5rem;
+            padding: 0.45rem 0.5rem 0.55rem;
+            margin: 0.35rem 0;
+            background: rgba(30, 41, 59, 0.35);
+        }
+        .ai-pb-action-head {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin-bottom: 0.2rem;
+        }
+        .ai-pb-action-head .ai-pb-action-type { flex: 1 1 auto; margin: 0; }
+        .ai-pb-action-del {
+            flex: 0 0 auto;
+            border: 0;
+            background: rgba(248, 113, 113, 0.15);
+            color: #fca5a5;
+            border-radius: 0.35rem;
+            width: 1.4rem;
+            height: 1.4rem;
+            line-height: 1;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .ai-pb-action-del:hover { background: rgba(248, 113, 113, 0.3); }
+        .ai-pb-action-add {
+            display: block;
+            width: 100%;
+            margin-top: 0.3rem;
+            border: 1px dashed rgba(129, 140, 248, 0.6);
+            background: rgba(99, 102, 241, 0.12);
+            color: #c7d2fe;
+            border-radius: 0.4rem;
+            padding: 0.35rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .ai-pb-action-add:hover { background: rgba(99, 102, 241, 0.22); }
         /* ── Toolbar / palette bar (dark) ── */
         .ai-pb-palette {
             display: flex;
@@ -423,6 +464,86 @@
                 }
             };
 
+            // ── Result actions low-code builder ──────────────────────────────
+            // Available result-action types + their fields. Prefer the catalog the
+            // engine ships (window.__pbActionCatalog, from the field view / nodeDefs)
+            // so it's the single source of truth; fall back to this inline copy —
+            // both mirror applyAction() in render/flow-runtime.blade.php.
+            var PB_ACTION_TYPES = (window.__pbActionCatalog) || {
+                notify:      { label: 'Notify (toast)', fields: [ { key: 'message', label: 'Message', type: 'text' }, { key: 'level', label: 'Level', type: 'select', options: { success: 'success', error: 'error', info: 'info', warning: 'warning' } } ] },
+                alert:       { label: 'Alert dialog',   fields: [ { key: 'title', label: 'Title', type: 'string' }, { key: 'message', label: 'Message', type: 'text' } ] },
+                modal:       { label: 'Modal',          fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'action', label: 'Action', type: 'select', options: { open: 'open', close: 'close' } }, { key: 'html', label: 'HTML (on open)', type: 'text', showIf: { action: ['open'] } } ] },
+                redirect:    { label: 'Redirect',       fields: [ { key: 'url', label: 'URL', type: 'string' } ] },
+                setState:    { label: 'Set state',      fields: [ { key: 'key', label: 'State key', type: 'string' }, { key: 'value', label: 'Value (expression)', type: 'string' } ] },
+                setHtml:     { label: 'Set HTML',       fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'html', label: 'HTML', type: 'text' } ] },
+                setText:     { label: 'Set text',       fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'text', label: 'Text', type: 'text' } ] },
+                addClass:    { label: 'Add class',      fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'class', label: 'Class', type: 'string' } ] },
+                removeClass: { label: 'Remove class',   fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'class', label: 'Class', type: 'string' } ] },
+                logout:      { label: 'Log out',        fields: [ { key: 'url', label: 'Redirect URL (optional)', type: 'string' } ] }
+            };
+
+            // Turn a `result` node's hidden JSON <textarea df-actions> into a low-code
+            // list of typed actions (a type dropdown → the fields for that type). The
+            // hidden field stays the source of truth (load/save unchanged); the builder
+            // just reads/writes it and dispatches input so Drawflow re-syncs.
+            window.__pbResultActions = function (nodeEl) {
+                if (! nodeEl || nodeEl.__pbActionsInit) { return; }
+                var hidden = nodeEl.querySelector('textarea[df-actions]');
+                var mount = nodeEl.querySelector('[data-pb-actions-mount]');
+                if (! hidden || ! mount) { return; }
+                nodeEl.__pbActionsInit = true;
+
+                var actions;
+                try { actions = JSON.parse(hidden.value || '[]'); } catch (e) { actions = []; }
+                if (! Array.isArray(actions)) { actions = []; }
+
+                function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+                function commit() {
+                    hidden.value = JSON.stringify(actions);
+                    hidden.dispatchEvent(new Event('input', { bubbles: true }));
+                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                function optionsHtml(map) { return Object.keys(map || {}).map(function (k) { return '<option value="' + esc(k) + '">' + esc(map[k]) + '</option>'; }).join(''); }
+
+                function render() {
+                    mount.innerHTML = '';
+                    actions.forEach(function (act, idx) {
+                        var spec = PB_ACTION_TYPES[act.type] || { fields: [] };
+                        var row = document.createElement('div');
+                        row.className = 'ai-pb-action-row';
+                        var typeSel = '<select class="ai-pb-action-type">' + Object.keys(PB_ACTION_TYPES).map(function (t) { return '<option value="' + t + '"' + (t === act.type ? ' selected' : '') + '>' + esc(PB_ACTION_TYPES[t].label) + '</option>'; }).join('') + '</select>';
+                        var fieldsHtml = spec.fields.map(function (f) {
+                            if (f.showIf && ! Object.keys(f.showIf).every(function (k) { return (f.showIf[k] || []).indexOf(act[k]) !== -1; })) { return ''; }
+                            var val = act[f.key];
+                            if (f.type === 'select') { return '<label class="ai-pb-node-label">' + esc(f.label) + '</label><select data-k="' + f.key + '">' + optionsHtml(f.options) + '</select>'; }
+                            if (f.type === 'text') { return '<label class="ai-pb-node-label">' + esc(f.label) + '</label><textarea data-k="' + f.key + '">' + esc(val) + '</textarea>'; }
+                            return '<label class="ai-pb-node-label">' + esc(f.label) + '</label><input type="text" data-k="' + f.key + '" value="' + esc(val) + '" />';
+                        }).join('');
+                        row.innerHTML = '<div class="ai-pb-action-head">' + typeSel + '<button type="button" class="ai-pb-action-del" title="Remove">&times;</button></div>' + fieldsHtml;
+                        row.querySelector('.ai-pb-action-type').addEventListener('change', function (e) { actions[idx] = { type: e.target.value }; commit(); render(); });
+                        row.querySelector('.ai-pb-action-del').addEventListener('click', function () { actions.splice(idx, 1); commit(); render(); });
+                        spec.fields.forEach(function (f) {
+                            var ctl = row.querySelector('[data-k="' + f.key + '"]');
+                            if (! ctl) { return; }
+                            if (f.type === 'select' && act[f.key] != null) { ctl.value = act[f.key]; }
+                            ctl.addEventListener(f.type === 'select' ? 'change' : 'input', function () {
+                                actions[idx][f.key] = ctl.value;
+                                commit();
+                                if (f.type === 'select') { render(); } // a select may gate a showIf field
+                            });
+                        });
+                        mount.appendChild(row);
+                    });
+                    var add = document.createElement('button');
+                    add.type = 'button';
+                    add.className = 'ai-pb-action-add';
+                    add.textContent = '+ Add action';
+                    add.addEventListener('click', function () { actions.push({ type: 'notify', message: '', level: 'success' }); commit(); render(); });
+                    mount.appendChild(add);
+                }
+                render();
+            };
+
             /** Build the inner HTML for a Drawflow node by type. */
             function nodeHtml(type) {
                 switch (type) {
@@ -573,8 +694,9 @@
                     case 'result':
                         return '<div class="ai-pb-node" data-node-type="result">'
                             + '<div class="ai-pb-node-title">&#9632; Result</div>'
-                            + '<label class="ai-pb-node-label">Actions (JSON array)</label>'
-                            + '<textarea df-actions placeholder=\'[{"type":"notify","message":"Done"}]\'></textarea>'
+                            + '<span style="font-size:0.7rem;color:#94a3b8;">What happens when the flow reaches here — add one or more actions.</span>'
+                            + '<div class="ai-pb-actions" data-pb-actions-mount></div>'
+                            + '<textarea df-actions style="display:none"></textarea>'
                             + '</div>';
 
                     case 'transaction':
@@ -1021,6 +1143,15 @@
                     for (var j = 0; j < keys.length; j++) {
                         if (window.__pbSetStateType) { window.__pbSetStateType(keys[j]); }
                     }
+                    this.refreshResultNodes();
+                },
+
+                refreshResultNodes() {
+                    var root = this.$refs.canvas || document;
+                    var nodes = root.querySelectorAll('.ai-pb-node[data-node-type="result"]');
+                    for (var i = 0; i < nodes.length; i++) {
+                        if (window.__pbResultActions) { window.__pbResultActions(nodes[i]); }
+                    }
                 },
 
                 addNode(type) {
@@ -1033,7 +1164,7 @@
                     const x = 120 + col * 300;
                     const y = 60 + row * 300;
                     this.editor.addNode(type, nodeInputCount(type), nodeOutputCount(type), x, y, type, {}, nodeHtml(type), false);
-                    if (type === 'record') {
+                    if (type === 'record' || type === 'result') {
                         var self = this;
                         setTimeout(function () { self.refreshRecordNodes(); }, 0);
                     }
