@@ -31,6 +31,7 @@ use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Flow\GatewayAiInvoker;
 use Andre\AiPageBuilder\Flow\NodeRegistry;
 use Andre\AiPageBuilder\Flow\Nodes\AiInvokeNode;
+use Andre\AiPageBuilder\Flow\Nodes\CallFlowNode;
 use Andre\AiPageBuilder\Flow\Nodes\ConditionNode;
 use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
@@ -168,6 +169,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             $registry->register($app->make(SendEmailNode::class));
             $registry->register(new LoopNode);
             $registry->register(new TransactionNode);
+            $registry->register(new CallFlowNode);
 
             return $registry;
         });

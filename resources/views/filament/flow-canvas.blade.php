@@ -14,7 +14,7 @@
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
     <div
         wire:ignore
-        x-data="aiPbFlow({ statePath: @js($getStatePath()), nodeDefs: @js($nodeDefs) })"
+        x-data="aiPbFlow({ statePath: @js($getStatePath()), nodeDefs: @js($nodeDefs), currentFlowSlug: @js($getRecord()?->slug) })"
         x-init="boot()"
         :class="{ 'ai-pb-flow-fullscreen': fullscreen }"
         @keydown.escape.window="fullscreen = false; drawerOpen = false"
