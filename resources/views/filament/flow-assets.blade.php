@@ -200,6 +200,25 @@
             cursor: pointer;
         }
         .ai-pb-action-add:hover { background: rgba(99, 102, 241, 0.22); }
+        /* ── Entry (START) node badge ── */
+        .drawflow .drawflow-node.pb-entry { box-shadow: 0 0 0 2px #22c55e, 0 6px 20px rgba(0,0,0,0.35); }
+        .drawflow .drawflow-node.pb-entry::before {
+            content: 'START';
+            position: absolute;
+            top: -10px;
+            left: 12px;
+            background: #22c55e;
+            color: #052e16;
+            font-size: 0.6rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            padding: 2px 7px;
+            border-radius: 999px;
+            z-index: 6;
+            pointer-events: none;
+        }
+        /* Disabled palette tile (e.g. a second Trigger) */
+        .ai-pb-tile--disabled { opacity: 0.4; cursor: not-allowed; }
         /* ── Toolbar / palette bar (dark) ── */
         .ai-pb-palette {
             display: flex;
@@ -1154,8 +1173,44 @@
                     }
                 },
 
+                // Badge the flow's entry node with "START". The entry is the node with
+                // no incoming connection (a Trigger, or whatever the graph roots at);
+                // recomputed on every wiring change so it always reflects the graph.
+                markEntry() {
+                    const editor = this.editor;
+                    const data = (editor && editor.drawflow && editor.drawflow.drawflow && editor.drawflow.drawflow.Home)
+                        ? editor.drawflow.drawflow.Home.data : null;
+                    if (! data) { return; }
+                    const targets = new Set();
+                    Object.keys(data).forEach((id) => {
+                        const outs = data[id].outputs || {};
+                        Object.keys(outs).forEach((o) => {
+                            ((outs[o] && outs[o].connections) || []).forEach((c) => { if (c.node) { targets.add(String(c.node)); } });
+                        });
+                    });
+                    Object.keys(data).forEach((id) => {
+                        const el = document.getElementById('node-' + id);
+                        if (! el) { return; }
+                        el.classList.toggle('pb-entry', ! targets.has(String(id)));
+                    });
+                },
+
+                // Is a trigger node already on the canvas? A flow has ONE entry, so
+                // only a single trigger is allowed.
+                hasTrigger() {
+                    const data = (this.editor && this.editor.drawflow && this.editor.drawflow.drawflow && this.editor.drawflow.drawflow.Home)
+                        ? this.editor.drawflow.drawflow.Home.data : {};
+                    return Object.keys(data || {}).some((id) => (data[id] || {}).name === 'trigger');
+                },
+
                 addNode(type) {
                     if (! this.editor) { return; }
+                    // A flow has a single entry point — refuse a second trigger.
+                    if (type === 'trigger' && this.hasTrigger()) {
+                        if (window.$wireui || window.Alpine) { /* no-op */ }
+                        alert('This flow already has a Trigger. A flow has one entry point — branch with a Condition instead.');
+                        return;
+                    }
                     // Cascade new nodes in a grid so they never pile on top of each
                     // other (3 per row, generous spacing for the tallest cards).
                     this._n = (this._n || 0) + 1;
@@ -1271,10 +1326,10 @@
                     // it, dragging a node to re-arrange never updates the form
                     // state, so the layout reverts to its saved positions on the
                     // next open.
-                    const syncBound = () => this.sync();
+                    const syncBound = () => { this.sync(); this.markEntry(); };
                     editor.on('nodeCreated', syncBound);
                     editor.on('nodeRemoved', syncBound);
-                    editor.on('nodeMoved', syncBound);
+                    editor.on('nodeMoved', () => this.sync());
                     editor.on('connectionCreated', syncBound);
                     editor.on('connectionRemoved', syncBound);
                     editor.on('nodeDataChanged', syncBound);
@@ -1294,11 +1349,12 @@
                     };
                     try { requestAnimationFrame(refreshAllConnections); } catch (_) { setTimeout(refreshAllConnections, 30); }
                     setTimeout(refreshAllConnections, 120);
+                    setTimeout(() => this.markEntry(), 200);
                     // After an auto-layout, resolve overlaps once nodes have measured
                     // sizes, then redraw the connection curves for the new positions.
                     if (this._needsReflow) {
                         this._needsReflow = false;
-                        setTimeout(() => { this.reflowNoOverlap(); refreshAllConnections(); }, 160);
+                        setTimeout(() => { this.reflowNoOverlap(); refreshAllConnections(); this.markEntry(); }, 160);
                     }
 
                     // Apply operation-based field visibility to restored record nodes.
