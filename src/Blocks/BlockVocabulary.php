@@ -605,8 +605,148 @@ final class BlockVocabulary
     }
 
     /**
+     * Interactive, data-driven components — the reusable toolkit behind
+     * line-item apps (POS carts, invoices, order entry).
+     *
+     * OWNER-authored (trusted) blocks, but deliberately written to survive the
+     * AI {@see HtmlSanitizer} unchanged: the sanitizer STRIPS executable Alpine
+     * (@click / x-on: / x-init) and inline on*= handlers, so these components
+     * carry NO inline click handlers. Reactivity is declarative Alpine
+     * (x-data / x-for / x-model / x-show / :bind) and every user action is
+     * delegated: the element carries a data-pb-* hook (data-pb-repeater-add,
+     * data-pb-step, data-pb-pick, …) and the published-page runtime
+     * (page.blade.php) binds a single delegated click/change listener that
+     * reaches the owning Alpine component via Alpine.$data(el) and calls its
+     * method. Nothing that the sanitizer removes ever appears in the saved
+     * markup, so these blocks round-trip through Page::saving() intact.
+     *
+     * State lives in Alpine's $store.app: each block's x-data component reads
+     * data-pb-state (the store array key) and proxies its rows to
+     * $store.app[key], so flows (setState) and other components see the same
+     * cart array. Live math (subtotal = qty*price, grand total) is just Alpine
+     * expressions in x-text.
+     *
+     * Editor-vs-published <template> handling mirrors the Data blocks: static
+     * sample rows carry x-show="false" so Alpine drops them on the published
+     * page, leaving the editor canvas something to show.
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function interactive(): array
+    {
+        return [
+            self::block('repeater', 'Repeater', 'Repeats an inner template per item in a bound State array, with add / remove.', <<<'HTML'
+            <div data-pb-block="repeater" class="pb-repeater" data-pb-state="items" data-pb-min="0" data-pb-max="0" x-data="pbRepeater($el)" style="font-family:inherit;color:#0f172a;display:flex;flex-direction:column;gap:0.6rem;max-width:32rem;">
+              <template x-for="(item, index) in rows" :key="index">
+                <div class="pb-repeater__item" style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">
+                  <input type="text" class="pb-repeater__field" x-model="item.label" placeholder="Item" style="flex:1;padding:0.5rem 0.65rem;border:1px solid #cbd5e1;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;">
+                  <button type="button" class="pb-repeater__remove" data-pb-repeater-remove aria-label="Remove item" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#dc2626;cursor:pointer;line-height:0;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </div>
+              </template>
+              <div class="pb-repeater__sample" x-show="false" style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">
+                <input type="text" class="pb-repeater__field" value="Sample item" style="flex:1;padding:0.5rem 0.65rem;border:1px solid #cbd5e1;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;">
+                <span style="flex-shrink:0;width:2rem;height:2rem;"></span>
+              </div>
+              <button type="button" class="pb-repeater__add" data-pb-repeater-add style="align-self:flex-start;display:inline-flex;align-items:center;gap:0.4rem;padding:0.5rem 0.9rem;border:1px dashed #6366f1;border-radius:0.5rem;background:#eef2ff;color:#4f46e5;font-weight:600;cursor:pointer;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Add item</span>
+              </button>
+            </div>
+            HTML, 'Interactive'),
+
+            self::block('editable_grid', 'Editable grid', 'A cart-style table with inline-editable cells, add / delete row and computed totals.', <<<'HTML'
+            <table data-pb-block="editable_grid" class="pb-grid" data-pb-state="cart" data-pb-qty="qty" data-pb-price="price" data-pb-max="0" x-data="pbGrid($el)" style="width:100%;border-collapse:collapse;font-family:inherit;font-size:0.9375rem;color:#0f172a;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
+              <thead class="pb-grid__head" style="background:#f8fafc;text-align:left;">
+                <tr>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Item</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;width:6rem;">Qty</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;width:8rem;">Price</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;width:8rem;text-align:right;">Subtotal</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;width:3rem;"></th>
+                </tr>
+              </thead>
+              <tbody class="pb-grid__body">
+                <tr class="pb-grid__empty" x-show="rows.length === 0" x-cloak><td colspan="5" style="padding:0.75rem 1rem;color:#64748b;">No rows yet — add one below.</td></tr>
+                <template x-for="(row, index) in rows" :key="index">
+                  <tr class="pb-grid__row" style="border-top:1px solid #e2e8f0;">
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="text" class="pb-grid__field" x-model="row.label" placeholder="Item" style="width:100%;padding:0.4rem 0.55rem;border:1px solid transparent;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;background:transparent;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="1" class="pb-grid__field" x-model.number="row.qty" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="0.01" class="pb-grid__field" x-model.number="row.price" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td pb-grid__subtotal" x-text="money((Number(row.qty)||0) * (Number(row.price)||0))" style="padding:0.5rem 1rem;text-align:right;font-variant-numeric:tabular-nums;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;text-align:center;"><button type="button" class="pb-grid__remove" data-pb-grid-remove aria-label="Delete row" style="display:inline-flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#dc2626;cursor:pointer;line-height:0;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>
+                  </tr>
+                </template>
+                <tr class="pb-grid__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;">Widget</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;">2</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;">9.50</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;text-align:right;">19.00</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;"></td>
+                </tr>
+              </tbody>
+              <tfoot class="pb-grid__foot" style="background:#f8fafc;">
+                <tr>
+                  <td colspan="5" style="padding:0.5rem 1rem;border-top:1px solid #e2e8f0;">
+                    <button type="button" class="pb-grid__add" data-pb-grid-add style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 0.85rem;border:1px dashed #6366f1;border-radius:0.5rem;background:#eef2ff;color:#4f46e5;font-weight:600;cursor:pointer;font:inherit;">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      <span>Add row</span>
+                    </button>
+                  </td>
+                </tr>
+                <tr class="pb-grid__total-row" style="border-top:2px solid #e2e8f0;">
+                  <td colspan="3" style="padding:0.75rem 1rem;font-weight:600;color:#334155;">Total (<span x-text="rows.length"></span> items)</td>
+                  <td class="pb-grid__grand-total" x-text="money(total)" style="padding:0.75rem 1rem;text-align:right;font-weight:700;font-size:1.05rem;color:#0f172a;font-variant-numeric:tabular-nums;"></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+            HTML, 'Interactive'),
+
+            self::block('stepper', 'Quantity stepper', 'A −/+ stepper around a number input, bound to State.', <<<'HTML'
+            <div data-pb-block="stepper" class="pb-stepper" data-pb-state="quantity" data-pb-min="0" data-pb-max="0" data-pb-step="1" x-data="pbStepper($el)" style="display:inline-flex;align-items:stretch;font-family:inherit;border:1px solid #cbd5e1;border-radius:0.5rem;overflow:hidden;background:#fff;">
+              <button type="button" class="pb-stepper__dec" data-pb-step="-1" aria-label="Decrease" style="display:inline-flex;align-items:center;justify-content:center;width:2.4rem;border:0;border-right:1px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:1.1rem;cursor:pointer;line-height:0;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <input type="number" class="pb-stepper__input" x-model.number="value" :min="min" :max="max === 0 ? null : max" :step="step" style="width:3.5rem;padding:0.5rem;border:0;text-align:center;font:inherit;color:#0f172a;box-sizing:border-box;-moz-appearance:textfield;">
+              <button type="button" class="pb-stepper__inc" data-pb-step="1" aria-label="Increase" style="display:inline-flex;align-items:center;justify-content:center;width:2.4rem;border:0;border-left:1px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:1.1rem;cursor:pointer;line-height:0;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+            HTML, 'Interactive'),
+
+            self::block('context_menu', 'Context menu', 'A kebab (⋮) / right-click menu of actions — fire a flow or mutate State.', <<<'HTML'
+            <div data-pb-block="context_menu" class="pb-context" data-pb-contextmenu x-data="pbContextMenu($el)" style="display:inline-block;position:relative;font-family:inherit;">
+              <button type="button" class="pb-context__trigger" data-pb-context-toggle aria-label="Open menu" :aria-expanded="open" style="display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#334155;cursor:pointer;line-height:0;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+              <div class="pb-context__menu" role="menu" x-show="open" x-cloak x-transition.opacity :style="pos" style="position:absolute;top:calc(100% + 0.35rem);left:0;min-width:11rem;padding:0.35rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px rgba(15,23,42,0.16);z-index:40;">
+                <button type="button" class="pb-context__item" role="menuitem" data-pb-context-close data-pb-flow="" data-pb-flow-input="" style="display:block;width:100%;text-align:left;padding:0.5rem 0.65rem;border:0;border-radius:0.375rem;background:transparent;color:#334155;font:inherit;cursor:pointer;">Edit</button>
+                <button type="button" class="pb-context__item" role="menuitem" data-pb-context-close data-pb-context-remove style="display:block;width:100%;text-align:left;padding:0.5rem 0.65rem;border:0;border-radius:0.375rem;background:transparent;color:#dc2626;font:inherit;cursor:pointer;">Remove</button>
+              </div>
+            </div>
+            HTML, 'Interactive'),
+
+            self::block('record_picker', 'Record picker', 'A searchable tile grid from a collection — click a tile to add it to a State array.', <<<'HTML'
+            <div data-pb-block="record_picker" class="pb-picker" data-pb-collection="" data-pb-label-field="name" data-pb-target="cart" x-data="pbRecordPicker($el)" style="font-family:inherit;color:#0f172a;max-width:40rem;">
+              <input type="text" class="pb-picker__search" x-model="q" data-pb-picker-search placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;color:#0f172a;box-sizing:border-box;margin-bottom:0.75rem;">
+              <p class="pb-picker__loading" x-show="loading" x-cloak style="color:#64748b;margin:0.25rem 0;">Loading…</p>
+              <p class="pb-picker__empty" x-show="!loading && results.length === 0" x-cloak style="color:#64748b;margin:0.25rem 0;">No matches.</p>
+              <div class="pb-picker__grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:0.6rem;">
+                <template x-for="r in results" :key="r.id">
+                  <button type="button" class="pb-picker__tile" data-pb-pick :data-pb-pick-id="r.id" x-text="r.label" style="text-align:left;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s;"></button>
+                </template>
+                <button type="button" class="pb-picker__sample" x-show="false" style="text-align:left;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;">Sample product</button>
+              </div>
+            </div>
+            HTML, 'Interactive'),
+        ];
+    }
+
+    /**
      * The raw built-in blocks (sections + basics + shapes + components + forms
-     * + data). This is the seed for {@see ComponentRegistry} — the public
+     * + data + interactive). This is the seed for {@see ComponentRegistry} — the public
      * accessors below delegate back to that registry, so building it from the
      * public all() would recurse. Consumers should read all()/keys()/find()/
      * toArray() (which include registered third-party blocks); only the
@@ -616,7 +756,7 @@ final class BlockVocabulary
      */
     public static function builtins(): array
     {
-        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms(), ...self::data()];
+        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms(), ...self::data(), ...self::interactive()];
     }
 
     /**

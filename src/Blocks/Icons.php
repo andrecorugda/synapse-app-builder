@@ -61,6 +61,12 @@ final class Icons
         // Data
         'data_table' => '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="14.5" x2="21" y2="14.5"/><line x1="12" y1="5" x2="12" y2="19"/>',
         'list' => '<circle cx="5" cy="7" r="1"/><line x1="9" y1="7" x2="20" y2="7"/><circle cx="5" cy="12" r="1"/><line x1="9" y1="12" x2="20" y2="12"/><circle cx="5" cy="17" r="1"/><line x1="9" y1="17" x2="20" y2="17"/>',
+        // Interactive
+        'repeater' => '<rect x="4" y="4" width="16" height="5" rx="1.5"/><rect x="4" y="11" width="16" height="5" rx="1.5"/><line x1="9" y1="19.5" x2="15" y2="19.5"/><line x1="12" y1="17" x2="12" y2="22"/>',
+        'editable_grid' => '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="14" y1="5" x2="14" y2="19"/><path d="M6 14.5l1.5 1.5 3-3"/>',
+        'stepper' => '<rect x="3" y="9" width="18" height="6" rx="3"/><line x1="6.5" y1="12" x2="8.5" y2="12"/><line x1="15.5" y1="12" x2="17.5" y2="12"/><line x1="16.5" y1="11" x2="16.5" y2="13"/>',
+        'context_menu' => '<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
+        'record_picker' => '<circle cx="10" cy="10" r="6"/><line x1="14.5" y1="14.5" x2="20" y2="20"/><line x1="7.5" y1="10" x2="12.5" y2="10"/><line x1="10" y1="7.5" x2="10" y2="12.5"/>',
     ];
 
     public static function for(string $key): string

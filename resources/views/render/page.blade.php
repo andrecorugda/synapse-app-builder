@@ -135,6 +135,173 @@
                     pick: function (r) { this.q = r.label; this.selectedId = r.id; this.open = false; this.results = []; },
                 };
             });
+
+            // ── Interactive line-item components ──────────────────────────────
+            // All click/step wiring is DELEGATED (see the runtime IIFE in <body>)
+            // and keyed off data-pb-* hooks, because the AI sanitizer strips
+            // @click / x-on:. These x-data components hold the reactive state and
+            // expose the mutation methods the delegated listeners call via
+            // Alpine.$data(el). State is proxied to $store.app[data-pb-state] so
+            // flows and sibling components share one array (e.g. the cart).
+
+            // Bind a component's `rows` array to $store.app[key] so it survives
+            // outside the component and reactive bindings see the same reference.
+            function pbBindState(self, root, defKey) {
+                var store = window.Alpine.store('app');
+                var key = (root && root.getAttribute('data-pb-state')) || defKey;
+                self.stateKey = key;
+                if (key) {
+                    if (! Array.isArray(store[key])) { store[key] = []; }
+                    self.rows = store[key];
+                }
+            }
+            function pbNum(root, attr, fallback) {
+                var v = parseFloat(root && root.getAttribute(attr));
+                return isNaN(v) ? fallback : v;
+            }
+
+            // pbRepeater — repeats an inner template per item in a bound array.
+            window.Alpine.data('pbRepeater', function (root) {
+                return {
+                    rows: [], stateKey: '',
+                    min: 0, max: 0,
+                    init: function () {
+                        this.min = pbNum(root, 'data-pb-min', 0);
+                        this.max = pbNum(root, 'data-pb-max', 0);
+                        pbBindState(this, root, 'items');
+                    },
+                    add: function () {
+                        if (this.max > 0 && this.rows.length >= this.max) { return; }
+                        this.rows.push({ label: '' });
+                    },
+                    removeAt: function (i) {
+                        if (this.rows.length <= this.min) { return; }
+                        if (i >= 0 && i < this.rows.length) { this.rows.splice(i, 1); }
+                    },
+                };
+            });
+
+            // pbGrid — the editable data grid (cart). Live per-row subtotal and a
+            // grand total are Alpine expressions in the template; `total` is a
+            // getter so it recomputes reactively.
+            window.Alpine.data('pbGrid', function (root) {
+                return {
+                    rows: [], stateKey: '',
+                    qtyKey: 'qty', priceKey: 'price', max: 0,
+                    init: function () {
+                        this.qtyKey = (root && root.getAttribute('data-pb-qty')) || 'qty';
+                        this.priceKey = (root && root.getAttribute('data-pb-price')) || 'price';
+                        this.max = pbNum(root, 'data-pb-max', 0);
+                        pbBindState(this, root, 'cart');
+                    },
+                    add: function () {
+                        if (this.max > 0 && this.rows.length >= this.max) { return; }
+                        this.rows.push({ label: '', qty: 1, price: 0 });
+                    },
+                    removeAt: function (i) {
+                        if (i >= 0 && i < this.rows.length) { this.rows.splice(i, 1); }
+                    },
+                    money: function (n) {
+                        n = Number(n) || 0;
+                        return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    },
+                    get total() {
+                        return this.rows.reduce(function (sum, r) {
+                            return sum + (Number(r.qty) || 0) * (Number(r.price) || 0);
+                        }, 0);
+                    },
+                };
+            });
+
+            // pbStepper — −/+ around a number input, bound to $store.app[key].
+            window.Alpine.data('pbStepper', function (root) {
+                return {
+                    stateKey: '', min: 0, max: 0, step: 1,
+                    init: function () {
+                        this.min = pbNum(root, 'data-pb-min', 0);
+                        this.max = pbNum(root, 'data-pb-max', 0);
+                        this.step = pbNum(root, 'data-pb-step', 1) || 1;
+                        this.stateKey = (root && root.getAttribute('data-pb-state')) || 'quantity';
+                        var store = window.Alpine.store('app');
+                        if (store[this.stateKey] == null) { store[this.stateKey] = this.min; }
+                    },
+                    get value() {
+                        var store = window.Alpine.store('app');
+                        return Number(store[this.stateKey]) || 0;
+                    },
+                    set value(v) {
+                        v = Number(v); if (isNaN(v)) { v = this.min; }
+                        if (v < this.min) { v = this.min; }
+                        if (this.max > 0 && v > this.max) { v = this.max; }
+                        window.Alpine.store('app')[this.stateKey] = v;
+                    },
+                    bump: function (dir) { this.value = this.value + dir * this.step; },
+                };
+            });
+
+            // pbContextMenu — kebab / right-click menu. `open` + `pos` are local;
+            // opening (toggle / contextmenu) and item clicks are delegated.
+            window.Alpine.data('pbContextMenu', function (root) {
+                return {
+                    open: false, pos: '',
+                    toggle: function () { this.open = ! this.open; },
+                    close: function () { this.open = false; },
+                    openAt: function (x, y) {
+                        this.pos = 'left:' + x + 'px;top:' + y + 'px;';
+                        this.open = true;
+                    },
+                    // When this menu is nested inside an editable_grid row or a
+                    // repeater item, remove that row from its owner array. Index
+                    // is the row's position among its siblings.
+                    removeItem: function () {
+                        this.open = false;
+                        var ownerEl = root.closest('[data-pb-block="editable_grid"],[data-pb-block="repeater"]');
+                        if (! ownerEl) { return; }
+                        var isGrid = ownerEl.getAttribute('data-pb-block') === 'editable_grid';
+                        var rowSel = isGrid ? '.pb-grid__row' : '.pb-repeater__item';
+                        var rowEl = root.closest(rowSel);
+                        if (! rowEl) { return; }
+                        var owner = window.Alpine.$data(ownerEl);
+                        var nodes = ownerEl.querySelectorAll(rowSel), i = -1;
+                        for (var n = 0; n < nodes.length; n++) { if (nodes[n] === rowEl) { i = n; break; } }
+                        if (owner && typeof owner.removeAt === 'function' && i >= 0) { owner.removeAt(i); }
+                    },
+                };
+            });
+
+            // pbRecordPicker — searchable tile grid; clicking a tile appends the
+            // record (projection) to $store.app[data-pb-target].
+            window.Alpine.data('pbRecordPicker', function (root) {
+                return {
+                    q: '', results: [], loading: false,
+                    collection: (root && root.getAttribute('data-pb-collection')) || '',
+                    labelField: (root && root.getAttribute('data-pb-label-field')) || 'name',
+                    target: (root && root.getAttribute('data-pb-target')) || 'cart',
+                    init: function () { this.search(); },
+                    search: function () {
+                        var self = this;
+                        if (! this.collection) { this.results = []; return; }
+                        this.loading = true;
+                        var url = API_BASE + '/' + this.collection + '?per_page=24' + (this.q ? '&search=' + encodeURIComponent(this.q) : '');
+                        fetch(url, { headers: { Accept: 'application/json' } })
+                            .then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                self.results = ((d && d.data) || []).map(function (row) {
+                                    return { id: row.id, label: row[self.labelField] != null ? row[self.labelField] : ('#' + row.id), raw: row };
+                                });
+                                self.loading = false;
+                            })
+                            .catch(function () { self.results = []; self.loading = false; });
+                    },
+                    pickById: function (id) {
+                        var hit = this.results.filter(function (r) { return String(r.id) === String(id); })[0];
+                        if (! hit) { return; }
+                        var store = window.Alpine.store('app');
+                        if (! Array.isArray(store[this.target])) { store[this.target] = []; }
+                        store[this.target].push({ id: hit.id, label: hit.label, qty: 1, price: Number(hit.raw && hit.raw.price) || 0 });
+                    },
+                };
+            });
         });
     </script>
 </head>
@@ -162,6 +329,133 @@
 
     {{-- Flow trigger runtime: components with data-pb-flow run a flow on click. --}}
     @include('ai-page-builder::render.flow-runtime')
+
+    {{-- Interactive components runtime: repeater / editable_grid / stepper /
+         context_menu / record_picker. Click + input wiring is DELEGATED and
+         keyed off data-pb-* hooks (never inline @click), so the block templates
+         survive the AI HtmlSanitizer (which strips @click / x-on:) unchanged.
+         Each handler resolves the owning Alpine component via Alpine.$data()
+         and calls the method the x-data component exposes. --}}
+    <script>
+        (function () {
+            function ad(el) { return (window.Alpine && window.Alpine.$data) ? window.Alpine.$data(el) : null; }
+            // 0-based index of `el` among matches of `sel` within `scope`.
+            function indexAmong(el, scope, sel) {
+                var nodes = scope.querySelectorAll(sel);
+                for (var i = 0; i < nodes.length; i++) { if (nodes[i] === el) { return i; } }
+                return -1;
+            }
+
+            document.addEventListener('click', function (e) {
+                if (! window.Alpine) { return; }
+
+                // Repeater add / remove.
+                var repAdd = e.target.closest('[data-pb-repeater-add]');
+                if (repAdd) {
+                    var repRoot = repAdd.closest('[data-pb-block="repeater"]');
+                    var rep = repRoot && ad(repRoot);
+                    if (rep && rep.add) { rep.add(); }
+                    return;
+                }
+                var repRem = e.target.closest('[data-pb-repeater-remove]');
+                if (repRem) {
+                    var repRoot2 = repRem.closest('[data-pb-block="repeater"]');
+                    var itemEl = repRem.closest('.pb-repeater__item');
+                    var rep2 = repRoot2 && ad(repRoot2);
+                    if (rep2 && rep2.removeAt && itemEl) { rep2.removeAt(indexAmong(itemEl, repRoot2, '.pb-repeater__item')); }
+                    return;
+                }
+
+                // Editable grid add / remove row.
+                var gridAdd = e.target.closest('[data-pb-grid-add]');
+                if (gridAdd) {
+                    var gRoot = gridAdd.closest('[data-pb-block="editable_grid"]');
+                    var g = gRoot && ad(gRoot);
+                    if (g && g.add) { g.add(); }
+                    return;
+                }
+                var gridRem = e.target.closest('[data-pb-grid-remove]');
+                if (gridRem) {
+                    var gRoot2 = gridRem.closest('[data-pb-block="editable_grid"]');
+                    var rowEl = gridRem.closest('.pb-grid__row');
+                    var g2 = gRoot2 && ad(gRoot2);
+                    if (g2 && g2.removeAt && rowEl) { g2.removeAt(indexAmong(rowEl, gRoot2, '.pb-grid__row')); }
+                    return;
+                }
+
+                // Stepper −/+.
+                var step = e.target.closest('[data-pb-step]');
+                if (step && step.closest('[data-pb-block="stepper"]')) {
+                    var sRoot = step.closest('[data-pb-block="stepper"]');
+                    var s = ad(sRoot);
+                    var dir = parseInt(step.getAttribute('data-pb-step'), 10) || 0;
+                    if (s && s.bump) { s.bump(dir); }
+                    return;
+                }
+
+                // Context menu: toggle, item close, and the built-in Remove item.
+                var ctxToggle = e.target.closest('[data-pb-context-toggle]');
+                if (ctxToggle) {
+                    var cRoot = ctxToggle.closest('[data-pb-block="context_menu"]');
+                    var c = cRoot && ad(cRoot);
+                    if (c && c.toggle) { c.toggle(); }
+                    return;
+                }
+                var ctxRemove = e.target.closest('[data-pb-context-remove]');
+                if (ctxRemove) {
+                    var cRoot2 = ctxRemove.closest('[data-pb-block="context_menu"]');
+                    var c2 = cRoot2 && ad(cRoot2);
+                    if (c2 && c2.removeItem) { c2.removeItem(); }
+                    return; // (flow-runtime also handles any data-pb-flow on this item)
+                }
+                var ctxClose = e.target.closest('[data-pb-context-close]');
+                if (ctxClose) {
+                    var cRoot3 = ctxClose.closest('[data-pb-block="context_menu"]');
+                    var c3 = cRoot3 && ad(cRoot3);
+                    if (c3 && c3.close) { c3.close(); }
+                    // no return — allow data-pb-flow items to also fire their flow
+                }
+
+                // Record picker: click a tile to add its record to the target array.
+                var tile = e.target.closest('[data-pb-pick]');
+                if (tile) {
+                    var pRoot = tile.closest('[data-pb-block="record_picker"]');
+                    var p = pRoot && ad(pRoot);
+                    if (p && p.pickById) { p.pickById(tile.getAttribute('data-pb-pick-id')); }
+                    return;
+                }
+
+                // Dismiss any open context menu when clicking outside it.
+                document.querySelectorAll('[data-pb-block="context_menu"]').forEach(function (root) {
+                    if (root.contains(e.target)) { return; }
+                    var cd = ad(root);
+                    if (cd && cd.open) { cd.close(); }
+                });
+            }, false);
+
+            // Right-click opens the context menu at the pointer.
+            document.addEventListener('contextmenu', function (e) {
+                if (! window.Alpine) { return; }
+                var root = e.target.closest('[data-pb-contextmenu]');
+                if (! root) { return; }
+                e.preventDefault();
+                var c = ad(root);
+                if (! c || ! c.openAt) { return; }
+                var box = root.getBoundingClientRect();
+                c.openAt(e.clientX - box.left, e.clientY - box.top);
+            }, false);
+
+            // Record picker search-as-you-type (delegated; x-model already syncs q).
+            document.addEventListener('input', function (e) {
+                if (! window.Alpine) { return; }
+                var search = e.target.closest('[data-pb-picker-search]');
+                if (! search) { return; }
+                var pRoot = search.closest('[data-pb-block="record_picker"]');
+                var p = pRoot && ad(pRoot);
+                if (p && p.search) { p.search(); }
+            }, false);
+        })();
+    </script>
 
     {{-- End-user logout: any element with data-pb-logout="1" ends the pb session
          and returns to the login page. The CSRF token is read from the per-session
