@@ -47,10 +47,21 @@ enum FieldType: string
     /**
      * The physical column name for a field on the generated table. Relations
      * store a foreign id as `{key}_id`; everything else uses the key verbatim.
+     *
+     * Idempotent on the `_id` suffix: a relation field keyed `customer` becomes
+     * `customer_id`, but one already keyed `customer_id` stays `customer_id`
+     * (NOT `customer_id_id`). Authors — and the AI, prompted with "product
+     * relation" — naturally name the field `product_id`; without this guard that
+     * doubled to `product_id_id`, and every write to `product_id` hit a phantom
+     * column while the real NOT-NULL fk went unfilled.
      */
     public function columnName(string $key): string
     {
-        return $this === self::Relation ? $key.'_id' : $key;
+        if ($this !== self::Relation) {
+            return $key;
+        }
+
+        return str_ends_with($key, '_id') ? $key : $key.'_id';
     }
 
     /**
