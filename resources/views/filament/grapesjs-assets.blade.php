@@ -555,26 +555,32 @@
                         // Remove stale live overlay from any prior run.
                         const parent = selEl.parentNode;
                         if (! parent) { return; }
-                        Array.from(parent.children).forEach((c) => { if (c.hasAttribute('data-pb-live') && c.getAttribute('data-pb-live') === 'select') { c.remove(); } });
+                        const host = selEl.offsetParent || parent;
+                        Array.from(host.children).forEach((c) => { if (c.getAttribute && c.getAttribute('data-pb-live') === 'select' && c.__pbForSel === selEl) { c.remove(); } });
                         fetch(apiBase + '/' + collection + '?per_page=5', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
                             .then((r) => r.ok ? r.json() : null).catch(() => null)
                             .then((d) => {
                                 try {
                                     const rows = (d && d.data) || [];
                                     if (! rows.length) { return; }
-                                    // Build a read-only option-list preview div NEXT TO the select.
-                                    // We don't mutate the <select> itself (GrapesJS tracks it);
-                                    // instead we inject a sibling overlay — same pattern as pbInjectLive
-                                    // but targeted at the parent so pbStripLive still strips it.
+                                    // Show a CLOSED dropdown look (first real option + ▾) overlaid on
+                                    // the select — NOT an open option list (which read as an always-open
+                                    // dropdown). Read-only + non-persisted: a data-pb-live div (stripped on
+                                    // export) positioned over the select; the <select> itself is untouched,
+                                    // pointer-events:none so a click still selects the block in GrapesJS.
+                                    const oh = selEl.offsetParent; if (! oh) { return; }
+                                    const first = rows[0][labelField] != null ? String(rows[0][labelField]) : ('#' + rows[0].id);
                                     const wrap = selEl.ownerDocument.createElement('div');
                                     wrap.setAttribute('data-pb-live', 'select');
-                                    wrap.style.cssText = 'pointer-events:none;border:1px solid #e2e8f0;border-radius:.375rem;background:#fff;overflow:hidden;margin-top:.2rem;font-family:inherit;';
-                                    const opts = rows.map((row) => {
-                                        const label = row[labelField] != null ? String(row[labelField]) : ('#' + row.id);
-                                        return '<div style="padding:.3rem .65rem;font-size:.82rem;color:#1e293b;border-bottom:1px solid #f8fafc;">' + pbEsc(label) + '</div>';
-                                    }).join('');
-                                    wrap.innerHTML = '<div style="padding:.2rem .65rem;font-size:.68rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;">Sample options</div>' + opts;
-                                    parent.appendChild(wrap);
+                                    wrap.__pbForSel = selEl;
+                                    wrap.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;z-index:1;'
+                                        + 'left:' + selEl.offsetLeft + 'px;top:' + selEl.offsetTop + 'px;'
+                                        + 'width:' + selEl.offsetWidth + 'px;height:' + selEl.offsetHeight + 'px;'
+                                        + 'display:flex;align-items:center;justify-content:space-between;gap:.5rem;'
+                                        + 'padding:0 .65rem;background:#fff;border:1px solid #cbd5e1;border-radius:.375rem;'
+                                        + 'font:inherit;font-size:.9rem;color:#1e293b;overflow:hidden;';
+                                    wrap.innerHTML = '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + pbEsc(first) + '</span><span style="color:#94a3b8;">&#9662;</span>';
+                                    oh.appendChild(wrap);
                                 } catch (e) { /* leave static template */ }
                             });
                     } catch (e) { /* leave static template */ }
