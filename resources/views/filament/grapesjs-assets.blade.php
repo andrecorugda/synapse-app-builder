@@ -267,14 +267,15 @@
                 if (! innerHtml) { return; }
                 const wrap = el.ownerDocument.createElement('div');
                 // data-pb-live marks this as a preview container (stripped on export).
-                // pointer-events:none ensures clicks pass through to the block element,
-                // so GrapesJS's click-to-select still works on the underlying component.
-                // position:absolute + inset:0 + z-index:1 overlays the block's template.
-                // overflow:hidden keeps a table from spilling outside a small block.
+                // Rendered in NORMAL FLOW (not absolute) so it takes real height and is
+                // VISIBLE — a data block is often an empty shell in the editor, so an
+                // absolute/inset:0 overlay would collapse to height 0 and show nothing
+                // (the reported "no data in the editor"). pointer-events:none keeps
+                // clicks passing through to the block element so GrapesJS click-to-select
+                // still works on the underlying component.
                 wrap.setAttribute('data-pb-live', '');
-                wrap.style.cssText = 'position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;background:#fff;border-radius:inherit;';
+                wrap.style.cssText = 'pointer-events:none;overflow-x:auto;';
                 wrap.innerHTML = innerHtml;
-                el.style.position = 'relative';
                 el.appendChild(wrap);
             };
 
