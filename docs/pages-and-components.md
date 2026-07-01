@@ -132,11 +132,59 @@ Flow runs `POST` to `/{flow_prefix}/{slug}` with `{ "input": {...} }` and apply 
 
 ## Data tables with `pbTable`
 
-For a data-bound table, give the root `x-data="pbTable('<collection key>')"`. On init it fetches `GET {api_prefix}/{collection}` and exposes:
+For a data-bound table, give the root `x-data="pbTable('<collection key>')"`. On init it fetches `GET {api_prefix}/{collection}?expand=*` and exposes:
 
 - `rows` — the records (`response.data`)
 - `loading` / `error` — request state
 
 Then repeat with `<template x-for="row in rows" :key="row.id">` and bind cells with `x-text="row.<field>"`. The `data_table` block ships this scaffold plus sample rows (hidden with `x-show="false"`) so the editor canvas shows something while Alpine is inert.
+
+**Auto-render:** a bare `data_table` shell (no explicit column markup) renders columns directly from the fetched data — relation fields show the resolved `name` from the expanded relation, never the raw id. The table is never blank as long as the collection has rows. KPI and chart widgets render from a configured-but-empty wrapper without requiring manual column scaffolding.
+
+## Management pages
+
+A **management page** is a standard page pattern that pairs a create form with a live data table and per-row actions.
+
+### Structure
+
+1. **Add form** — a `<form data-pb-record="<collection>">` with one labelled input per field. Field types map to input types:
+   - Text/number fields → `<input type="text|number">`
+   - Select fields → `<select>` with `<option>` per choice
+   - Relation fields → `<select>` populated from a collection list (`x-data="pbTable('<related>')"`) so the dropdown shows related record names
+   - Image fields → file input (see [Image fields](#image-fields) below)
+
+2. **Data table** — a `data_table` block that auto-refreshes after a successful create (the `data-pb-record` runtime re-fetches the list on `201`). Uses `?expand=*` so relation columns show names.
+
+3. **Per-row Edit and Delete** — on each row:
+   - **Edit** — fills the Add form with the row's current values and switches the form's POST to a PUT to `{api}/{collection}/{id}`.
+   - **Delete** — sends a DELETE to `{api}/{collection}/{id}` and removes the row from the table.
+
+Both actions go through `RecordQuery`, so validation, column mapping and permission rules apply.
+
+### Image fields
+
+An image field in a form is a `<input type="file" accept="image/*">`. On file selection the runtime immediately uploads the file to `POST /pb-upload` (see [Public upload endpoint](#public-upload-endpoint)) and puts the returned URL into a hidden input. The form then submits the URL string as the field value — the collection stores a plain URL, no binary data.
+
+## Public upload endpoint
+
+`POST /pb-upload` — a gated endpoint for image uploads from generated forms.
+
+**Request:** `multipart/form-data` with a single `file` field (image only).
+
+**Behavior:**
+
+- **Authentication** — authenticated by default (requires the `pb` end-user session). Set `AI_PAGE_BUILDER_UPLOADS_ANON=true` to allow unauthenticated uploads (opt-in; off by default for safety).
+- **Image-only** — accepts `image/jpeg`, `image/jpg`, `image/png`, `image/gif`, `image/webp`. Any other MIME type returns `422`.
+- **Size cap** — rejects files over `uploads.max_kb` (default 5 120 KB = 5 MB). Returns `413` when exceeded.
+- **Rate-limited** — same rate-limit infrastructure as the flow run endpoint.
+- **Safe filenames** — the stored filename is a UUID + the original extension; the original filename is never used.
+- **Response** — `200 { "url": "https://..." }` on success; standard error codes on failure.
+
+Configuration (see [Configuration → `uploads`](configuration.md#uploads)):
+
+| Key | Env | Default | Meaning |
+|---|---|---|---|
+| `uploads.allow_anonymous` | `AI_PAGE_BUILDER_UPLOADS_ANON` | `false` | Allow unauthenticated uploads |
+| `uploads.max_kb` | `AI_PAGE_BUILDER_UPLOADS_MAX_KB` | `5120` | Max upload size in KB |
 
 Next: [Collections & data](collections-and-data.md).
