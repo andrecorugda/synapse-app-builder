@@ -138,6 +138,49 @@ it('does not move an inline <script> body into custom_js on the AI/import path',
 });
 
 // ---------------------------------------------------------------------------
+// C3c — SVG script vectors: SMIL animation tags + data:image/svg+xml URIs
+// ---------------------------------------------------------------------------
+
+it('strips SVG SMIL animation tags that can animate an href to javascript:', function (): void {
+    $s = new \Andre\AiPageBuilder\Ai\HtmlSanitizer();
+
+    $animate = $s->sanitize('<svg><a><animate attributeName="href" values="javascript:alert(1)"/><text>x</text></a></svg>');
+    $set = $s->sanitize('<svg><a><set attributeName="href" to="javascript:alert(1)"/><text>x</text></a></svg>');
+    $motion = $s->sanitize('<svg><animateMotion path="M0,0"/></svg>');
+    $transform = $s->sanitize('<svg><animateTransform attributeName="x"/></svg>');
+
+    // The animation elements are removed entirely; no javascript: payload survives.
+    expect($animate)
+        ->not->toContain('<animate')
+        ->not->toContain('javascript:')
+        ->toContain('<text>x</text>');
+
+    expect($set)
+        ->not->toContain('<set')
+        ->not->toContain('javascript:')
+        ->toContain('<text>x</text>');
+
+    expect($motion)->not->toContain('animateMotion')->not->toContain('animatemotion');
+    expect($transform)->not->toContain('animateTransform')->not->toContain('animatetransform');
+});
+
+it('blocks data:image/svg+xml URIs while keeping raster image data URIs', function (): void {
+    $s = new \Andre\AiPageBuilder\Ai\HtmlSanitizer();
+
+    // SVG is a scriptable document type — svg+xml data URIs are dropped in both
+    // src and href positions.
+    $imgSvg = $s->sanitize('<img src="data:image/svg+xml,%3Csvg%3E%3C/svg%3E">');
+    $anchorSvg = $s->sanitize('<a href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=">click</a>');
+
+    expect($imgSvg)->not->toContain('data:image/svg+xml');
+    expect($anchorSvg)->not->toContain('data:image/svg+xml')->toContain('click');
+
+    // Raster image data URIs (png/jpeg/gif/webp) remain allowed.
+    $png = $s->sanitize('<img src="data:image/png;base64,iVBORw0KGgo=">');
+    expect($png)->toContain('data:image/png;base64,iVBORw0KGgo=');
+});
+
+// ---------------------------------------------------------------------------
 // M1 — key charset enforced at the MODEL layer + plan validated on apply
 // ---------------------------------------------------------------------------
 
