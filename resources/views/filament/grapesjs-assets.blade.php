@@ -261,13 +261,18 @@
             // Inject (or refresh) the live-data overlay for one block element.
             // el: the canvas DOM element with [data-pb-block].
             // Removes any existing [data-pb-live] child first (idempotent).
-            // Signature of an element's live-relevant config (data-pb-* attrs). An
-            // overlay is stamped with it so an unchanged block is SKIPPED on re-run
-            // (no refetch/re-render churn = no flicker); only a changed config or a
-            // missing overlay re-renders.
-            const pbSig = (el) => el.getAttribute('data-pb-block') + '|' + (el.getAttributeNames()
-                .filter((n) => n.indexOf('data-pb-') === 0 && n !== 'data-pb-live' && n !== 'data-pb-sig')
-                .sort().map((n) => n + '=' + el.getAttribute(n)).join('&'));
+            // Signature of an element's live-relevant config. An overlay is stamped
+            // with it so an unchanged block is SKIPPED on re-run (no refetch/re-render
+            // churn = no flicker); a CHANGED config re-renders. Must include EVERY
+            // attribute the preview depends on — the data_table's collection lives in
+            // x-data="pbTable('key')" and a list's source in x-for, NOT in a data-pb-*
+            // attr, so include x-data / x-for or changing the collection wouldn't
+            // re-render (the reported bug).
+            const pbSig = (el) => el.getAttribute('data-pb-block') + '|'
+                + 'xd=' + (el.getAttribute('x-data') || '') + '&xf=' + (el.getAttribute('x-for') || '') + '&'
+                + (el.getAttributeNames()
+                    .filter((n) => n.indexOf('data-pb-') === 0 && n !== 'data-pb-live' && n !== 'data-pb-sig')
+                    .sort().map((n) => n + '=' + el.getAttribute(n)).join('&'));
 
             const pbInjectLive = (el, innerHtml) => {
                 // Remove stale overlay first
