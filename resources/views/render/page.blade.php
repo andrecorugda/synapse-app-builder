@@ -136,7 +136,11 @@
                     renderAuto: function () {
                         var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
                         var human = function (k) { return k.replace(/_id$/, '').replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); }); };
-                        var cell = function (v) { return (v && typeof v === 'object') ? (v.name || v.label || v.title || JSON.stringify(v)) : v; };
+                        var isImg = function (v) { return typeof v === 'string' && /\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i.test(v); };
+                        var cell = function (v) {
+                            if (isImg(v)) { return '<img src="' + esc(v) + '" alt="" style="height:2.25rem;width:2.25rem;object-fit:cover;border-radius:.35rem;border:1px solid #e2e8f0;" />'; }
+                            return esc((v && typeof v === 'object') ? (v.name || v.label || v.title || JSON.stringify(v)) : v);
+                        };
                         if (! this.rows.length) { this.$el.innerHTML = '<p class="pb-table__empty" style="padding:1rem;color:#64748b;font-family:inherit;">No records yet.</p>'; return; }
                         var row0 = this.rows[0];
                         // A relation fk `x_id` is expanded onto a sibling `x` (object).
@@ -157,7 +161,7 @@
                         var th = keys.map(function (k) { return '<th style="' + thStyle + '">' + esc(human(k)) + '</th>'; }).join('')
                             + (recForm ? '<th style="' + thStyle + 'text-align:right;">Actions</th>' : '');
                         var body = this.rows.map(function (row, i) {
-                            var cells = keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + esc(display(row, k)) + '</td>'; }).join('');
+                            var cells = keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + display(row, k) + '</td>'; }).join('');
                             if (recForm) {
                                 cells += '<td style="padding:.5rem .9rem;text-align:right;white-space:nowrap;">'
                                     + '<button type="button" data-pb-edit="' + i + '" style="border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;border-radius:.35rem;padding:.2rem .55rem;font-size:.72rem;cursor:pointer;margin-right:.25rem;">Edit</button>'
@@ -369,6 +373,8 @@
                     q: '', results: [], loading: false,
                     collection: (root && root.getAttribute('data-pb-collection')) || '',
                     labelField: (root && root.getAttribute('data-pb-label-field')) || 'name',
+                    imageField: (root && root.getAttribute('data-pb-image-field')) || 'image',
+                    priceField: (root && root.getAttribute('data-pb-price-field')) || 'price',
                     target: (root && root.getAttribute('data-pb-target')) || 'cart',
                     init: function () { this.search(); },
                     search: function () {
@@ -380,7 +386,13 @@
                             .then(function (r) { return r.json(); })
                             .then(function (d) {
                                 self.results = ((d && d.data) || []).map(function (row) {
-                                    return { id: row.id, label: row[self.labelField] != null ? row[self.labelField] : ('#' + row.id), raw: row };
+                                    return {
+                                        id: row.id,
+                                        label: row[self.labelField] != null ? row[self.labelField] : ('#' + row.id),
+                                        image: row[self.imageField] || '',                       // product image URL (if any)
+                                        price: (row[self.priceField] != null) ? row[self.priceField] : '',
+                                        raw: row,
+                                    };
                                 });
                                 self.loading = false;
                             })
@@ -396,7 +408,8 @@
                         // POS/cart behaviour.
                         var line = store[this.target].filter(function (l) { return String(l.id) === String(hit.id); })[0];
                         if (line) { line.qty = (Number(line.qty) || 0) + 1; return; }
-                        store[this.target].push({ id: hit.id, label: hit.label, qty: 1, price: Number(hit.raw && hit.raw.price) || 0 });
+                        // Carry the image + price onto the cart line so the cart/grid can show them too.
+                        store[this.target].push({ id: hit.id, label: hit.label, image: hit.image || '', qty: 1, price: Number(hit.price) || 0 });
                     },
                 };
             });
