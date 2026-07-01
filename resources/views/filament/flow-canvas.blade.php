@@ -75,8 +75,10 @@
                             <div class="ai-pb-drawer-grid">
                                 <template x-for="def in group.nodes" :key="def.key">
                                     <button type="button" class="ai-pb-tile"
-                                        :title="def.description || def.label"
-                                        @click="addNode(def.key); drawerOpen = false">
+                                        :disabled="def.key === 'trigger' && hasTrigger()"
+                                        :class="{ 'ai-pb-tile--disabled': def.key === 'trigger' && hasTrigger() }"
+                                        :title="(def.key === 'trigger' && hasTrigger()) ? 'This flow already has a Trigger (one entry point per flow)' : (def.description || def.label)"
+                                        @click="if (! (def.key === 'trigger' && hasTrigger())) { addNode(def.key); drawerOpen = false; }">
                                         <span class="ai-pb-tile-icon" x-text="iconGlyph(def.icon)"></span>
                                         <span class="ai-pb-tile-label" x-text="def.label"></span>
                                         <span class="ai-pb-tile-desc" x-text="def.description" x-show="def.description"></span>
