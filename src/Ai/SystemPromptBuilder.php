@@ -364,6 +364,22 @@ final class SystemPromptBuilder
         Point a `record_picker`'s `data-pb-target` and the paired `editable_grid`'s
         `data-pb-state` at the SAME state key so picks flow into the grid.
 
+        CART-LINE SHAPE (critical — the flow MUST read these exact keys). Each line
+        the `record_picker` / `editable_grid` puts in the cart array is EXACTLY:
+          `{ id, label, qty, price }`
+        — `id` is the picked record's id, `label` its label field, `qty` the quantity
+        (default 1, editable in the grid / via a `stepper`), `price` its unit price.
+        There is NO `quantity`, `unit_price`, `product_id`, or `subtotal` key. So in the
+        checkout flow's loop over `input.<cart key>` (item_var `item`) read a line as:
+          `vars.item['id']`  → the product id (store it in the order line's product relation)
+          `vars.item['qty']` → the quantity      `vars.item['price']` → the unit price
+          line total = `vars.item['qty'] * vars.item['price']`
+        Map these to YOUR collection's own field names in the `record` create `data`
+        (e.g. `{"product_id": "vars.item['id']", "quantity": "vars.item['qty']",
+        "unit_price": "vars.item['price']", "line_subtotal": "vars.item['qty'] * vars.item['price']"}`).
+        Reading `vars.item['quantity']` or `vars.item['product_id']` yields NULL and the
+        write fails — always `id` / `qty` / `price`.
+
         A working POS checkout screen = a `record_picker` (products → cart state) + an
         `editable_grid` (the cart, computing qty×price → subtotal → total) + a Checkout
         button carrying `data-pb-flow="complete-sale"`. The `complete-sale` flow (trigger
@@ -447,6 +463,7 @@ final class SystemPromptBuilder
         - REQUIRED vs OPTIONAL FIELDS (critical — a wrong `required` breaks the whole flow): only mark a field `required` if EVERY create supplies a valid value. Two traps: (1) fields a flow fills in LATER — an order's total/tax/subtotal computed from line items — must be `options.default: 0` and NOT required (or the create passes 0); (2) fields the user may skip — a POS order's `customer` (walk-in sales have none), optional notes — must be nullable (NOT required). A required field left empty on create fails validation ("the X field must be a number/integer") and rolls the transaction back. Order pattern: customer OPTIONAL; total/tax default 0; create order → loop items (create line + decrement stock) → update the order's totals.
         - UI-triggered flows are made public automatically so the page can call them; setting `trigger_type` to `component`/`form` is enough (no need to set is_public).
         - EXPRESSIONS ARE SYMFONY ExpressionLanguage, NOT JavaScript. There is no `Math`, `Date`, `JSON`, `console`, arrow functions, or `.map()`. String concatenation uses `~` (tilde), NOT `+` (`+` is numeric add). For a random/unique value use `util_uuid()`; for a timestamp `util_now('YmdHis')`; for formatting `util_number_format(n, 2)`. E.g. an order number: `'ORD-' ~ util_now('YmdHis') ~ '-' ~ util_uuid()`.
+        - NO SLICING OR STRING METHODS. Symfony EL has no `[start:end]` slice and no `.substr()`/`.substring()`/`.slice()` — writing `util_uuid()[0:8]` is INVALID and the whole value silently degrades to a literal string (so e.g. every order gets the SAME order number). `util_uuid()` is already unique — use it WHOLE. Need a short human code? Use `util_now('YmdHis')` (already compact) or `util_now('ymdHis') ~ util_number_format(0, 0)`; never try to trim a uuid.
         - In an expression, access array fields with `['key']`, NOT dot: `args['product_id']`, `vars['item']['price']`, `input['cart_items']`. (Dot access like `args.product_id` fails on an array — dot is only for `{{ }}` interpolation tokens and node context paths such as a loop's `over: "input.cart_items"`.)
         - INPUT vs STATES (critical for carts): a UI-triggered flow receives the page's TRANSIENT client state (the cart, selections, form values) as INPUT — reference it as `input.<key>` (e.g. loop `over: "input.cart_items"`, validate `input.cart_items`, read a line as `{{ vars.item.<field> }}`). Do NOT read it from `states.*` — `states.*` is PERSISTENT app-wide config (tax rate, store name), NOT the page's live cart. The Interactive components hold the cart in `$store.app.<key>`, and the runtime sends that whole store as the flow `input`, so `$store.app.cart_items` arrives as `input.cart_items`. (Use the SAME key for the picker `data-pb-target`, the grid `data-pb-state`, and `input.<key>` in the flow.)
         - WIRE THE UI: a button/form that runs a flow carries `data-pb-flow="<flow slug>"` and the flow's `trigger_type` is `component` (or `form`); a form that just creates a record carries `data-pb-record="<collection key>"`. Build carts / line-item screens from the `Interactive` components (`record_picker`, `editable_grid`, `stepper`) bound to `$store.app.<state>`.
