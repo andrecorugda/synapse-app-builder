@@ -133,6 +133,20 @@ it('resolves relation names in a list (expand=*) so tables show names not ids', 
         ->and($row['category']['name'])->toBe('Drinks');
 });
 
+it('re-applies over a soft-deleted page/collection without a duplicate-key error (edit works)', function (): void {
+    // Trash an existing page + collection (soft delete leaves the unique index occupied).
+    \Andre\AiPageBuilder\Models\Page::where('slug', 'products')->first()->delete();
+    PbModel::where('key', 'categories')->first()->delete();
+
+    // Re-applying the SAME plan must update/restore them, not INSERT into the still-
+    // occupied unique index (which is what made "edit an existing page" fail).
+    $summary = app(BuildPlanApplier::class)->apply(goldenPosPlan());
+
+    expect($summary['errors'])->toBe([])
+        ->and(\Andre\AiPageBuilder\Models\Page::where('slug', 'products')->exists())->toBeTrue()   // restored, not trashed
+        ->and(PbModel::where('key', 'categories')->exists())->toBeTrue();
+});
+
 it('runs the generated checkout end to end: order + line items + stock decrement', function (): void {
     $products = PbModel::where('key', 'products')->first();
     $p1 = $this->rq->create($products, ['name' => 'Coffee', 'price' => 3.5, 'stock' => 20])->toArray();
