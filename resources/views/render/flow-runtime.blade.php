@@ -329,11 +329,18 @@
         }
 
         var pageEls = document.querySelectorAll('[data-pb-page]');
+        var currentSlug = window.__pbCurrentSlug || '';
         for (var j = 0; j < pageEls.length; j++) {
             (function (el) {
-                if (el.__pbPageBound) { return; }
                 var slug = el.getAttribute('data-pb-page');
                 if (!slug) { return; }
+                // Auto-mark the current page's nav link so a shared nav partial
+                // highlights the active page without hardcoding it. Idempotent.
+                if (slug === currentSlug) {
+                    el.classList.add('is-active');
+                    el.setAttribute('aria-current', 'page');
+                }
+                if (el.__pbPageBound) { return; }
                 el.__pbPageBound = true;
                 el.style.cursor = 'pointer';
                 el.addEventListener('click', function (e) {

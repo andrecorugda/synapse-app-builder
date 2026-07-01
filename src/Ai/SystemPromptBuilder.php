@@ -138,6 +138,10 @@ final class SystemPromptBuilder
                        "html": "<markup using CLASSES, not inline styles>",
                        "custom_css": "<ALL page CSS — design tokens + class rules>",
                        "custom_js": "<optional page behaviour as plain JS>" } ]
+        - "partials": [ { "slug": "<kebab>", "name": "<label>",
+                          "html": "<shared-chrome markup>",
+                          "custom_css": "<partial CSS — e.g. the .is-active nav rule>",
+                          "custom_js": "<optional partial behaviour as plain JS>" } ]
         - "settings": { "home_page": "<slug of a kind=page page>" }
 
         Page "html" is composed from the component vocabulary: each block is a
@@ -169,15 +173,30 @@ final class SystemPromptBuilder
         Set "settings.home_page" to the slug of a published kind=page page to make
         it the site's home page. Only set it when the request implies a landing /
         home page; never point it at an email template.
+
+        SHARED CHROME → A PARTIAL. Put the top nav / header / footer that repeats
+        across pages in a `partials` entry ONCE, and embed it on EVERY page with
+        `<div data-pb-partial="<slug>"></div>` — NEVER copy nav/header/footer
+        markup into each page's html. The engine expands the placeholder into the
+        partial's html at render time, so editing the partial updates every page.
+        Nav links inside a partial navigate with `data-pb-page="<page slug>"`
+        (not `<a href>`); the engine auto-marks the CURRENT page's link with class
+        `is-active` + `aria-current="page"`, so style `.is-active` in the partial's
+        `custom_css` and NEVER hardcode which link is active.
         TXT;
     }
 
     private function example(): string
     {
         return <<<'TXT'
-        ### Example plan (compact) — a waitlist that emails a welcome on signup
+        ### Example plan (compact) — a waitlist with a shared nav, emailing a welcome on signup
 
-        {"collections":[{"key":"signups","name":"Signups","fields":[{"key":"name","label":"Name","type":"string","options":{"required":true}},{"key":"email","label":"Email","type":"string","options":{"required":true}}]}],"pages":[{"slug":"home","title":"Home","kind":"page","status":"published","html":"<section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">Join the waitlist</h1></section>","custom_css":":root{--accent:#6366f1}.pb-hero{padding:4rem 1.5rem;text-align:center}.pb-hero__title{margin:0;font-size:2.4rem;color:var(--accent)}"},{"slug":"welcome-email","title":"Welcome email","kind":"email","status":"draft","html":"<h1>Welcome {{ input.record.name }}</h1><p>Thanks for joining the waitlist.</p>","css":""}],"flows":[{"slug":"on-signup","name":"On signup","trigger_type":"collection","trigger_config":{"collection":"signups","events":["created"]},"definition":{"start":"t","nodes":{"t":{"type":"trigger","next":["mail"]},"mail":{"type":"send_email","config":{"to":"{{ input.record.email }}","subject":"Welcome {{ input.record.name }}","template":"welcome-email","output":"email"}}}}}],"settings":{"home_page":"home"}}
+        Note the `nav` PARTIAL holding the shared header (its links use
+        `data-pb-page`, and its custom_css styles `.is-active`), and BOTH pages
+        embedding it with `<div data-pb-partial="nav"></div>` instead of repeating
+        the nav markup.
+
+        {"collections":[{"key":"signups","name":"Signups","fields":[{"key":"name","label":"Name","type":"string","options":{"required":true}},{"key":"email","label":"Email","type":"string","options":{"required":true}}]}],"partials":[{"slug":"nav","name":"Top nav","html":"<header class=\"pb-nav\"><span class=\"pb-nav__brand\">Waitlist</span><nav class=\"pb-nav__links\"><a data-pb-page=\"home\">Home</a><a data-pb-page=\"about\">About</a></nav></header>","custom_css":".pb-nav{display:flex;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid #e2e8f0}.pb-nav__links a{margin-left:1.25rem;color:#334155;text-decoration:none;cursor:pointer}.pb-nav__links a.is-active{color:#6366f1;font-weight:700}"}],"pages":[{"slug":"home","title":"Home","kind":"page","status":"published","html":"<div data-pb-partial=\"nav\"></div><section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">Join the waitlist</h1></section>","custom_css":":root{--accent:#6366f1}.pb-hero{padding:4rem 1.5rem;text-align:center}.pb-hero__title{margin:0;font-size:2.4rem;color:var(--accent)}"},{"slug":"about","title":"About","kind":"page","status":"published","html":"<div data-pb-partial=\"nav\"></div><section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">About us</h1></section>","custom_css":""},{"slug":"welcome-email","title":"Welcome email","kind":"email","status":"draft","html":"<h1>Welcome {{ input.record.name }}</h1><p>Thanks for joining the waitlist.</p>","css":""}],"flows":[{"slug":"on-signup","name":"On signup","trigger_type":"collection","trigger_config":{"collection":"signups","events":["created"]},"definition":{"start":"t","nodes":{"t":{"type":"trigger","next":["mail"]},"mail":{"type":"send_email","config":{"to":"{{ input.record.email }}","subject":"Welcome {{ input.record.name }}","template":"welcome-email","output":"email"}}}}}],"settings":{"home_page":"home"}}
         TXT;
     }
 
@@ -322,6 +341,29 @@ final class SystemPromptBuilder
           rows bound to that array, with live column + grand totals), `stepper` (a qty
           control), `repeater`, `context_menu` (row actions).
 
+        EMIT INTERACTIVE COMPONENTS AS A CONFIGURED WRAPPER ONLY. For every
+        `Interactive` component, emit JUST the wrapper element with its config
+        `data-pb-*` attributes — NEVER hand-write the internals (search box, tile
+        grid, editable rows, +/- buttons, Alpine bindings). The engine EXPANDS the
+        wrapper into the full working component at render time, so its internals
+        always match the runtime. For example a product picker feeding a cart:
+          `<div data-pb-block="record_picker" data-pb-collection="products" data-pb-target="cart_items"></div>`
+        Config attributes per Interactive component:
+          - `record_picker`: `data-pb-collection` (collection to search),
+            `data-pb-label-field` (tile label field, default `name`),
+            `data-pb-target` (the $store.app state ARRAY key it appends picks to).
+          - `editable_grid`: `data-pb-state` (the bound cart array key),
+            `data-pb-qty` (qty field, default `qty`), `data-pb-price` (price field,
+            default `price`), `data-pb-max` (max rows, 0 = unlimited).
+          - `stepper`: `data-pb-state` (the number state key), `data-pb-min`,
+            `data-pb-max` (0 = none), `data-pb-step` (default 1).
+          - `repeater`: `data-pb-state` (the bound array key), `data-pb-min`,
+            `data-pb-max`.
+          - `context_menu`: emit the wrapper; wire its actions with the same
+            `data-pb-flow="<flow slug>"` convention used elsewhere.
+        Point a `record_picker`'s `data-pb-target` and the paired `editable_grid`'s
+        `data-pb-state` at the SAME state key so picks flow into the grid.
+
         A working POS checkout screen = a `record_picker` (products → cart state) + an
         `editable_grid` (the cart, computing qty×price → subtotal → total) + a Checkout
         button carrying `data-pb-flow="complete-sale"`. The `complete-sale` flow (trigger
@@ -403,6 +445,8 @@ final class SystemPromptBuilder
         - FUNCTIONS: write bodies in the `expression` runtime calling the built-in helpers (db_*/ui_*/auth_*/util_*). NEVER use the `php` runtime — it is disabled by default and unnecessary.
         - MULTI-RECORD WRITES (checkout, transfers, batch ops): wrap them in a `transaction` node containing a `loop` over the items, writing with `record` nodes or `db_*` helpers — atomic, all-or-nothing, no php. Do the logic BEFORE the `result` node (never toast "success" before the writes run).
         - WIRE THE UI: a button/form that runs a flow carries `data-pb-flow="<flow slug>"` and the flow's `trigger_type` is `component` (or `form`); a form that just creates a record carries `data-pb-record="<collection key>"`. Build carts / line-item screens from the `Interactive` components (`record_picker`, `editable_grid`, `stepper`) bound to `$store.app.<state>`.
+        - INTERACTIVE COMPONENTS: emit ONLY the wrapper with its config attrs (e.g. `<div data-pb-block="record_picker" data-pb-collection="products" data-pb-target="cart_items"></div>`) — the engine expands it to the full component. NEVER hand-write their internals. Point a picker's `data-pb-target` at the same state key as the grid's `data-pb-state`.
+        - SHARED CHROME (nav/header/footer that repeats across pages): define it ONCE in `partials` and embed with `<div data-pb-partial="<slug>"></div>` on every page — never repeat the markup. Nav links use `data-pb-page="<slug>"`; the active link is auto-marked `.is-active` (style it in the partial's custom_css), so never hardcode the active state.
         - When the request names a home / landing / main page (or implies one), set `settings.home_page` to that page's slug, and give that page `status:"published"`.
         - A page whose html is the body of a `send_email` node MUST have `kind:"email"`.
         - Prefer the smallest plan that satisfies the request.
