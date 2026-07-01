@@ -64,7 +64,7 @@ class ConditionNode implements FlowNodeHandler, ProvidesNodeDefinition
                     'empty' => 'is empty',
                     'not_empty' => 'is not empty',
                 ]),
-                new CapabilityInput('right', 'Right value', 'expression', help: 'The value on the right of the comparison. Ignored by the empty / not_empty operators.'),
+                new CapabilityInput('right', 'Right value', 'expression', help: 'The value on the right of the comparison. Ignored by the empty / not_empty operators.', showIf: ['op' => ['equals', 'not_equals', 'contains', 'gt', 'lt']]),
             ],
             outputHandles: ['true', 'false'],
         );
