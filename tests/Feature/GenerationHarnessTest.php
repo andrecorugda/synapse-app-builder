@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
 use Andre\AiPageBuilder\Flow\FlowRunner;
 use Andre\AiPageBuilder\Models\Flow;
+use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 
@@ -135,7 +136,7 @@ it('resolves relation names in a list (expand=*) so tables show names not ids', 
 
 it('re-applies over a soft-deleted page/collection without a duplicate-key error (edit works)', function (): void {
     // Trash an existing page + collection (soft delete leaves the unique index occupied).
-    \Andre\AiPageBuilder\Models\Page::where('slug', 'products')->first()->delete();
+    Page::where('slug', 'products')->first()->delete();
     PbModel::where('key', 'categories')->first()->delete();
 
     // Re-applying the SAME plan must update/restore them, not INSERT into the still-
@@ -143,7 +144,7 @@ it('re-applies over a soft-deleted page/collection without a duplicate-key error
     $summary = app(BuildPlanApplier::class)->apply(goldenPosPlan());
 
     expect($summary['errors'])->toBe([])
-        ->and(\Andre\AiPageBuilder\Models\Page::where('slug', 'products')->exists())->toBeTrue()   // restored, not trashed
+        ->and(Page::where('slug', 'products')->exists())->toBeTrue()   // restored, not trashed
         ->and(PbModel::where('key', 'categories')->exists())->toBeTrue();
 });
 
