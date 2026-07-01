@@ -213,6 +213,7 @@
         .ai-pb-action-add:hover { background: rgba(99, 102, 241, 0.22); }
         /* ── Transaction / loop step list ── */
         .ai-pb-step {
+            position: relative;
             border: 1px solid rgba(148, 163, 184, 0.25);
             border-left: 3px solid #6366f1;
             border-radius: 0.45rem;
@@ -220,13 +221,18 @@
             margin: 0.3rem 0;
             background: rgba(30, 41, 59, 0.4);
         }
-        .ai-pb-step-head { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.25rem; }
+        /* Reorder / delete live in the corner, OUT of the layout flow, so they never
+           steal width from the kind dropdown or get clipped. */
+        .ai-pb-step-actions { position: absolute; top: 5px; right: 5px; display: flex; gap: 2px; z-index: 3; }
+        .ai-pb-step-head { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.25rem; padding-right: 3.2rem; }
         .ai-pb-step-num {
             flex: 0 0 auto; width: 1.15rem; height: 1.15rem; line-height: 1.15rem;
             text-align: center; border-radius: 999px; background: #6366f1; color: #eef2ff;
             font-size: 0.62rem; font-weight: 700;
         }
-        .ai-pb-step-kind { flex: 0 0 auto; width: auto; margin: 0 !important; }
+        /* Shrinkable so the reorder/delete buttons after it never get pushed
+           out of the card (min-width:0 lets flex actually shrink it). */
+        .ai-pb-step-kind { flex: 1 1 auto; min-width: 0; width: auto; margin: 0 !important; }
         .ai-pb-step-btn {
             flex: 0 0 auto; border: 0; background: rgba(148, 163, 184, 0.18); color: #cbd5e1;
             border-radius: 0.3rem; width: 1.3rem; height: 1.3rem; line-height: 1; cursor: pointer; font-size: 0.8rem;
@@ -242,7 +248,7 @@
         .drawflow .drawflow-node .ai-pb-node[data-node-type="transaction"],
         .drawflow .drawflow-node .ai-pb-node[data-node-type="loop"],
         .ai-pb-node[data-node-type="transaction"],
-        .ai-pb-node[data-node-type="loop"] { width: 300px; max-width: 300px; }
+        .ai-pb-node[data-node-type="loop"] { width: 400px; max-width: 400px; }
         .ai-pb-node[data-node-type="transaction"] *,
         .ai-pb-node[data-node-type="loop"] * { max-width: 100%; box-sizing: border-box; }
         .ai-pb-steps { max-height: 320px; overflow-y: auto; overflow-x: hidden; padding-right: 2px; }
@@ -716,7 +722,12 @@
                     steps.forEach(function (step, idx) {
                         var card = document.createElement('div');
                         card.className = 'ai-pb-step';
-                        var head = '<div class="ai-pb-step-head">'
+                        var head = '<div class="ai-pb-step-actions">'
+                            + '<button type="button" class="ai-pb-step-btn" data-up title="Move up">↑</button>'
+                            + '<button type="button" class="ai-pb-step-btn" data-down title="Move down">↓</button>'
+                            + '<button type="button" class="ai-pb-step-btn ai-pb-step-del" data-del title="Remove">×</button>'
+                            + '</div>'
+                            + '<div class="ai-pb-step-head">'
                             + '<span class="ai-pb-step-num">' + (idx + 1) + '</span>'
                             + '<select class="ai-pb-step-kind">'
                             +   '<option value="function"' + (step.kind === 'function' ? ' selected' : '') + '>ƒ Function</option>'
@@ -724,10 +735,6 @@
                             +   '<option value="loop"' + (step.kind === 'loop' ? ' selected' : '') + '>🔁 Loop</option>'
                             +   PB_STEP_NODE_TYPES.map(function (nt) { return '<option value="node:' + nt.type + '"' + (step.kind === 'node' && step.type === nt.type ? ' selected' : '') + '>' + nt.label + '</option>'; }).join('')
                             + '</select>'
-                            + '<span style="flex:1 1 auto"></span>'
-                            + '<button type="button" class="ai-pb-step-btn" data-up title="Move up">↑</button>'
-                            + '<button type="button" class="ai-pb-step-btn" data-down title="Move down">↓</button>'
-                            + '<button type="button" class="ai-pb-step-btn ai-pb-step-del" data-del title="Remove">×</button>'
                             + '</div>';
                         var bodyHtml = '';
                         if (step.kind === 'function') { bodyHtml = '<label class="ai-pb-node-label">Function</label><select data-ref>' + pbFnOptions() + '</select>'; }
