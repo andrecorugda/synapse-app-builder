@@ -493,6 +493,7 @@
         .ai-pb-node[data-node-type="send_email"] .ai-pb-node-title { color: #34d399; }
         .ai-pb-node[data-node-type="condition"] .ai-pb-node-title { color: #fbbf24; }
         .ai-pb-node[data-node-type="result"] .ai-pb-node-title { color: #f472b6; }
+        .ai-pb-node[data-node-type="call_flow"] .ai-pb-node-title { color: #8b5cf6; }
         /* ── Neutralise Drawflow's default node chrome so only our card shows ── */
         .ai-pb-flow-wrap .drawflow .drawflow-node {
             background: transparent;
@@ -607,29 +608,15 @@
                 logout:      { label: 'Log out',        fields: [ { key: 'url', label: 'Redirect URL (optional)', type: 'string' } ] }
             };
 
-            // Turn a `result` node's hidden JSON <textarea df-actions> into a low-code
-            // list of typed actions (a type dropdown → the fields for that type). The
-            // hidden field stays the source of truth (load/save unchanged); the builder
-            // just reads/writes it and dispatches input so Drawflow re-syncs.
-            window.__pbResultActions = function (nodeEl) {
-                if (! nodeEl || nodeEl.__pbActionsInit) { return; }
-                var hidden = nodeEl.querySelector('textarea[df-actions]');
-                var mount = nodeEl.querySelector('[data-pb-actions-mount]');
-                if (! hidden || ! mount) { return; }
-                nodeEl.__pbActionsInit = true;
-
-                var actions;
-                try { actions = JSON.parse(hidden.value || '[]'); } catch (e) { actions = []; }
-                if (! Array.isArray(actions)) { actions = []; }
-
+            // Render the low-code actions builder into `mount`, operating on the
+            // in-memory `actions` array. On any edit it mutates `actions` in place and
+            // calls onChange(actions). Shared by the top-level Result node (via a
+            // hidden df-actions bridge) and the Result STEP inside a transaction/loop
+            // body (which persists straight to step.config.actions) — single source of
+            // truth for the action-type catalog + field rendering.
+            function pbActionsBuilder(mount, actions, onChange) {
                 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-                function commit() {
-                    hidden.value = JSON.stringify(actions);
-                    hidden.dispatchEvent(new Event('input', { bubbles: true }));
-                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
-                }
                 function optionsHtml(map) { return Object.keys(map || {}).map(function (k) { return '<option value="' + esc(k) + '">' + esc(map[k]) + '</option>'; }).join(''); }
-
                 function render() {
                     mount.innerHTML = '';
                     actions.forEach(function (act, idx) {
@@ -645,15 +632,15 @@
                             return '<label class="ai-pb-node-label">' + esc(f.label) + '</label><input type="text" data-k="' + f.key + '" value="' + esc(val) + '" />';
                         }).join('');
                         row.innerHTML = '<div class="ai-pb-action-head">' + typeSel + '<button type="button" class="ai-pb-action-del" title="Remove">&times;</button></div>' + fieldsHtml;
-                        row.querySelector('.ai-pb-action-type').addEventListener('change', function (e) { actions[idx] = { type: e.target.value }; commit(); render(); });
-                        row.querySelector('.ai-pb-action-del').addEventListener('click', function () { actions.splice(idx, 1); commit(); render(); });
+                        row.querySelector('.ai-pb-action-type').addEventListener('change', function (e) { actions[idx] = { type: e.target.value }; onChange(actions); render(); });
+                        row.querySelector('.ai-pb-action-del').addEventListener('click', function () { actions.splice(idx, 1); onChange(actions); render(); });
                         spec.fields.forEach(function (f) {
                             var ctl = row.querySelector('[data-k="' + f.key + '"]');
                             if (! ctl) { return; }
                             if (f.type === 'select' && act[f.key] != null) { ctl.value = act[f.key]; }
                             ctl.addEventListener(f.type === 'select' ? 'change' : 'input', function () {
                                 actions[idx][f.key] = ctl.value;
-                                commit();
+                                onChange(actions);
                                 if (f.type === 'select') { render(); } // a select may gate a showIf field
                             });
                         });
@@ -663,10 +650,34 @@
                     add.type = 'button';
                     add.className = 'ai-pb-action-add';
                     add.textContent = '+ Add action';
-                    add.addEventListener('click', function () { actions.push({ type: 'notify', message: '', level: 'success' }); commit(); render(); });
+                    add.addEventListener('click', function () { actions.push({ type: 'notify', message: '', level: 'success' }); onChange(actions); render(); });
                     mount.appendChild(add);
                 }
                 render();
+            }
+
+            // Turn a `result` node's hidden JSON <textarea df-actions> into a low-code
+            // list of typed actions (a type dropdown → the fields for that type). The
+            // hidden field stays the source of truth (load/save unchanged); the builder
+            // just reads/writes it and dispatches input so Drawflow re-syncs.
+            window.__pbResultActions = function (nodeEl) {
+                if (! nodeEl || nodeEl.__pbActionsInit) { return; }
+                var hidden = nodeEl.querySelector('textarea[df-actions]');
+                var mount = nodeEl.querySelector('[data-pb-actions-mount]');
+                if (! hidden || ! mount) { return; }
+                nodeEl.__pbActionsInit = true;
+
+                var actions;
+                try { actions = JSON.parse(hidden.value || '[]'); } catch (e) { actions = []; }
+                if (! Array.isArray(actions)) { actions = []; }
+
+                // Delegate the UI to the shared builder; bridge writes back into the
+                // hidden df-actions textarea + dispatch input/change so Drawflow re-syncs.
+                pbActionsBuilder(mount, actions, function (updated) {
+                    hidden.value = JSON.stringify(updated);
+                    hidden.dispatchEvent(new Event('input', { bubbles: true }));
+                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+                });
             };
 
             // ── Step-list builder for transaction / loop bodies ──────────────
@@ -685,7 +696,7 @@
                     var n = nodes[id], t = n.type || '', c = n.config || {};
                     if (t === 'function') { steps.push({ kind: 'function', ref: c.function || '', args: c.args || {}, output: c.output || '' }); }
                     else if (t === 'call_flow') { steps.push({ kind: 'flow', ref: c.flow || '', output: c.output || '' }); }
-                    else if (t === 'loop') { steps.push({ kind: 'loop', over: c.over || '', item_var: c.item_var || 'item', index_var: c.index_var || '', steps: pbDecompileBody(c.body || {}) }); }
+                    else if (t === 'loop') { steps.push({ kind: 'loop', over: c.over || '', item_var: c.item_var || 'item', index_var: c.index_var || '', max_iterations: (c.max_iterations != null ? c.max_iterations : ''), output: c.output || '', steps: pbDecompileBody(c.body || {}) }); }
                     else { steps.push({ kind: 'node', type: t, config: c }); }
                     var nx = n.next;
                     id = Array.isArray(nx) ? nx[0] : nx;
@@ -698,7 +709,14 @@
                     var id = 's' + i, node;
                     if (s.kind === 'function') { node = { type: 'function', config: { function: s.ref || '', args: s.args || {}, output: s.output || '' } }; }
                     else if (s.kind === 'flow') { node = { type: 'call_flow', config: { flow: s.ref || '', output: s.output || '' } }; }
-                    else if (s.kind === 'loop') { node = { type: 'loop', config: { over: s.over || '', item_var: s.item_var || 'item', index_var: s.index_var || '', body: pbCompileSteps(s.steps || []) } }; }
+                    else if (s.kind === 'loop') {
+                        var loopCfg = { over: s.over || '', item_var: s.item_var || 'item', index_var: s.index_var || '', body: pbCompileSteps(s.steps || []) };
+                        // Only carry the optional caps when the author set them, so an
+                        // untouched loop's config stays minimal (LoopNode defaults apply).
+                        if (s.max_iterations !== '' && s.max_iterations != null && ! isNaN(s.max_iterations)) { loopCfg.max_iterations = s.max_iterations; }
+                        if (s.output) { loopCfg.output = s.output; }
+                        node = { type: 'loop', config: loopCfg };
+                    }
                     else { node = { type: s.type || 'record', config: s.config || {} }; }
                     if (start === null) { start = id; }
                     if (prev !== null) { nodes[prev].next = [id]; }
@@ -720,7 +738,12 @@
             var PB_STEP_NODE_TYPES = [
                 { type: 'record', label: 'Record (data op)' },
                 { type: 'set_variable', label: 'Set state' },
-                { type: 'condition', label: 'Condition' },
+                // NOTE: 'condition' is intentionally omitted here. A step body is a
+                // LINEAR sub-flow — pbCompileSteps only chains each step's `next` — but
+                // ConditionNode branches on next_true/next_false, which a linear chain
+                // can't express. A condition step inside a transaction/loop body would
+                // dead-end (neither branch wired). Branch-in-body needs a full branch
+                // compiler; until then, condition is only available as a top-level node.
                 { type: 'http_request', label: 'HTTP request' },
                 { type: 'send_email', label: 'Send email' },
                 { type: 'ai_invoke', label: 'AI invoke' },
@@ -732,6 +755,12 @@
                 var key = input.key, val = config[key], showIf = input.show_if || input.showIf;
                 if (showIf && Object.keys(showIf).length && ! Object.keys(showIf).every(function (k) { return (showIf[k] || []).indexOf(config[k]) !== -1; })) { return ''; }
                 var label = '<label class="ai-pb-node-label">' + pbEsc(input.label) + '</label>';
+                if (input.type === 'actions') {
+                    // Mount point for the low-code actions builder — wired after the
+                    // card renders (in the node-step binding loop) so it edits
+                    // step.config[key] directly. Same builder the top-level Result uses.
+                    return label + '<div class="ai-pb-actions" data-cfg-actions="' + key + '"></div>';
+                }
                 if (input.type === 'select') {
                     var o = Object.keys(input.options || {}).map(function (k) { return '<option value="' + pbEsc(k) + '">' + pbEsc(input.options[k]) + '</option>'; }).join('');
                     return label + '<select data-cfg="' + key + '">' + o + '</select>';
@@ -795,11 +824,24 @@
                             + '</select>'
                             + '</div>';
                         var bodyHtml = '';
-                        if (step.kind === 'function') { bodyHtml = '<label class="ai-pb-node-label">Function</label><select data-ref>' + pbFnOptions() + '</select>'; }
-                        else if (step.kind === 'flow') { bodyHtml = '<label class="ai-pb-node-label">Flow (runs with shared context)</label><select data-ref>' + pbFlowOptions() + '</select>'; }
+                        if (step.kind === 'function') {
+                            // args (JSON) + output round-trip via pbCompileSteps/pbDecompileBody
+                            // (which already carry s.args / s.output).
+                            var fnArgs = (step.args && typeof step.args === 'object') ? JSON.stringify(step.args) : (step.args || '');
+                            bodyHtml = '<label class="ai-pb-node-label">Function</label><select data-ref>' + pbFnOptions() + '</select>'
+                                + '<label class="ai-pb-node-label">Args (JSON)</label><textarea data-args data-json placeholder=\'{"price":"{{vars.amount}}"}\'>' + pbEsc(fnArgs) + '</textarea>'
+                                + '<label class="ai-pb-node-label">Output variable</label><input type="text" data-output placeholder="e.g. result" value="' + pbEsc(step.output || '') + '" />';
+                        }
+                        else if (step.kind === 'flow') {
+                            bodyHtml = '<label class="ai-pb-node-label">Flow (runs with shared context)</label><select data-ref>' + pbFlowOptions() + '</select>'
+                                + '<label class="ai-pb-node-label">Output variable</label><input type="text" data-output placeholder="e.g. sub_result" value="' + pbEsc(step.output || '') + '" />';
+                        }
                         else if (step.kind === 'loop') {
-                            bodyHtml = '<label class="ai-pb-node-label">For each item in</label><input type="text" data-over placeholder="input.cart_items" value="' + (step.over || '') + '" />'
-                                + '<label class="ai-pb-node-label">Item variable</label><input type="text" data-itemvar value="' + (step.item_var || 'item') + '" />'
+                            bodyHtml = '<label class="ai-pb-node-label">For each item in</label><input type="text" data-over placeholder="input.cart_items" value="' + pbEsc(step.over || '') + '" />'
+                                + '<label class="ai-pb-node-label">Item variable</label><input type="text" data-itemvar value="' + pbEsc(step.item_var || 'item') + '" />'
+                                + '<label class="ai-pb-node-label">Index variable (optional)</label><input type="text" data-indexvar placeholder="index" value="' + pbEsc(step.index_var || '') + '" />'
+                                + '<label class="ai-pb-node-label">Max iterations (optional)</label><input type="number" data-maxiter placeholder="e.g. 100" value="' + pbEsc(step.max_iterations != null ? step.max_iterations : '') + '" />'
+                                + '<label class="ai-pb-node-label">Output variable (optional)</label><input type="text" data-loopoutput placeholder="e.g. loop_stats" value="' + pbEsc(step.output || '') + '" />'
                                 + '<div class="ai-pb-step-nested" data-nested></div>'
                                 + '<button type="button" class="ai-pb-action-add" data-addnested>+ Add step (per item)</button>';
                         } else { // 'node' — render its capability-schema fields
@@ -837,6 +879,13 @@
 
                         var refSel = card.querySelector('[data-ref]');
                         if (refSel) { if (step.ref) { refSel.value = step.ref; } refSel.addEventListener('change', function () { step.ref = refSel.value; onChange(steps); }); }
+                        // Function-step args (JSON) — parse to an object so pbCompileSteps
+                        // stores it as structured config; fall back to the raw string.
+                        var argsEl = card.querySelector('[data-args]');
+                        if (argsEl) { argsEl.addEventListener('input', function () { try { step.args = JSON.parse(argsEl.value || 'null'); } catch (e) { step.args = argsEl.value; } onChange(steps); }); }
+                        // Shared "Output variable" for function + flow steps.
+                        var outEl = card.querySelector('[data-output]');
+                        if (outEl) { outEl.addEventListener('input', function () { step.output = outEl.value; onChange(steps); }); }
                         // Node-step schema fields.
                         if (step.kind === 'node') {
                             var def2 = pbNodeDef(step.type);
@@ -854,9 +903,23 @@
                                     if (gates) { render(); }
                                 });
                             });
+                            // Mount the low-code actions builder for any 'actions' field
+                            // (e.g. a Result step) — same builder the top-level Result
+                            // node uses, persisting straight to step.config[key].
+                            card.querySelectorAll('[data-cfg-actions]').forEach(function (mnt) {
+                                var akey = mnt.getAttribute('data-cfg-actions');
+                                if (! Array.isArray(step.config[akey])) { step.config[akey] = []; }
+                                pbActionsBuilder(mnt, step.config[akey], function (updated) {
+                                    step.config[akey] = updated;
+                                    onChange(steps);
+                                });
+                            });
                         }
                         var over = card.querySelector('[data-over]'); if (over) { over.addEventListener('input', function () { step.over = over.value; onChange(steps); }); }
                         var iv = card.querySelector('[data-itemvar]'); if (iv) { iv.addEventListener('input', function () { step.item_var = iv.value; onChange(steps); }); }
+                        var ixv = card.querySelector('[data-indexvar]'); if (ixv) { ixv.addEventListener('input', function () { step.index_var = ixv.value; onChange(steps); }); }
+                        var mxi = card.querySelector('[data-maxiter]'); if (mxi) { mxi.addEventListener('input', function () { step.max_iterations = mxi.value === '' ? '' : parseInt(mxi.value, 10); onChange(steps); }); }
+                        var lop = card.querySelector('[data-loopoutput]'); if (lop) { lop.addEventListener('input', function () { step.output = lop.value; onChange(steps); }); }
                         var nested = card.querySelector('[data-nested]');
                         if (nested) {
                             if (! Array.isArray(step.steps)) { step.steps = []; }
@@ -908,6 +971,18 @@
                             + '<input type="text" df-output placeholder="e.g. ai_result" />'
                             + '<label class="ai-pb-node-label">Args (JSON)</label>'
                             + '<textarea df-args placeholder=\'{"prompt":"Hello"}\'></textarea>'
+                            + '</div>';
+
+                    case 'call_flow':
+                        // Composes another saved flow inline. `flow` is an author-fixed
+                        // slug (never interpolated — IDOR guard in CallFlowNode); the
+                        // picker reuses pbFlowOptions() so the current flow is excluded.
+                        return '<div class="ai-pb-node" data-node-type="call_flow">'
+                            + '<div class="ai-pb-node-title">' + (window.__pbNodeIcons['call_flow'] || '') + ' <span>Run Flow</span></div>'
+                            + '<label class="ai-pb-node-label">Flow (runs with shared context)</label>'
+                            + '<select df-flow><option value="">— select flow —</option>' + pbFlowOptions() + '</select>'
+                            + '<label class="ai-pb-node-label">Output variable</label>'
+                            + '<input type="text" df-output placeholder="e.g. sub_result" />'
                             + '</div>';
 
                     case 'http_request':
@@ -1067,6 +1142,10 @@
                             + '<input type="text" df-item_var placeholder="item" />'
                             + '<label class="ai-pb-node-label">Index variable (optional)</label>'
                             + '<input type="text" df-index_var placeholder="index" />'
+                            + '<label class="ai-pb-node-label">Max iterations (optional)</label>'
+                            + '<input type="number" df-max_iterations placeholder="e.g. 100" />'
+                            + '<label class="ai-pb-node-label">Output variable (optional)</label>'
+                            + '<input type="text" df-output placeholder="e.g. loop_stats" />'
                             + '<label class="ai-pb-node-label">Steps (run once per item)</label>'
                             + '<div class="ai-pb-steps" data-pb-steps-mount></div>'
                             + '<textarea df-body style="display:none"></textarea>'
@@ -1120,6 +1199,8 @@
                         return { method: config.method || 'GET', url: config.url || '', credential: config.credential || '', headers: jsonStr(config.headers), body: jsonStr(config.body), output: config.output || '' };
                     case 'function':
                         return { function: config.function || '', args: jsonStr(config.args), output: config.output || '' };
+                    case 'call_flow':
+                        return { flow: config.flow || '', output: config.output || '' };
                     case 'send_email':
                         return { to: config.to || '', subject: config.subject || '', template: config.template || '', body: config.body || '', cc: config.cc || '', bcc: config.bcc || '', reply_to: config.reply_to || '', output: config.output || 'email' };
                     case 'record':
@@ -1133,7 +1214,7 @@
                     case 'transaction':
                         return { body: jsonStr(config.body) };
                     case 'loop':
-                        return { over: config.over || '', item_var: config.item_var || 'item', index_var: config.index_var || '', body: jsonStr(config.body) };
+                        return { over: config.over || '', item_var: config.item_var || 'item', index_var: config.index_var || '', max_iterations: (config.max_iterations != null ? String(config.max_iterations) : ''), output: config.output || '', body: jsonStr(config.body) };
                     default:
                         return {};
                 }
@@ -1277,6 +1358,14 @@
                                 output: data.output || '',
                             };
                             break;
+                        case 'call_flow':
+                            // Preserve {flow, output} — without this the sub-flow slug
+                            // is wiped on every save and the node no-ops at runtime.
+                            config = {
+                                flow: data.flow || '',
+                                output: data.output || '',
+                            };
+                            break;
                         case 'send_email':
                             config = {
                                 to: data.to || '',
@@ -1331,6 +1420,13 @@
                                 body: parseJson(data.body, {}),
                             };
                             if (data.index_var) { config.index_var = data.index_var; }
+                            // Optional caps — only persist when set (LoopNode applies
+                            // its own defaults otherwise).
+                            if (data.max_iterations !== '' && data.max_iterations != null) {
+                                var mi = parseInt(data.max_iterations, 10);
+                                if (! isNaN(mi)) { config.max_iterations = mi; }
+                            }
+                            if (data.output) { config.output = data.output; }
                             break;
                         default:
                             config = {};
