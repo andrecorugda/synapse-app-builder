@@ -133,8 +133,11 @@
         /* Drawflow's stylesheet sets `svg { position: absolute }` (for its connection
            lines); our node-title / node-body icons inherit it and stack on top of the
            label. Force them back into normal flow so the flex row lays them out. */
+        .ai-pb-node svg { position: static !important; }
         .ai-pb-node-title svg,
-        .ai-pb-node-label svg { position: static !important; flex: 0 0 auto; }
+        .ai-pb-node-label svg { flex: 0 0 auto; }
+        .ai-pb-step-icon { display: inline-flex; align-items: center; flex: 0 0 auto; }
+        .ai-pb-step-icon svg { width: 16px !important; height: 16px !important; }
         .ai-pb-node input,
         .ai-pb-node select {
             width: 100%;
@@ -514,6 +517,19 @@
             background: #1e293b;
             border: 2px solid #6366f1;
         }
+        /* Branch ports carry meaning: the first output is the true / committed path
+           (green), the second is the false / rolled-back path (red). addNode()'s 6th
+           arg puts the node type as a class on .drawflow-node, so we can target it. */
+        .ai-pb-flow-wrap .drawflow .drawflow-node.condition .output_1,
+        .ai-pb-flow-wrap .drawflow .drawflow-node.transaction .output_1 {
+            border-color: #22c55e;
+            background: #14532d;
+        }
+        .ai-pb-flow-wrap .drawflow .drawflow-node.condition .output_2,
+        .ai-pb-flow-wrap .drawflow .drawflow-node.transaction .output_2 {
+            border-color: #f87171;
+            background: #7f1d1d;
+        }
         .ai-pb-flow-wrap .drawflow .connection .main-path {
             stroke: #64748b;
         }
@@ -702,13 +718,13 @@
             // Node types that can be a step (besides function/flow/loop), shown in the
             // kind dropdown and edited via their capability-schema fields.
             var PB_STEP_NODE_TYPES = [
-                { type: 'record', label: '🗄 Record (data op)' },
-                { type: 'set_variable', label: '💾 Set state' },
-                { type: 'condition', label: '❓ Condition' },
-                { type: 'http_request', label: '🌐 HTTP request' },
-                { type: 'send_email', label: '✉ Send email' },
-                { type: 'ai_invoke', label: '✨ AI invoke' },
-                { type: 'result', label: '■ Result' }
+                { type: 'record', label: 'Record (data op)' },
+                { type: 'set_variable', label: 'Set state' },
+                { type: 'condition', label: 'Condition' },
+                { type: 'http_request', label: 'HTTP request' },
+                { type: 'send_email', label: 'Send email' },
+                { type: 'ai_invoke', label: 'AI invoke' },
+                { type: 'result', label: 'Result' }
             ];
             function pbNodeDef(type) { return (window.__pbNodeDefs || []).filter(function (d) { return d.key === type; })[0] || null; }
             // Render one capability input as an editable control bound to config[key].
@@ -742,6 +758,16 @@
                     document.querySelectorAll('.ai-pb-step--menu-open').forEach(function (s) { s.classList.remove('ai-pb-step--menu-open'); });
                 });
             }
+            // Colored Phosphor icon for a step's selected kind (native <option> can't
+            // hold SVG, so the icon lives beside the kind picker and updates on change).
+            function stepKindIcon(step) {
+                var map = window.__pbNodeIcons || {};
+                if (step.kind === 'function') { return map['function'] || ''; }
+                if (step.kind === 'flow') { return map['call_flow'] || ''; }
+                if (step.kind === 'loop') { return map['loop'] || ''; }
+                if (step.kind === 'node') { return map[step.type] || ''; }
+                return '';
+            }
             // Render an editable step list into `mount`, persisting to onChange(steps).
             function pbRenderStepList(mount, steps, onChange) {
                 function commit() { onChange(steps); render(); }
@@ -760,10 +786,11 @@
                             + '</div>'
                             + '<div class="ai-pb-step-head">'
                             + '<span class="ai-pb-step-num">' + (idx + 1) + '</span>'
+                            + '<span class="ai-pb-step-icon">' + stepKindIcon(step) + '</span>'
                             + '<select class="ai-pb-step-kind">'
-                            +   '<option value="function"' + (step.kind === 'function' ? ' selected' : '') + '>ƒ Function</option>'
-                            +   '<option value="flow"' + (step.kind === 'flow' ? ' selected' : '') + '>⚙ Flow</option>'
-                            +   '<option value="loop"' + (step.kind === 'loop' ? ' selected' : '') + '>🔁 Loop</option>'
+                            +   '<option value="function"' + (step.kind === 'function' ? ' selected' : '') + '>Function</option>'
+                            +   '<option value="flow"' + (step.kind === 'flow' ? ' selected' : '') + '>Flow</option>'
+                            +   '<option value="loop"' + (step.kind === 'loop' ? ' selected' : '') + '>Loop</option>'
                             +   PB_STEP_NODE_TYPES.map(function (nt) { return '<option value="node:' + nt.type + '"' + (step.kind === 'node' && step.type === nt.type ? ' selected' : '') + '>' + nt.label + '</option>'; }).join('')
                             + '</select>'
                             + '</div>';
@@ -1005,8 +1032,8 @@
                             + '<label class="ai-pb-node-label">Right operand</label>'
                             + '<input type="text" df-right placeholder="value" />'
                             + '<div style="display:flex;gap:1rem;font-size:0.67rem;margin-top:0.2rem;">'
-                            + '<span style="color:#22c55e;">&#9679; output_1 = true</span>'
-                            + '<span style="color:#f87171;">&#9679; output_2 = false</span>'
+                            + '<span style="color:#22c55e;">&#9679; True</span>'
+                            + '<span style="color:#f87171;">&#9679; False</span>'
                             + '</div>'
                             + '</div>';
 
@@ -1026,8 +1053,8 @@
                             + '<div class="ai-pb-steps" data-pb-steps-mount></div>'
                             + '<textarea df-body style="display:none"></textarea>'
                             + '<div style="display:flex;gap:1rem;font-size:0.67rem;margin-top:0.2rem;">'
-                            + '<span style="color:#22c55e;">&#9679; output_1 = committed</span>'
-                            + '<span style="color:#f87171;">&#9679; output_2 = rolled back</span>'
+                            + '<span style="color:#22c55e;">&#9679; Committed</span>'
+                            + '<span style="color:#f87171;">&#9679; Rolled back</span>'
                             + '</div>'
                             + '</div>';
 
