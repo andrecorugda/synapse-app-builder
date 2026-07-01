@@ -57,6 +57,7 @@ class BuildPlanValidator
         $this->validateFunctions($build, $errors);
         $this->validateFlows($build, $errors);
         $this->validatePages($build, $errors);
+        $this->validatePartials($build, $errors);
         $this->validateSettings($build, $errors);
 
         return $errors;
@@ -299,6 +300,44 @@ class BuildPlanValidator
                 foreach ($this->referencedBlockKeys($html) as $blockKey) {
                     if (! in_array($blockKey, $blockKeys, true)) {
                         $errors[] = "pages[{$i}] (warning): references unknown data-pb-block '{$blockKey}'.";
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @param  list<string>  $errors
+     */
+    private function validatePartials(BuildPlan $build, array &$errors): void
+    {
+        $seen = [];
+        $blockKeys = $this->knownBlockKeys();
+
+        foreach ($build->partials() as $i => $partial) {
+            $slug = $partial['slug'] ?? null;
+            if (! is_string($slug) || ! $this->isValidSlug($slug)) {
+                $errors[] = "partials[{$i}]: slug '".$this->display($slug)."' is not a valid slug.";
+            } else {
+                if (isset($seen[$slug])) {
+                    $errors[] = "partials[{$i}]: duplicate partial slug '{$slug}'.";
+                }
+                $seen[$slug] = true;
+            }
+
+            foreach (['html', 'custom_css', 'custom_js', 'css'] as $channel) {
+                if (array_key_exists($channel, $partial) && $partial[$channel] !== null && ! is_string($partial[$channel])) {
+                    $errors[] = "partials[{$i}]: {$channel} must be a string.";
+                }
+            }
+
+            // data-pb-block references are advisory (as with pages): report
+            // unknown keys but never block.
+            $html = $partial['html'] ?? '';
+            if (is_string($html) && $html !== '') {
+                foreach ($this->referencedBlockKeys($html) as $blockKey) {
+                    if (! in_array($blockKey, $blockKeys, true)) {
+                        $errors[] = "partials[{$i}] (warning): references unknown data-pb-block '{$blockKey}'.";
                     }
                 }
             }
