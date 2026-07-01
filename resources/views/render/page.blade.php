@@ -136,9 +136,15 @@
                     renderAuto: function () {
                         var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
                         var human = function (k) { return k.replace(/_id$/, '').replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); }); };
-                        var isImg = function (v) { return typeof v === 'string' && /\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i.test(v); };
-                        var cell = function (v) {
-                            if (isImg(v)) { return '<img src="' + esc(v) + '" alt="" style="height:2.25rem;width:2.25rem;object-fit:cover;border-radius:.35rem;border:1px solid #e2e8f0;" />'; }
+                        // A value is an image if it has an image extension OR its column
+                        // is image-ish (image/photo/avatar/thumbnail/picture/logo/cover)
+                        // and the value is a URL/path — covers extensionless image URLs
+                        // (e.g. picsum, CDN links) that a pure-extension test would miss.
+                        var isImgUrl = function (v) { return typeof v === 'string' && /^(https?:\/\/|\/)/.test(v); };
+                        var isImgKey = function (k) { return /(^|_)(image|images|photo|avatar|thumbnail|thumb|picture|logo|cover|banner)($|_)/i.test(k || ''); };
+                        var isImg = function (v, k) { return typeof v === 'string' && v !== '' && (/\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i.test(v) || (isImgKey(k) && isImgUrl(v))); };
+                        var cell = function (v, k) {
+                            if (isImg(v, k)) { return '<img src="' + esc(v) + '" alt="" style="height:2.25rem;width:2.25rem;object-fit:cover;border-radius:.35rem;border:1px solid #e2e8f0;" />'; }
                             return esc((v && typeof v === 'object') ? (v.name || v.label || v.title || JSON.stringify(v)) : v);
                         };
                         if (! this.rows.length) { this.$el.innerHTML = '<p class="pb-table__empty" style="padding:1rem;color:#64748b;font-family:inherit;">No records yet.</p>'; return; }
@@ -151,8 +157,8 @@
                             return ! Object.prototype.hasOwnProperty.call(row0, k + '_id'); // hide expansion sibling
                         });
                         var display = function (row, k) {
-                            if (/_id$/.test(k)) { var sib = row[k.replace(/_id$/, '')]; if (sib && typeof sib === 'object') { return cell(sib); } }
-                            return cell(row[k]);
+                            if (/_id$/.test(k)) { var sib = row[k.replace(/_id$/, '')]; if (sib && typeof sib === 'object') { return cell(sib, k); } }
+                            return cell(row[k], k);
                         };
                         // A management page pairs this list with a form that writes the
                         // same collection — when present, offer Edit/Delete per row.
