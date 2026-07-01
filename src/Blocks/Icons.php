@@ -13,14 +13,14 @@ final class Icons
     /** @var array<string,string> key => inner SVG markup */
     private const GLYPHS = [
         // Sections
-        'navbar' => '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>',
-        'hero' => '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="11" x2="17" y2="11"/><line x1="9" y1="14" x2="15" y2="14"/>',
-        'features' => '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
-        'logos' => '<rect x="3" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="17" y="10" width="4" height="4" rx="1"/>',
-        'stats' => '<line x1="5" y1="20" x2="5" y2="13"/><line x1="12" y1="20" x2="12" y2="7"/><line x1="19" y1="20" x2="19" y2="11"/>',
-        'gallery' => '<rect x="3" y="6" width="8" height="12" rx="1"/><rect x="13" y="6" width="8" height="12" rx="1"/><circle cx="6" cy="9.5" r="1"/>',
-        'pricing' => '<path d="M4 4h7l9 9-7 7-9-9z"/><circle cx="8" cy="8" r="1"/>',
-        'testimonial' => '<path d="M4 5h16v10H8l-4 4z"/>',
+        'navbar' => '<rect x="3" y="6" width="18" height="12" rx="2"/><rect x="3" y="6" width="18" height="12" rx="2" fill="currentColor" stroke="none" opacity="0.12"/><circle cx="6.8" cy="12" r="1.5" fill="currentColor" stroke="none" opacity="0.55"/><line x1="12" y1="12" x2="14" y2="12"/><line x1="16" y1="12" x2="18" y2="12"/>',
+        'hero' => '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="7" y="7" width="10" height="3" rx="1" fill="currentColor" stroke="none" opacity="0.28"/><line x1="8.5" y1="12" x2="15.5" y2="12"/><line x1="9.5" y1="14.2" x2="14.5" y2="14.2"/><rect x="9.5" y="16" width="5" height="2.4" rx="1.2" fill="currentColor" stroke="none" opacity="0.28"/>',
+        'features' => '<rect x="4" y="4" width="7" height="7" rx="1.5" fill="currentColor" stroke="none" opacity="0.22"/><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5" fill="currentColor" stroke="none" opacity="0.22"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+        'logos' => '<rect x="3" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="3" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="17" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="17" y="10" width="4" height="4" rx="1"/>',
+        'stats' => '<rect x="4" y="11" width="3.2" height="7" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="10.4" y="6" width="3.2" height="12" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="16.8" y="9" width="3.2" height="9" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><line x1="3" y1="20" x2="21" y2="20"/>',
+        'gallery' => '<rect x="3" y="6" width="8" height="12" rx="1.5" fill="currentColor" stroke="none" opacity="0.22"/><rect x="3" y="6" width="8" height="12" rx="1.5"/><rect x="13" y="6" width="8" height="12" rx="1.5"/><circle cx="6" cy="9.5" r="1"/><path d="M13 15l3-3 5 5"/>',
+        'pricing' => '<rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="8" height="4" rx="1" fill="currentColor" stroke="none" opacity="0.28"/><path d="M7 13.5l1.3 1.3 2.4-2.4"/><path d="M7 17.5l1.3 1.3 2.4-2.4"/>',
+        'testimonial' => '<path d="M4 5h16v10H8l-4 4z" fill="currentColor" stroke="none" opacity="0.18"/><path d="M4 5h16v10H8l-4 4z"/><circle cx="9" cy="10" r="1.1" fill="currentColor" stroke="none" opacity="0.6"/><line x1="12" y1="10" x2="16" y2="10"/>',
         'faq' => '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M16 6l1.5 1.5L19 6"/>',
         'team' => '<circle cx="9" cy="9" r="3"/><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5"/><circle cx="17" cy="9" r="2.3"/>',
         'cta' => '<path d="M4 10v4l10 5V5z"/><path d="M14 8a4 4 0 0 1 0 8"/>',
@@ -57,16 +57,18 @@ final class Icons
         'checkbox' => '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>',
         'radio_group' => '<circle cx="7" cy="7" r="3"/><circle cx="7" cy="7" r="1"/><line x1="13" y1="7" x2="20" y2="7"/><circle cx="7" cy="17" r="3"/><line x1="13" y1="17" x2="20" y2="17"/>',
         'submit_button' => '<rect x="4" y="9" width="16" height="6" rx="3"/><path d="M9 12h4"/><path d="M13 10.5l1.5 1.5-1.5 1.5"/>',
-        'form' => '<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><rect x="8" y="15.5" width="6" height="3" rx="1"/>',
+        'form' => '<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="7.5" y1="7" x2="12" y2="7"/><rect x="7.5" y="8.4" width="9" height="2.6" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><line x1="7.5" y1="13.4" x2="12" y2="13.4"/><rect x="9" y="16.4" width="6" height="2.6" rx="1.3" fill="currentColor" stroke="none" opacity="0.28"/>',
         // Data
-        'data_table' => '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="14.5" x2="21" y2="14.5"/><line x1="12" y1="5" x2="12" y2="19"/>',
-        'list' => '<circle cx="5" cy="7" r="1"/><line x1="9" y1="7" x2="20" y2="7"/><circle cx="5" cy="12" r="1"/><line x1="9" y1="12" x2="20" y2="12"/><circle cx="5" cy="17" r="1"/><line x1="9" y1="17" x2="20" y2="17"/>',
+        'data_table' => '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="3" y="4" width="18" height="4.5" fill="currentColor" stroke="none" opacity="0.22"/><line x1="3" y1="12.5" x2="21" y2="12.5"/><line x1="3" y1="16.5" x2="21" y2="16.5"/><line x1="10" y1="8.5" x2="10" y2="20"/>',
+        'chart' => '<rect x="4" y="12" width="3.5" height="6" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="10.25" y="8" width="3.5" height="10" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="16.5" y="5" width="3.5" height="13" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><line x1="3" y1="20" x2="21" y2="20"/>',
+        'kpi' => '<rect x="4" y="5" width="16" height="14" rx="2"/><rect x="7" y="8.5" width="7" height="4.5" rx="1" fill="currentColor" stroke="none" opacity="0.28"/><line x1="7" y1="15.6" x2="13" y2="15.6"/>',
+        'list' => '<circle cx="5" cy="7" r="1.2" fill="currentColor" stroke="none" opacity="0.5"/><line x1="9" y1="7" x2="20" y2="7"/><circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" opacity="0.5"/><line x1="9" y1="12" x2="20" y2="12"/><circle cx="5" cy="17" r="1.2" fill="currentColor" stroke="none" opacity="0.5"/><line x1="9" y1="17" x2="20" y2="17"/>',
         // Interactive
         'repeater' => '<rect x="4" y="4" width="16" height="5" rx="1.5"/><rect x="4" y="11" width="16" height="5" rx="1.5"/><line x1="9" y1="19.5" x2="15" y2="19.5"/><line x1="12" y1="17" x2="12" y2="22"/>',
         'editable_grid' => '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="14" y1="5" x2="14" y2="19"/><path d="M6 14.5l1.5 1.5 3-3"/>',
         'stepper' => '<rect x="3" y="9" width="18" height="6" rx="3"/><line x1="6.5" y1="12" x2="8.5" y2="12"/><line x1="15.5" y1="12" x2="17.5" y2="12"/><line x1="16.5" y1="11" x2="16.5" y2="13"/>',
         'context_menu' => '<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
-        'record_picker' => '<circle cx="10" cy="10" r="6"/><line x1="14.5" y1="14.5" x2="20" y2="20"/><line x1="7.5" y1="10" x2="12.5" y2="10"/><line x1="10" y1="7.5" x2="10" y2="12.5"/>',
+        'record_picker' => '<rect x="3" y="4" width="18" height="3" rx="1.5"/><rect x="4" y="9.5" width="7" height="4.5" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="4" y="9.5" width="7" height="4.5" rx="1"/><rect x="13" y="9.5" width="7" height="4.5" rx="1"/><rect x="4" y="15.5" width="7" height="4.5" rx="1"/><rect x="13" y="15.5" width="7" height="4.5" rx="1" fill="currentColor" stroke="none" opacity="0.22"/><rect x="13" y="15.5" width="7" height="4.5" rx="1"/>',
     ];
 
     public static function for(string $key): string
