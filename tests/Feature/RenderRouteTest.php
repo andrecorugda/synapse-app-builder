@@ -49,6 +49,25 @@ it('injects per-page custom JS into the rendered output', function (): void {
         ->assertSee('pb-custom-js-marker', false);
 });
 
+it('loads per-page custom JS before Alpine so x-data component factories are defined', function (): void {
+    // Alpine auto-starts on load; a component factory declared in custom_js and
+    // used in x-data must be defined *before* Alpine boots, or the first x-data
+    // throws "… is not defined" and the page renders inert.
+    Page::factory()->published()->create([
+        'slug' => 'factory-page',
+        'html' => '<div x-data="myApp()"><span x-text="greeting"></span></div>',
+        'custom_js' => 'window.myApp = () => ({ greeting: "hi" });',
+    ]);
+
+    $body = $this->get('/p/factory-page')->assertOk()->getContent();
+
+    $jsPos = strpos($body, 'window.myApp');
+    $alpinePos = strpos($body, 'alpinejs');
+    expect($jsPos)->not->toBeFalse()
+        ->and($alpinePos)->not->toBeFalse()
+        ->and($jsPos)->toBeLessThan($alpinePos);
+});
+
 it('appends per-page custom CSS to the rendered output', function (): void {
     Page::factory()->published()->create([
         'slug' => 'styled',
