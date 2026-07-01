@@ -209,6 +209,24 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerPublishableAssets();
         $this->registerScheduledCommands();
         $this->ensureSystemPages();
+        $this->raiseLivewireNestingDepth();
+    }
+
+    /**
+     * The visual editor syncs GrapesJS project_data (a nested component tree) to
+     * Livewire state. A rich page — sections > rows > columns > cards > … —
+     * legitimately nests deeper than Livewire's default payload.max_nesting_depth
+     * of 10, which then throws MaxNestingDepthExceededException on save. Raise the
+     * limit for the host app to a builder-appropriate floor (config-overridable);
+     * never lower an already-higher host setting.
+     */
+    private function raiseLivewireNestingDepth(): void
+    {
+        $floor = (int) config('ai-page-builder.editor.livewire_max_nesting_depth', 50);
+        $current = (int) config('livewire.payload.max_nesting_depth', 10);
+        if ($floor > $current) {
+            config(['livewire.payload.max_nesting_depth' => $floor]);
+        }
     }
 
     /**
