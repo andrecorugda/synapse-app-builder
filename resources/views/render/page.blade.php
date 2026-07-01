@@ -1143,16 +1143,22 @@
         })();
     </script>
 
-    {{-- Alpine powers the reactive Store + data bindings. Loaded before custom
-         JS so the store is initialised and custom JS can read/write it. --}}
-    <script src="{{ config('ai-page-builder.assets.alpine_js') }}"></script>
-
     {{-- Per-page custom JS (authored in the builder's Advanced section) — an
-         escape hatch for scenarios the builder doesn't cover. Runs last, after
-         the page DOM, the flow runtime, and Alpine (so it can use
-         window.Alpine.store('app')). --}}
+         escape hatch for scenarios the builder doesn't cover. Emitted BEFORE
+         Alpine (which is deferred) so that any component factory it defines
+         (e.g. `window.myApp = () => ({…})` used in `x-data="myApp()"`) exists
+         when Alpine boots. To read/write the reactive store, use the
+         `alpine:init` event — `document.addEventListener('alpine:init', () => {
+         window.Alpine.store('app')… })` — exactly like the framework's own
+         components above; it fires when the deferred Alpine starts. --}}
     @if (! empty($customJs))
         <script>{!! $customJs !!}</script>
     @endif
+
+    {{-- Alpine powers the reactive Store + data bindings. Deferred so it starts
+         after the inline framework registrations AND the custom JS above have
+         run — component factories and `alpine:init` listeners are in place before
+         the first `x-data` is evaluated. --}}
+    <script defer src="{{ config('ai-page-builder.assets.alpine_js') }}"></script>
 </body>
 </html>
