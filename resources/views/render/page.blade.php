@@ -55,9 +55,14 @@
     {{-- Reactive Store: seed Alpine's $store.app from this page's persistent
          States before Alpine boots. Components bind with x-text / x-show /
          x-model; flows push updates via the setState result action. --}}
+    @php
+        // Origin-relative path (no scheme+host) so every fetch/redirect stays on the
+        // visitor's actual scheme+host+port — see flow-runtime.blade.php for why.
+        $pbRel = static fn (string $path): string => '/'.ltrim((string) (parse_url(url($path), PHP_URL_PATH) ?: $path), '/');
+    @endphp
     <script>
         window.__pbState = @js($state ?? []);
-        window.__pbApiBase = '{{ url(config('ai-page-builder.data.api_prefix', 'api/pb')) }}';
+        window.__pbApiBase = '{{ $pbRel(config('ai-page-builder.data.api_prefix', 'api/pb')) }}';
         {{-- The page currently being rendered. A shared nav partial reads this to
              auto-mark its own link (is-active) — see flow-runtime's [data-pb-page]
              loop — so nav markup never hardcodes which link is active. --}}
@@ -72,7 +77,7 @@
             // data is already secured by the permission engine — this is UX.
             window.Alpine.store('app').$user = null;
             @unless ($static ?? false)
-            fetch('{{ url('pb-auth/me') }}', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+            fetch('{{ $pbRel('pb-auth/me') }}', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     var u = (d && d.user) ? d.user : null;
@@ -469,8 +474,8 @@
         (function () {
             var nodes = document.querySelectorAll('[data-pb-logout="1"]');
             if (! nodes.length) { return; }
-            var url = '{{ url('pb-logout') }}';
-            var loginUrl = '{{ url('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/')) }}';
+            var url = '{{ $pbRel('pb-logout') }}';
+            var loginUrl = '{{ $pbRel(trim((string) config('ai-page-builder.auth.login_path', 'login'), '/')) }}';
             function xsrf() { var m = document.cookie.match(/XSRF-TOKEN=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; }
             nodes.forEach(function (el) {
                 el.style.cursor = 'pointer';
