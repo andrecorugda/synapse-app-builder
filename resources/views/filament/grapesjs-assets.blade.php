@@ -286,6 +286,15 @@
                 try { doc = editor.Canvas.getDocument(); } catch (e) { return; }
                 if (! doc) { return; }
 
+                // Global sweep FIRST: remove every live overlay in the canvas, then
+                // rebuild only for currently-present blocks below. Overlays are plain
+                // DOM (not GrapesJS components), and some (the select overlay) live on
+                // an offsetParent OUTSIDE their block — so deleting/duplicating a
+                // component would otherwise orphan them into a "ghost" that lingers
+                // even though the HTML structure is correct. Wiping + rebuilding from
+                // the live component set makes delete/duplicate self-heal.
+                doc.querySelectorAll('[data-pb-live]').forEach((n) => n.remove());
+
                 const blocks = doc.querySelectorAll('[data-pb-block]');
                 blocks.forEach((el) => {
                     const blockType = el.getAttribute('data-pb-block');
@@ -1095,6 +1104,137 @@
                                 pbReaddSelect(cmp, 'data-pb-label-field', 'Label field', pbFieldOptions(col, 'name', { emptyLabel: '— name (default) —' }));
                             });
                         }
+
+                        // ── data_table extra config traits ────────────────────
+                        // These are plain data-pb-* attributes — the runtime reads
+                        // them directly from the DOM element, so no changeProp rewrite
+                        // is needed. Guard on data-pb-block=data_table AND on a
+                        // sentinel trait name so they are added only once.
+                        if (pbBlock === 'data_table' && ! names.includes('data-pb-columns')) {
+                            cmp.addTrait({ type: 'text', name: 'data-pb-columns', label: 'Columns (key or key:Header, comma-sep; blank = all)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-hide', label: 'Hide columns (comma-sep)' });
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-sortable', label: 'Sortable headers',
+                                options: [{ id: '', name: 'Yes (default)' }, { id: 'false', name: 'No' }],
+                            });
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-searchable', label: 'Search box',
+                                options: [{ id: '', name: 'No (default)' }, { id: 'true', name: 'Yes' }],
+                            });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-filters', label: 'Filter fields (comma-sep)' });
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-selectable', label: 'Row select + bulk',
+                                options: [{ id: '', name: 'No (default)' }, { id: 'true', name: 'Yes' }],
+                            });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-bulk', label: 'Bulk actions (action:Label, comma-sep)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-per-page', label: 'Rows per page', placeholder: '20' });
+                        }
+
+                        // ── select — bind options from a collection ───────────
+                        // data-pb-options  : which collection to fetch options from.
+                        // data-pb-label-field : which field of that collection to use
+                        //   as the option label — populated as a dependent dropdown
+                        //   (reuses pbFieldOptions + pbReaddSelect, same pattern as
+                        //   autocomplete above). Sentinel: 'data-pb-options'.
+                        if (pbBlock === 'select' && ! names.includes('data-pb-options')) {
+                            const selCollections = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                            );
+                            const selCollection = cmp.getAttributes()['data-pb-options'] || '';
+                            cmp.addTrait({ type: 'select', name: 'data-pb-options', label: 'Options from collection', options: selCollections });
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-label-field', label: 'Label field',
+                                options: pbFieldOptions(selCollection, 'name', { emptyLabel: '— name (default) —' }),
+                            });
+                            let selLastCollection = selCollection;
+                            cmp.on('change:attributes', () => {
+                                const col = cmp.getAttributes()['data-pb-options'] || '';
+                                if (col === selLastCollection) { return; }
+                                selLastCollection = col;
+                                pbReaddSelect(cmp, 'data-pb-label-field', 'Label field', pbFieldOptions(col, 'name', { emptyLabel: '— name (default) —' }));
+                            });
+                        }
+
+                        // ── record_picker — search a collection, add picks to state
+                        // Sentinel: 'data-pb-collection' (on this block type).
+                        if (pbBlock === 'record_picker' && ! names.includes('data-pb-collection')) {
+                            const rpCollections = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                            );
+                            const rpCollection = cmp.getAttributes()['data-pb-collection'] || '';
+                            // data-pb-target: the state key to push picked records into.
+                            // Offered as a dropdown of all state variables (any type —
+                            // the runtime pushes the record into the named array).
+                            const rpStateOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbStates || []).map((s) => ({ id: s.key, name: s.key + ' · ' + (s.type || 'any') }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Search collection', options: rpCollections });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-target', label: 'Add picks to state', options: rpStateOptions });
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-label-field', label: 'Label field',
+                                options: pbFieldOptions(rpCollection, 'name', { emptyLabel: '— name (default) —' }),
+                            });
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-image-field', label: 'Image field (optional)',
+                                options: pbFieldOptions(rpCollection, 'name', { emptyLabel: '— none —' }),
+                            });
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-extra-field', label: 'Extra field (optional)',
+                                options: pbFieldOptions(rpCollection, 'name', { emptyLabel: '— none —' }),
+                            });
+                            // Re-populate all three field selects when the collection
+                            // changes (same change:attributes guard pattern).
+                            let rpLastCollection = rpCollection;
+                            cmp.on('change:attributes', () => {
+                                const col = cmp.getAttributes()['data-pb-collection'] || '';
+                                if (col === rpLastCollection) { return; }
+                                rpLastCollection = col;
+                                pbReaddSelect(cmp, 'data-pb-label-field', 'Label field', pbFieldOptions(col, 'name', { emptyLabel: '— name (default) —' }));
+                                pbReaddSelect(cmp, 'data-pb-image-field', 'Image field (optional)', pbFieldOptions(col, 'name', { emptyLabel: '— none —' }));
+                                pbReaddSelect(cmp, 'data-pb-extra-field', 'Extra field (optional)', pbFieldOptions(col, 'name', { emptyLabel: '— none —' }));
+                            });
+                        }
+
+                        // ── stepper — numeric increment/decrement bound to state ─
+                        // Sentinel: 'data-pb-state' (on stepper block type).
+                        if (pbBlock === 'stepper' && ! names.includes('data-pb-state')) {
+                            const stepStateOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbStates || []).map((s) => ({ id: s.key, name: s.key + ' · ' + (s.type || 'any') }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'data-pb-state', label: 'State key', options: stepStateOptions });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-min', label: 'Min value', placeholder: '0' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-max', label: 'Max value', placeholder: '' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-step', label: 'Step', placeholder: '1' });
+                        }
+
+                        // ── editable_grid — tabular editor bound to a state array ─
+                        // Sentinel: 'data-pb-state' (on editable_grid block type).
+                        if (pbBlock === 'editable_grid' && ! names.includes('data-pb-state')) {
+                            const egStateOptions = [{ id: '', name: '— none —' }].concat(
+                                (window.__pbStates || [])
+                                    .filter((s) => ! s.type || s.type === 'array' || s.type === 'json')
+                                    .map((s) => ({ id: s.key, name: s.key + ' · ' + (s.type || 'array') }))
+                            );
+                            cmp.addTrait({ type: 'select', name: 'data-pb-state', label: 'State array', options: egStateOptions });
+                            // Qty / price / max are field references or plain numbers;
+                            // offered as text inputs (v1) — the runtime reads them as
+                            // column keys or literal numeric strings.
+                            cmp.addTrait({ type: 'text', name: 'data-pb-qty', label: 'Qty field / key', placeholder: 'qty' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-price', label: 'Price field / key', placeholder: 'price' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-max', label: 'Max rows', placeholder: '' });
+                        }
+
+                        // ── Auth visibility — shown on ANY component (general pass) ─
+                        // data-pb-auth  : restrict the element to logged-in users.
+                        // data-pb-roles : further restrict to specific role slugs.
+                        // Sentinel: 'data-pb-auth'.
+                        if (! names.includes('data-pb-auth')) {
+                            cmp.addTrait({
+                                type: 'select', name: 'data-pb-auth', label: 'Only when logged in',
+                                options: [{ id: '', name: 'No (show always)' }, { id: '1', name: 'Yes — authenticated only' }],
+                            });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-roles', label: 'Visible to roles (comma-sep slugs)', placeholder: 'admin,manager' });
+                        }
                     };
 
                     // Load canonical GrapesJS state if present; otherwise fall
@@ -1156,7 +1296,9 @@
                         clearTimeout(pbLiveT);
                         pbLiveT = setTimeout(() => { try { pbLivePreview(editor); } catch (e) { /* no-op */ } }, 400);
                     };
-                    editor.on('component:mount component:update', pbLiveSoon);
+                    // component:remove included so deleting/duplicating a block wipes +
+                    // rebuilds overlays (no orphaned "ghost" preview lingering).
+                    editor.on('component:mount component:update component:remove', pbLiveSoon);
 
                     editor.on('component:selected', (c) => {
                         addAnimTraits(c);
