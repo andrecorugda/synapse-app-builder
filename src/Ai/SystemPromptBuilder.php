@@ -340,6 +340,21 @@ final class SystemPromptBuilder
           repeat lists with `x-for` over `$store.app.<key>`.
         - WRITE FROM A FORM: put `data-pb-record="<collection key>"` on a `<form>`; the
           named inputs create a record of that collection on submit (no flow needed).
+        - MANAGEMENT / ADMIN PAGES (critical — do NOT ship a read-only list when the
+          user says "manage", "admin", "inventory", "CRUD", or names an entity to run):
+          a management page is a WORKING form PLUS a list, not just a table. Emit:
+          (1) an "Add <thing>" `<form data-pb-record="<collection>">` with one labelled
+          input per EDITABLE field — `<input name="<field key>">` (type `number` for
+          numeric/decimal, `<select name="...">` with the field's options for a select,
+          a `<select>` populated from the related collection for a relation `*_id`), a
+          submit button, and NO inputs for computed/auto fields; and (2) a
+          `data-pb-block="data_table"` listing the collection (it auto-refreshes when
+          the form creates a row). To DELETE, add a small `component`-triggered flow with
+          a `record` delete node and wire a button with `data-pb-flow`. IMAGES: a public
+          page cannot upload files — for an image field, use a URL text input
+          (`<input name="photo" type="url">`) the user pastes into; note that binary
+          upload is done in the admin. A products/inventory screen therefore = add-form
+          (name, price number, stock number, category select) + the products table.
         - TRIGGER A FLOW FROM THE UI: put `data-pb-flow="<flow slug>"` on a button (or on
           a `<form>` with `data-pb-flow-event="submit"`). The nearest form's fields +
           current page state become the flow input; the flow's `result` node then

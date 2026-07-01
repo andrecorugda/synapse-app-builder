@@ -109,6 +109,11 @@
                         // the data so the table is never blank.
                         this._auto = ! this.$el.querySelector('template[x-for], [x-for]');
                         this.load();
+                        // Live-refresh when a [data-pb-record] form on the page creates
+                        // a row, so a management page's list reflects the new record
+                        // without a manual reload.
+                        var self = this;
+                        document.addEventListener('pb:record-created', function () { self.page = 1; self.load(); });
                     },
                     load: function () {
                         var self = this;
