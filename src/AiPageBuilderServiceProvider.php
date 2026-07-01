@@ -6,6 +6,8 @@ namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Ai\AppBuilderService;
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Blocks\BlockVocabulary;
+use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
 use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Andre\AiPageBuilder\Capabilities\Helpers\AuthHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\DbHelpers;
@@ -126,6 +128,19 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->app->singleton(PageRenderer::class);
         $this->app->singleton(PageBuilderManager::class);
         $this->app->singleton(MediaLibrary::class);
+
+        // Draggable blocks (components). Seeded with the built-ins; third-party
+        // / premium packages add their own via PageBuilder::registerComponent()
+        // from a service provider's boot(). The BlockVocabulary accessors read
+        // through this registry, so registered blocks appear everywhere.
+        $this->app->singleton(ComponentRegistry::class, function (): ComponentRegistry {
+            $registry = new ComponentRegistry;
+            foreach (BlockVocabulary::builtins() as $block) {
+                $registry->register($block);
+            }
+
+            return $registry;
+        });
 
         // Flow engine.
         $this->app->bind(AiInvoker::class, GatewayAiInvoker::class);

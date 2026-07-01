@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Blocks;
 
+use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
+
 /**
  * The source of truth for the editor's blocks.
  *
@@ -18,6 +20,9 @@ namespace Andre\AiPageBuilder\Blocks;
  */
 final class BlockVocabulary
 {
+    /** Category marking a top-level page section (the AI's page-generation vocabulary). */
+    public const SECTION_CATEGORY = 'Sections';
+
     /**
      * Section blocks — the AI vocabulary.
      *
@@ -600,48 +605,70 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block (sections + basics + shapes + components + forms + data) for
-     * the GrapesJS block manager.
+     * The raw built-in blocks (sections + basics + shapes + components + forms
+     * + data). This is the seed for {@see ComponentRegistry} — the public
+     * accessors below delegate back to that registry, so building it from the
+     * public all() would recurse. Consumers should read all()/keys()/find()/
+     * toArray() (which include registered third-party blocks); only the
+     * registry seeding reads builtins().
      *
      * @return array<int,SectionBlock>
      */
-    public static function all(): array
+    public static function builtins(): array
     {
         return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms(), ...self::data()];
     }
 
     /**
-     * Section keys only — the vocabulary the AI is allowed to emit.
+     * Every block for the GrapesJS block manager — built-ins plus any blocks
+     * registered through {@see ComponentRegistry} (third-party / premium).
+     * Delegates to the registry so registered components are visible here.
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function all(): array
+    {
+        return app(ComponentRegistry::class)->all();
+    }
+
+    /**
+     * The SECTION-level vocabulary the AI is allowed to emit for page generation —
+     * the top-level page sections (hero, features, pricing, …), NOT every granular
+     * block. Sourced from the registry and scoped to the "Sections" category, so a
+     * registered third-party / premium component that declares that category joins
+     * the AI section vocabulary while finer-grained blocks stay drag-only (this
+     * preserves the pre-registry behaviour — see all() for the full block list).
      *
      * @return array<int,string>
      */
     public static function keys(): array
     {
-        return array_map(static fn (SectionBlock $b): string => $b->key, self::sections());
+        return array_values(array_map(
+            static fn (SectionBlock $b): string => $b->key,
+            array_filter(
+                app(ComponentRegistry::class)->all(),
+                static fn (SectionBlock $b): bool => $b->category === self::SECTION_CATEGORY,
+            ),
+        ));
     }
 
     public static function find(string $key): ?SectionBlock
     {
-        foreach (self::all() as $block) {
-            if ($block->key === $key) {
-                return $block;
-            }
-        }
-
-        return null;
+        return app(ComponentRegistry::class)->find($key);
     }
 
     /**
-     * Serializable form for the GrapesJS block manager (JS side).
+     * Serializable form for the GrapesJS block manager (JS side) — built-ins
+     * plus registered blocks. Delegates to the registry.
      *
-     * @return array<int,array{key:string,label:string,category:string,template:string,description:string}>
+     * @return array<int,array{key:string,label:string,category:string,template:string,description:string,icon:string}>
      */
     public static function toArray(): array
     {
-        return array_map(static fn (SectionBlock $b): array => $b->toArray(), self::all());
+        return app(ComponentRegistry::class)->toArray();
     }
 
-    private static function block(string $key, string $label, string $description, string $template, string $category = 'Sections'): SectionBlock
+    private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY): SectionBlock
     {
         return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key));
     }

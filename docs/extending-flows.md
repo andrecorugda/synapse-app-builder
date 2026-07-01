@@ -1,28 +1,29 @@
-# Extending flow nodes & helpers
+# Extending: custom flow nodes
 
-[← Docs index](README.md) · see also [Extending](extending.md), [Flows](flows.md), [Functions](functions-and-states.md)
+[← Docs index](README.md) · see also [Extending](extending.md), [Functions](extending-functions.md), [Flows](flows.md)
 
-The flow engine is open. A host app or third-party package can add its own **flow nodes** (steps on the canvas) and **function helpers** (callables in the expression sandbox) without forking Synapse. Anything you register shows up automatically in:
+The flow engine is open. A host app or third-party package can add its own **flow nodes** — steps on the canvas — without forking Synapse. Anything you register shows up automatically in:
 
-- the builder UI — nodes in the canvas drawer, helpers in the function-editor dropdown;
-- the validator and the AI app builder (a registered node `type` is a valid node);
+- the builder UI — the node appears in the canvas drawer, grouped by its category;
+- the validator and the AI app builder — a registered node `type` is a valid node;
 - the **capability catalogue** — `PageBuilder::capabilities()` and the `ai-page-builder:capabilities` command — which is the MCP/AI tool listing.
 
 No core change is required.
 
+For adding **function helpers** (callables in the expression sandbox) instead, see [Extending function helpers](extending-functions.md). For adding **components** (draggable editor blocks), see [Extending components](extending-components.md).
+
 ## The registration seam
 
-Two facade methods, both meant to be called from a service provider's `boot()`:
+One facade method, meant to be called from a service provider's `boot()`:
 
 ```php
 use Andre\AiPageBuilder\Facades\PageBuilder;
 
-PageBuilder::registerNode($handler);             // a FlowNodeHandler instance
-PageBuilder::registerHelper($definition, $fn);   // a CapabilityDefinition + callable
-PageBuilder::capabilities();                      // read back the merged catalogue
+PageBuilder::registerNode($handler);   // a FlowNodeHandler instance
+PageBuilder::capabilities();            // read back the merged catalogue
 ```
 
-These resolve to the `NodeRegistry` / `HelperRegistry` singletons, so register at boot time (before a flow runs or the drawer renders).
+It resolves to the `NodeRegistry` singleton, so register at boot time (before a flow runs or the drawer renders).
 
 ## (a) Write a custom node
 
@@ -85,7 +86,7 @@ class SlugifyNode implements FlowNodeHandler, ProvidesNodeDefinition
 }
 ```
 
-`run()` reads `config` (interpolate strings via `$context->interpolate()` / `interpolateDeep()`), does its work, optionally `$context->set('<output>', $value)` or `$context->addAction([...])`, and returns the next node ids.
+`run()` reads `config` (interpolate strings via `$context->interpolate()` / `interpolateDeep()`), does its work, optionally `$context->set('<output>', $value)` or `$context->addAction([...])`, and returns the next node ids. The `outputHandles` in the definition are the connection points the canvas draws (`['next']` for a single successor; a branching node might declare `['next_true', 'next_false']`).
 
 ## (b) Register the node from a service provider
 
@@ -107,58 +108,25 @@ class FlowExtensionsServiceProvider extends ServiceProvider
 
 If your node has constructor dependencies, resolve it from the container: `PageBuilder::registerNode(app(SlugifyNode::class));`.
 
-## (c) Write & register a custom helper
+## (c) It shows up everywhere, automatically
 
-A helper is a `CapabilityDefinition` (kind `helper`) paired with a callable. The definition's `key` is the name the helper is callable by inside the [expression sandbox](functions-and-states.md); the callable receives the helper's arguments positionally.
+Once registered, a node needs no further wiring:
 
-```php
-use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
-use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
-use Andre\AiPageBuilder\Capabilities\CapabilityInput;
-use Andre\AiPageBuilder\Facades\PageBuilder;
-use Illuminate\Support\Str;
-
-PageBuilder::registerHelper(
-    new CapabilityDefinition(
-        key: 'util_slugify',                       // callable as util_slugify(...) in expressions
-        label: 'util.slugify',
-        category: CapabilityCategory::Util,
-        kind: CapabilityDefinition::KIND_HELPER,
-        description: 'Turns a string into a URL-safe slug.',
-        usage: "util_slugify(input.title)",
-        inputs: [
-            new CapabilityInput('text', 'Text', 'string', required: true),
-        ],
-    ),
-    static fn (string $text): string => Str::slug($text),
-);
-```
-
-Put this call in a service provider's `boot()` (same place as node registration). A Function can then use it: `util_slugify(input.title)`.
-
-For a whole group of related helpers, implement `Andre\AiPageBuilder\Capabilities\Helpers\HelperProvider` and call `PageBuilder::registerHelper(...)` for each inside its `register()` method — mirroring the core providers (`DbHelpers`, `UiHelpers`, `AuthHelpers`, `UtilHelpers`).
-
-## (d) It shows up everywhere, automatically
-
-Once registered, a node or helper needs no further wiring:
-
-- **Builder UI** — the node appears in the canvas drawer (grouped by its `category`), the helper in the function-editor dropdown.
+- **Builder UI** — the node appears in the canvas drawer, grouped by its `category`, with its declared inputs and output handles.
 - **Validation & AI** — a registered node `type` is valid in the BuildPlan validator and described to the AI app builder.
 - **Capability catalogue** — it appears in `PageBuilder::capabilities()` and in the `ai-page-builder:capabilities` JSON. See [MCP / AI exposure](#mcp--ai-exposure).
 
 ## MCP / AI exposure
 
-`PageBuilder::capabilities()` returns the merged catalogue — every node and helper as an array. The shape is already **MCP-tool-shaped**, so an MCP server / tool layer can map it directly:
+`PageBuilder::capabilities()` returns the merged catalogue — every node, helper, and component as an array. Nodes are the serialized [`CapabilityDefinition`](../src/Capabilities/CapabilityDefinition.php) (`toArray()`): `key`, `label`, `kind`, `category`, `category_label`, `category_order`, `description`, `usage`, `icon`, `inputs`, `output_handles`, `meta`. The shape is already **MCP-tool-shaped**, so an MCP server / tool layer can map it directly:
 
 | capability field | MCP tool concept |
 | --- | --- |
 | `label` | tool name |
 | `description` + `usage` | tool description / prose |
 | `inputs` (`key`, `type`, `required`, `help`, …) | argument schema |
-| `kind` | `node` vs `helper` |
+| `kind` | `node` vs `helper` vs `component` |
 | `category`, `category_label` | grouping |
-
-Each entry is the serialized [`CapabilityDefinition`](../src/Capabilities/CapabilityDefinition.php) (`toArray()`): `key`, `label`, `kind`, `category`, `category_label`, `category_order`, `description`, `usage`, `icon`, `inputs`, `output_handles`, `meta`.
 
 Dump it as JSON for an AI/MCP consumer:
 
@@ -167,7 +135,7 @@ php artisan ai-page-builder:capabilities          # compact JSON
 php artisan ai-page-builder:capabilities --pretty # pretty-printed
 ```
 
-Synapse does not ship a full MCP server — this catalogue is the seam. A thin MCP server (or any AI tool registry) reads this array and turns each entry into a tool descriptor; business logic stays in the registered node/helper.
+Synapse does not ship a full MCP server — this catalogue is the seam. A thin MCP server (or any AI tool registry) reads this array and turns each entry into a tool descriptor; business logic stays in the registered node.
 
 ---
 
