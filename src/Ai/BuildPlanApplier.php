@@ -307,14 +307,23 @@ class BuildPlanApplier
             }
 
             try {
+                $triggerType = (string) ($flow['trigger_type'] ?? 'manual');
+                // UI/route-triggered flows (a page button/form via data-pb-flow, or an
+                // external api caller) MUST be public or the /pb-flow route 404s them.
+                // Default those to public; manual/collection/cron stay private.
+                $isPublic = array_key_exists('is_public', $flow)
+                    ? (bool) $flow['is_public']
+                    : in_array($triggerType, ['component', 'form', 'api'], true);
+
                 Flow::query()->updateOrCreate(
                     ['slug' => $slug],
                     [
                         'name' => (string) ($flow['name'] ?? $slug),
-                        'trigger_type' => (string) ($flow['trigger_type'] ?? 'manual'),
+                        'trigger_type' => $triggerType,
                         'trigger_config' => is_array($flow['trigger_config'] ?? null) ? $flow['trigger_config'] : [],
                         'definition' => is_array($flow['definition'] ?? null) ? $flow['definition'] : [],
                         'is_active' => (bool) ($flow['is_active'] ?? true),
+                        'is_public' => $isPublic,
                     ],
                 );
                 $summary['created']['flows'][] = $slug;
