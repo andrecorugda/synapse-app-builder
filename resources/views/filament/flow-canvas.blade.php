@@ -41,6 +41,14 @@
                 </template>
             </select>
 
+            {{-- Zoom controls --}}
+            <div class="ai-pb-zoom">
+                <button type="button" class="ai-pb-zoom-btn" @click="zoomOut()" title="Zoom out">−</button>
+                <button type="button" class="ai-pb-zoom-btn" @click="zoomReset()" title="Reset zoom (100%)">⌗</button>
+                <button type="button" class="ai-pb-zoom-btn" @click="zoomIn()" title="Zoom in">+</button>
+                <button type="button" class="ai-pb-zoom-btn" @click="zoomFit()" title="Fit to screen">⤢ Fit</button>
+            </div>
+
             <button type="button" class="ai-pb-fullscreen-btn" @click="toggleFullscreen()"
                 x-text="fullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'"></button>
         </div>
