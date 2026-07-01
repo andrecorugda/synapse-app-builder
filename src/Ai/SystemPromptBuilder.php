@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder\Ai;
 
 use Andre\AiPageBuilder\Blocks\BlockVocabulary;
 use Andre\AiPageBuilder\Blocks\SectionBlock;
+use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Flow\NodeRegistry;
 
@@ -43,9 +44,11 @@ final class SystemPromptBuilder
         'condition' => 'Branch on a comparison. config: { left, op:"equals|not_equals|contains|gt|lt|empty|not_empty", right }. Routes to "next_true" / "next_false".',
         'http_request' => 'Call an external endpoint. config: { method, url, headers:{}, body:{}, output }.',
         'ai_invoke' => 'Call an AI integration through the gateway. config: { integration:"<slug>", args:{}, output }.',
-        'function' => 'Run a named function. config: { function:"<slug>", args:{}, output }.',
+        'function' => 'Run a named function (prefer an `expression` function that calls helpers). config: { function:"<slug>", args:{}, output }.',
+        'loop' => 'Repeat a body once PER ARRAY ITEM. config: { over:"input.<array>" | "vars.<array>", item_var:"item", index_var:"index", max_iterations, body:{ start:"<id>", nodes:{...} } }. Inside the body the current element is {{ vars.item }} and its index {{ vars.index }}. Use it to process each cart line / order item.',
+        'transaction' => 'Run a body ATOMICALLY (all-or-nothing). config: { body:{ start:"<id>", nodes:{...} } }; branches via node-level "committed" / "rolled_back". Wrap multi-record writes here (e.g. create order → loop items [decrement stock, create line] → record payment) so a mid-way failure rolls EVERYTHING back. No php needed.',
         'send_email' => 'Send an email. config: { to, subject, template:"<email-template page slug>" (or inline body), cc, bcc, reply_to, output }. The template is a page with kind=email; its html is interpolated against the flow context.',
-        'result' => 'Return page actions. config: { actions:[ {type:"setHtml|setText|notify|redirect|addClass|removeClass", ...} ] }.',
+        'result' => 'Return page actions to the browser (fire LAST, after the logic nodes). config: { actions:[ {type:"notify|alert|modal|redirect|logout|setState|setStates|setHtml|setText|addClass|removeClass", ...} ] }. `notify` toasts {message,level}; `setState` writes {key,value} into $store.app so bound components re-render live; `redirect` navigates {url}.',
     ];
 
     public function build(): string
@@ -55,9 +58,11 @@ final class SystemPromptBuilder
             $this->contract(),
             $this->example(),
             $this->componentCatalog(),
+            $this->interactivePatterns(),
             $this->themeTokens(),
             $this->fieldTypes(),
             $this->nodeTypes(),
+            $this->helpers(),
             $this->rules(),
         ];
 
@@ -290,6 +295,100 @@ final class SystemPromptBuilder
         return $types;
     }
 
+    private function interactivePatterns(): string
+    {
+        return <<<'TXT'
+        ## Building functional, data-bound, reactive UIs
+
+        Synapse pages are reactive SPAs: Alpine drives a shared `$store.app`, data
+        components fetch from the auto REST API (`/api/pb/{collection}`), and a flow's
+        `result` `setState` action writes back into the store so bound components
+        re-render WITHOUT a reload. Build genuinely working apps like this:
+
+        - DISPLAY DATA: a data table binds with `x-data="pbTable('<collection key>')"`;
+          KPI / chart blocks read a collection server-side. Bind text with `x-text`,
+          repeat lists with `x-for` over `$store.app.<key>`.
+        - WRITE FROM A FORM: put `data-pb-record="<collection key>"` on a `<form>`; the
+          named inputs create a record of that collection on submit (no flow needed).
+        - TRIGGER A FLOW FROM THE UI: put `data-pb-flow="<flow slug>"` on a button (or on
+          a `<form>` with `data-pb-flow-event="submit"`). The nearest form's fields +
+          current page state become the flow input; the flow's `result` node then
+          toasts / redirects / updates state. This is how Checkout / Save / Delete
+          buttons work — NOT `@click`. (`data-pb-*` attributes ARE allowed in html;
+          only `@click` / `x-on:` / `x-init` are not — put any other JS in `custom_js`.)
+        - INTERACTIVE / LINE-ITEM UIs (carts, invoices, order entry): use the
+          `Interactive` components — `record_picker` (search a collection; clicking a
+          tile appends the row to a cart state array), `editable_grid` (inline-editable
+          rows bound to that array, with live column + grand totals), `stepper` (a qty
+          control), `repeater`, `context_menu` (row actions).
+
+        A working POS checkout screen = a `record_picker` (products → cart state) + an
+        `editable_grid` (the cart, computing qty×price → subtotal → total) + a Checkout
+        button carrying `data-pb-flow="complete-sale"`. The `complete-sale` flow (trigger
+        "component") runs a `transaction` wrapping a `loop` over the cart items (each:
+        create an `order_items` record + decrement the product's stock via a `record`
+        update or a `db_update` helper), then a `result` node that notifies success and
+        clears the cart. Never use a `php` function for this — use nodes + helpers.
+        TXT;
+    }
+
+    private function helpers(): string
+    {
+        $helpers = $this->helperList();
+        if ($helpers === []) {
+            return '';
+        }
+
+        $lines = [
+            '## Function helpers — use these, NEVER php',
+            '',
+            'Write function bodies with the `expression` runtime and CALL these built-in',
+            'helpers. Do NOT use the `php` runtime: it is arbitrary code, DISABLED by',
+            'default, and unnecessary — everything below is callable from an expression',
+            '(and inline in any Set State value, Condition, or node config). Data helpers',
+            'run through the same permissioned query layer as the REST API.',
+            '',
+        ];
+
+        foreach ($helpers as $h) {
+            $usage = $h['usage'] !== '' ? "  —  e.g. `{$h['usage']}`" : '';
+            $desc = $h['description'] !== '' ? " {$h['description']}" : '';
+            $lines[] = "- `{$h['key']}`:{$desc}{$usage}";
+        }
+
+        return rtrim(implode("\n", $lines));
+    }
+
+    /**
+     * Helper catalogue from the live HelperRegistry (so it never drifts); empty
+     * when the registry can't be resolved (prompt generated outside a booted app).
+     *
+     * @return list<array{key:string,description:string,usage:string}>
+     */
+    private function helperList(): array
+    {
+        if (! function_exists('app')) {
+            return [];
+        }
+
+        try {
+            $defs = app(HelperRegistry::class)->definitions();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($defs as $def) {
+            $out[] = [
+                'key' => $def->key,
+                'description' => $def->description,
+                'usage' => $def->usage,
+            ];
+        }
+
+        return $out;
+    }
+
     private function rules(): string
     {
         return <<<'TXT'
@@ -301,6 +400,9 @@ final class SystemPromptBuilder
         - Reference only collections and states that already exist or are defined in the same plan.
         - Pages use `data-pb-block` blocks with semantic CLASSES — put all CSS in `custom_css` and any JS in `custom_js`; never inline `style="..."`, `<style>` or `<script>` in html. Use DECLARATIVE Alpine bindings (x-text/x-show/x-model/x-for) over `$store.app.<state>` only — never @click/x-on/x-init in html (put behaviour in `custom_js`).
         - Data tables bind with `x-data="pbTable('<collection key>')"`.
+        - FUNCTIONS: write bodies in the `expression` runtime calling the built-in helpers (db_*/ui_*/auth_*/util_*). NEVER use the `php` runtime — it is disabled by default and unnecessary.
+        - MULTI-RECORD WRITES (checkout, transfers, batch ops): wrap them in a `transaction` node containing a `loop` over the items, writing with `record` nodes or `db_*` helpers — atomic, all-or-nothing, no php. Do the logic BEFORE the `result` node (never toast "success" before the writes run).
+        - WIRE THE UI: a button/form that runs a flow carries `data-pb-flow="<flow slug>"` and the flow's `trigger_type` is `component` (or `form`); a form that just creates a record carries `data-pb-record="<collection key>"`. Build carts / line-item screens from the `Interactive` components (`record_picker`, `editable_grid`, `stepper`) bound to `$store.app.<state>`.
         - When the request names a home / landing / main page (or implies one), set `settings.home_page` to that page's slug, and give that page `status:"published"`.
         - A page whose html is the body of a `send_email` node MUST have `kind:"email"`.
         - Prefer the smallest plan that satisfies the request.
