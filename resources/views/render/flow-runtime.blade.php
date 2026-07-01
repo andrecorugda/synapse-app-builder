@@ -287,8 +287,14 @@
 
         var fields = collectFormInput(form);
 
-        fetch(API_BASE + '/' + collection, {
-            method: 'POST',
+        // Edit mode: when the form carries a record id (set by a table row's Edit
+        // action, see page.blade.php), UPDATE that row (PUT) instead of creating one.
+        var editId = form.getAttribute('data-pb-record-id') || '';
+        var url = API_BASE + '/' + collection + (editId ? '/' + encodeURIComponent(editId) : '');
+        if (editId) { delete fields.id; }
+
+        fetch(url, {
+            method: editId ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(fields),
         })
@@ -299,8 +305,9 @@
         })
         .then(function (result) {
             if (result.status >= 200 && result.status < 300) {
-                showToast('Saved');
+                showToast(editId ? 'Updated' : 'Saved');
                 form.reset();
+                form.removeAttribute('data-pb-record-id');           // back to create mode
                 form.dispatchEvent(new CustomEvent('pb:record-created', { bubbles: true, detail: result.body }));
                 return;
             }
