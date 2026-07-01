@@ -58,7 +58,7 @@ Section blocks wrap their markup in `<section data-pb-block="{key}">` with stabl
 
 ### Components (category `Components`)
 
-`card`, `banner`, `modal`, `drawer`, `tabs`, `accordion`, `tooltip`, `dropdown_menu`. These are **owner-authored, trusted** interactive blocks — because the author wrote them (not the AI), they may carry *executable* Alpine directives (`x-data`, `@click`, `x-show`, `x-transition`, etc.) for local UI state. Overlay panels use `x-cloak` so they stay hidden in the editor canvas (where Alpine does not run).
+`card`, `banner`, `modal`, `drawer`, `tabs`, `accordion`, `tooltip`, `dropdown_menu`. These ship structured, styled markup with **declarative** local state (`x-data`, `x-show`, `x-cloak`, `x-transition`) — overlay panels use `x-cloak` so they stay hidden in the editor canvas (where Alpine does not run). Because page `html` is sanitized (see below), any **user-triggered** behaviour (open/close, switch tab) must be wired from `custom_js` using the [sanitizer-safe pattern](#writing-interactive-pages-the-sanitizer-safe-pattern) — inline `@click` handlers on the block markup are stripped on save.
 
 ### Forms (category `Forms`)
 
@@ -96,7 +96,39 @@ Route::get('/', [RenderPageController::class, 'home']);
 
 ## Per-page CSS / JS
 
-`custom_css` is injected into the page `<head>`; `custom_js` is injected at the **end** of `<body>`, after the DOM, the flow runtime and Alpine — so it can rely on `window.Alpine` and `$store.app` being present.
+`custom_css` is injected into the page `<head>`. `custom_js` is injected at the end of `<body>` **before** the (deferred) Alpine script — so any component factory it defines is registered before Alpine boots and evaluates the first `x-data`. `custom_css` and `custom_js` are the two **raw, un-sanitized** channels (the owner owns them); everything in `html` is sanitized (see below).
+
+### Writing interactive pages (the sanitizer-safe pattern)
+
+Because `html` is always sanitized, executable behaviour that you'd normally inline in the markup is stripped. Put the behaviour in `custom_js` instead, and follow the same conventions the framework's own components use:
+
+- **Define component factories in `custom_js`**, reference them declaratively in `html`:
+  ```js
+  // custom_js
+  window.inventoryApp = () => ({
+    rows: [], loading: true,
+    init() { this.load(); },          // Alpine calls init() automatically — no x-init needed
+    load() { fetch(this.api).then(r => r.json()).then(d => { this.rows = d.data; }); },
+  });
+  ```
+  ```html
+  <!-- html: x-data references the factory; x-init is not needed (and would be stripped) -->
+  <div x-data="inventoryApp()"> … </div>
+  ```
+- **Need the reactive store at startup?** Register on `alpine:init` (it fires when the deferred Alpine starts, after your `custom_js` has run): `document.addEventListener('alpine:init', () => { window.Alpine.store('app').foo = 1; })`.
+- **Handle clicks without `@click`** (which is stripped): tag buttons with a `data-*` attribute (kept by the sanitizer) and delegate inside `init()`:
+  ```html
+  <button data-act="openCreate">+ Add</button>
+  ```
+  ```js
+  init() {
+    this.$el.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (btn) this[btn.dataset.act]?.();
+    });
+  }
+  ```
+  The bundled Inventory demo (`ai-page-builder:install-demo`) is authored exactly this way — read `src/Demo/InventoryDemo.php` for a full working example.
 
 ## Declarative data binding (Alpine)
 
@@ -109,7 +141,7 @@ The rendered page loads Alpine and registers a global store named `app`, seeded 
 | `x-model="$store.app.search"` | Two-way bind an input |
 | `x-for="item in $store.app.items"` | Repeat over a state array |
 
-> **AI-authored pages are restricted to these declarative directives.** The [`HtmlSanitizer`](ai.md#safety) strips executable directives (`@click`, `x-on:*`, `x-init`, `x-effect`, `x-html`) and `<script>` from AI HTML, but keeps `x-data`, `x-show`, `x-text`, `x-model`, `x-for`, `x-bind:`/`:`, `x-cloak`, `x-transition*` and the `data-pb-*` attributes. Owner-authored Component blocks are trusted and bypass the sanitizer.
+> **Page `html` is always sanitized — it's the XSS surface served verbatim to visitors** — so this applies to hand-authored *and* AI-authored markup alike. The [`HtmlSanitizer`](ai.md#safety) strips executable directives (`@click`, `x-on:*`, `x-init`, `x-effect`, `x-html`) and `<script>` from `html`, but keeps the declarative ones (`x-data`, `x-show`, `x-text`, `x-model`, `x-for`, `x-bind:`/`:`, `x-cloak`, `x-transition*`) and the `data-*` / `data-pb-*` attributes. Executable behaviour belongs in the raw `custom_js` channel — see [the sanitizer-safe pattern above](#writing-interactive-pages-the-sanitizer-safe-pattern).
 
 The current end-user is fetched client-side from `GET /pb-auth/me` and placed at `$store.app.$user` — used to drive component visibility (see below).
 

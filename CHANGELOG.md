@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New **`call_flow`** node: runs another saved flow's definition as a sub-step, sharing the caller's `vars`/`input` context; cycle-guarded (direct and transitive cycles blocked); counts against the shared step budget.
 - **Single entry point** enforced: every flow has exactly one Trigger node (badged START); the editor blocks adding a second.
 - **Non-overlapping auto-layout** for AI-generated and programmatic flows.
-- **Zoom controls** in the canvas toolbar: zoom out / reset / zoom in / fit-to-screen.
+- **Zoom controls** in the canvas toolbar: zoom out / reset / zoom in / fit-to-screen (now rendered as Phosphor duotone icons).
+- **Colour-coded flow nodes**: each node type has its own coloured Phosphor duotone icon on the node card, in the "+ Add node" drawer, and in the transaction/loop step picker.
+- Condition/Transaction outputs are labelled **True / False** (was `output_1 = true`) with **green / red colour-coded branch ports** on the canvas.
 - **Result** node now uses a low-code actions builder: a type dropdown (Notify / Alert / Modal / Redirect / Set state / Set HTML / Set text / Add class / Remove class / Log out) with conditional field visibility per type.
 - Editing an AI-generated flow round-trips losslessly through the step-list editor.
 
@@ -29,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `data_table` shell auto-renders columns from fetched data (relation names resolved); KPI/chart widgets render from a configured-but-empty wrapper.
 - **Image fields** — file input that uploads on select via the `/pb-upload` endpoint and submits the returned URL.
 - **`POST /pb-upload`** public image upload: authenticated by default (anonymous opt-in via config), image-only (jpeg/jpg/png/gif/webp), size-capped, rate-limited, safe filenames, returns `{url}`.
+- **Colour-coded block palette**: every block ships a coloured Phosphor duotone icon (per category) in the GrapesJS block manager.
+
+### Fixed
+
+- **Per-page `custom_js` now loads before Alpine** (Alpine is deferred). Previously custom JS was emitted after Alpine had already auto-started, so a component factory defined there (`window.myApp = () => ({…})` used in `x-data="myApp()"`) did not exist when Alpine evaluated the first `x-data` — the page rendered inert (empty tables, dead buttons). Regression-tested.
+- **Inventory demo** (`ai-page-builder:install-demo`) authored within the HTML sanitizer's model: component defined in `custom_js`, `init()` in place of `x-init`, and a `data-act` delegated click handler in place of `@click` — so it loads its 8 products, computes KPIs, filters/searches and opens the add-product modal.
 
 ### Configuration
 
