@@ -251,10 +251,10 @@
         .ai-pb-node[data-node-type="loop"] { width: 400px; max-width: 400px; }
         .ai-pb-node[data-node-type="transaction"] *,
         .ai-pb-node[data-node-type="loop"] * { max-width: 100%; box-sizing: border-box; }
-        .ai-pb-steps { max-height: 320px; overflow-y: auto; overflow-x: hidden; padding-right: 2px; }
-        .ai-pb-steps::-webkit-scrollbar { width: 7px; }
-        .ai-pb-steps::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 4px; }
-        .ai-pb-step-nested { max-height: 260px; overflow-y: auto; }
+        /* No inner scroll — the node grows to show every step (inner scrolling is
+           awkward to use). The canvas zoom / Fit + the non-overlap reflow handle a
+           tall node. Horizontal is still contained so nothing spills out sideways. */
+        .ai-pb-steps { overflow-x: hidden; }
         /* ── Entry (START) node badge ── */
         .drawflow .drawflow-node.pb-entry { box-shadow: 0 0 0 2px #22c55e, 0 6px 20px rgba(0,0,0,0.35); }
         .drawflow .drawflow-node.pb-entry::before {
