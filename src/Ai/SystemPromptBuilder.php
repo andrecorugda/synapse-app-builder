@@ -94,6 +94,19 @@ final class SystemPromptBuilder
         Every key in a plan must come from the catalogs in this prompt. Reference
         only collections, states, functions and flows that already exist (see the
         app context provided each turn) or that you define in the SAME plan.
+
+        EDIT IN PLACE — the app context lists what already exists (collections + their
+        fields, pages by slug, functions, flows). USE it:
+        - To change an existing page, emit a page with its EXISTING slug (from the
+          context) and the full updated html — it upserts (updates in place), so
+          re-use the slug; NEVER invent a new slug for an edit, and don't ask the user
+          which slug — it's in the context.
+        - Before adding a collection field, check the collection's existing fields in
+          the context and REUSE one that already serves the purpose instead of adding
+          a near-duplicate (e.g. if `image` exists, use it for a product photo — don't
+          add a second `photo` field).
+        - Don't recreate a collection/flow/function that's already listed; add to or
+          adjust it. You already have the context — build on it rather than asking for it.
         TXT;
     }
 
