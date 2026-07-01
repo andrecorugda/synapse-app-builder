@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Pages;
 
+use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\Settings;
 use Andre\AiPageBuilder\Services\Theme;
 use Filament\Actions\Action;
@@ -111,6 +112,9 @@ class ThemeSettings extends FilamentPage
                 ->requiresConfirmation()
                 ->action(function (): void {
                     app(Settings::class)->set('theme', null);
+                    // Theme tokens are baked into cached page renders — flush so
+                    // the reset shows on live pages immediately, not after TTL.
+                    app(PageRenderer::class)->flushAll();
                     $this->form->fill(Theme::DEFAULTS);
                     Notification::make()->success()->title('Theme reset to defaults')->send();
                 }),
@@ -127,6 +131,11 @@ class ThemeSettings extends FilamentPage
         }
 
         app(Settings::class)->set('theme', $tokens);
+
+        // Theme tokens are baked into each page's cached rendered HTML, so a save
+        // wouldn't otherwise show on live pages until each slug's TTL expires.
+        // Flush all cached renders so the new brand/theme appears immediately.
+        app(PageRenderer::class)->flushAll();
 
         Notification::make()->success()->title('Theme saved')->send();
     }
