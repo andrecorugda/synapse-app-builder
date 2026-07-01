@@ -64,8 +64,18 @@
             $pbFields = [];
         }
         // Reusable partials → draggable blocks that insert a data-pb-partial placeholder.
+        // When editing a partial, exclude it from its OWN list so a partial can't
+        // embed (and infinitely re-render) itself — only other partials are offered.
         try {
-            $pbPartials = (config('ai-page-builder.models.partial', \Andre\AiPageBuilder\Models\Partial::class))::query()
+            $partialClass = config('ai-page-builder.models.partial', \Andre\AiPageBuilder\Models\Partial::class);
+            $editingPartialKey = null;
+            $editRoute = \Andre\AiPageBuilder\Filament\Resources\PartialResource::getRouteBaseName().'.edit';
+            if (optional(request()->route())->getName() === $editRoute) {
+                $editingPartialKey = request()->route('record');
+            }
+            $partialRouteKey = (new $partialClass)->getRouteKeyName();
+            $pbPartials = $partialClass::query()
+                ->when($editingPartialKey !== null, fn ($q) => $q->where($partialRouteKey, '!=', $editingPartialKey))
                 ->orderBy('name')->get()->map(fn ($p) => ['slug' => $p->slug, 'name' => $p->name])->values()->all();
         } catch (\Throwable $e) {
             $pbPartials = [];
