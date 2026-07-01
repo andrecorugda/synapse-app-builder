@@ -161,19 +161,27 @@ class PageRenderer
     }
 
     /**
-     * The Interactive-category block templates, keyed by block key. Sourced from
-     * the live registry so registered third-party Interactive blocks expand too;
-     * empty when the registry can't be resolved (e.g. rendering outside a booted
-     * app — the html is then returned unchanged).
+     * Block templates that expand from a bare configured shell, keyed by block
+     * key. Sourced from the live registry so registered third-party Interactive
+     * blocks expand too; empty when the registry can't be resolved (e.g. rendering
+     * outside a booted app — the html is then returned unchanged).
+     *
+     * Covers every `Interactive`-category block PLUS the data widgets that the
+     * builder (and the AI) naturally emit as a configured-but-empty wrapper —
+     * `kpi` and `chart`. Their runtime fills a child element (`data-pb-kpi-value`
+     * / `<canvas>`), so an empty `<div data-pb-block="kpi" …></div>` would render
+     * blank (the reported "dashboard shows no data"); expanding it injects the
+     * internals the runtime writes into.
      *
      * @return array<string,string>
      */
     private function interactiveTemplates(): array
     {
+        $expandableWidgets = ['kpi', 'chart'];
         $out = [];
         try {
             foreach (BlockVocabulary::all() as $block) {
-                if ($block->category === 'Interactive') {
+                if ($block->category === 'Interactive' || in_array($block->key, $expandableWidgets, true)) {
                     $out[$block->key] = $block->template;
                 }
             }
