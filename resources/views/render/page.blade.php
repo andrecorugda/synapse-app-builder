@@ -93,123 +93,553 @@
                 .catch(function () {});
             @endunless
 
-            // pbTable — the Data Table block's x-data. Fetches a collection's rows
-            // from the auto REST API (GET {api}/{collection} → {data:[…]}) and
-            // exposes rows/loading/error for x-for / x-show bindings. The block's
-            // static sample rows carry x-show="false" so only real rows render.
+            // pbTable — the Data Table block's x-data.
+            //
+            // Collection mode (data-pb-collection="<key>"): fetches the
+            // collection schema (GET {api}/{collection}/schema) then the rows
+            // (GET {api}/{collection}), and renders TYPE-DRIVEN cells — never by
+            // magic field name. Relations are resolved via the related
+            // collection's display_field from the schema.
+            //
+            // State mode (data-pb-state="<key>"): renders rows from
+            // $store.app[key] (an array shaped by flows/functions), reactively.
+            // Columns come from data-pb-columns or the first row's keys.
+            // Type-driven cell formatting only applies in collection mode.
+            //
+            // Config attributes (all optional):
+            //   data-pb-collection="<key>"       — source collection
+            //   data-pb-state="<key>"            — source state array (mutually exclusive with collection)
+            //   data-pb-columns="k,k:Header,…"   — explicit columns + optional rename
+            //   data-pb-hide="k,k"               — columns to omit (when not using explicit columns)
+            //   data-pb-sortable="true"           — clickable column headers for sort (default true)
+            //   data-pb-no-sort="k,k"            — per-column sort opt-out
+            //   data-pb-searchable="true"         — search box
+            //   data-pb-filters="k,k"            — filter controls per field
+            //   data-pb-selectable="true"         — checkbox column + select-all
+            //   data-pb-bulk="action:Label,…"     — bulk action buttons (built-in: delete)
+            //   data-pb-per-page="20"             — rows per page (default 20)
             var API_BASE = window.__pbApiBase;
-            window.Alpine.data('pbTable', function (collection) {
+            window.Alpine.data('pbTable', function (collectionArg) {
                 return {
+                    // Core state
                     rows: [], loading: true, error: false,
-                    page: 1, lastPage: 1, total: 0, perPage: 10,
+                    page: 1, lastPage: 1, total: 0, perPage: 20,
+                    // Schema (collection mode only)
+                    _schema: null,    // { fields:[{key,label,type,options}], display_field, relations:{} }
+                    // Config (read from data-pb-* attrs in init)
+                    _collection: '',  // collection key (empty = state mode)
+                    _stateKey: '',    // $store.app key (state mode)
+                    _colSpec: null,   // parsed columns spec [{key,header}] or null
+                    _hide: [],        // field keys to hide
+                    _sortable: true,  // global sortable flag
+                    _noSort: [],      // per-column sort opt-out
+                    _searchable: false,
+                    _filterKeys: [],  // field keys that get filter controls
+                    _selectable: false,
+                    _bulkSpec: [],    // [{action, label}]
+                    // Runtime
+                    _sortKey: '', _sortDir: 'asc',
+                    _search: '',
+                    _filters: {},     // {key: value}
+                    _selected: {},    // {id: true}
+                    _filterTypes: {}, // {key: type} — from schema, for filter UI
+                    _filterOptions: {}, // {key: [{value,label}]} — for select filters
+                    _stateWatcher: null,
+
                     init: function () {
-                        // A curated data-table carries its own x-for row template.
-                        // When the block is a bare shell (no template — the shape the
-                        // AI often emits), fall back to auto-rendering columns from
-                        // the data so the table is never blank.
-                        this._auto = ! this.$el.querySelector('template[x-for], [x-for]');
-                        this.load();
-                        // Live-refresh when a [data-pb-record] form on the page creates
-                        // a row, so a management page's list reflects the new record
-                        // without a manual reload.
                         var self = this;
-                        document.addEventListener('pb:record-created', function () { self.page = 1; self.load(); });
+                        var el = this.$el;
+
+                        // Read config from the root element's data-pb-* attrs
+                        self._collection = (el.getAttribute('data-pb-collection') || collectionArg || '').trim();
+                        self._stateKey = (el.getAttribute('data-pb-state') || '').trim();
+
+                        var ppRaw = parseInt(el.getAttribute('data-pb-per-page') || '', 10);
+                        if (! isNaN(ppRaw) && ppRaw > 0) { self.perPage = ppRaw; }
+
+                        // Columns spec: "key,key:Header,…"
+                        var colsRaw = (el.getAttribute('data-pb-columns') || '').trim();
+                        if (colsRaw) {
+                            self._colSpec = colsRaw.split(',').map(function (s) {
+                                s = s.trim();
+                                var colon = s.indexOf(':');
+                                if (colon > 0) { return { key: s.slice(0, colon).trim(), header: s.slice(colon + 1).trim() }; }
+                                return { key: s, header: '' };
+                            }).filter(function (c) { return c.key; });
+                        }
+
+                        var hideRaw = (el.getAttribute('data-pb-hide') || '').trim();
+                        self._hide = hideRaw ? hideRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+
+                        var sortableAttr = el.getAttribute('data-pb-sortable');
+                        self._sortable = sortableAttr === null || sortableAttr !== 'false';
+
+                        var noSortRaw = (el.getAttribute('data-pb-no-sort') || '').trim();
+                        self._noSort = noSortRaw ? noSortRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+
+                        self._searchable = el.getAttribute('data-pb-searchable') === 'true';
+
+                        var filtersRaw = (el.getAttribute('data-pb-filters') || '').trim();
+                        self._filterKeys = filtersRaw ? filtersRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+
+                        self._selectable = el.getAttribute('data-pb-selectable') === 'true';
+
+                        var bulkRaw = (el.getAttribute('data-pb-bulk') || '').trim();
+                        self._bulkSpec = bulkRaw ? bulkRaw.split(',').map(function (s) {
+                            s = s.trim();
+                            var colon = s.indexOf(':');
+                            if (colon > 0) { return { action: s.slice(0, colon).trim(), label: s.slice(colon + 1).trim() }; }
+                            return { action: s, label: s };
+                        }).filter(function (b) { return b.action; }) : [];
+
+                        // State mode: watch the store array and re-render when it changes
+                        if (self._stateKey) {
+                            self.loading = false;
+                            var store = window.Alpine.store('app');
+                            if (! Array.isArray(store[self._stateKey])) { store[self._stateKey] = []; }
+                            self.rows = store[self._stateKey];
+                            // Reactive watch: re-render when the store array changes
+                            self._stateWatcher = self.$watch('$store.app.' + self._stateKey, function (val) {
+                                self.rows = Array.isArray(val) ? val : [];
+                                self.total = self.rows.length;
+                                self.renderTable();
+                            });
+                            self.total = self.rows.length;
+                            self.renderTable();
+                            return;
+                        }
+
+                        // Collection mode: fetch schema then rows
+                        if (self._collection) {
+                            self.loadSchema(function () { self.load(); });
+                        } else {
+                            self.loading = false;
+                        }
+
+                        // Live-refresh when a [data-pb-record] form creates a row
+                        document.addEventListener('pb:record-created', function () {
+                            if (self._stateKey) { return; }
+                            self.page = 1; self.load();
+                        });
                     },
+
+                    loadSchema: function (cb) {
+                        var self = this;
+                        fetch(API_BASE + '/' + self._collection + '/schema', { headers: { Accept: 'application/json' } })
+                            .then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                self._schema = d || null;
+                                // Build filter type/options maps from schema
+                                if (d && d.fields) {
+                                    d.fields.forEach(function (f) {
+                                        self._filterTypes[f.key] = f.type;
+                                        if ((f.type === 'select' || f.type === 'boolean') && f.options) {
+                                            if (f.type === 'boolean') {
+                                                self._filterOptions[f.key] = [{ value: '1', label: 'Yes' }, { value: '0', label: 'No' }];
+                                            } else {
+                                                self._filterOptions[f.key] = (f.options || []).map(function (o) { return { value: o, label: o }; });
+                                            }
+                                        }
+                                    });
+                                }
+                                if (cb) { cb(); }
+                            })
+                            .catch(function () { if (cb) { cb(); } });
+                    },
+
                     load: function () {
                         var self = this;
                         self.loading = true; self.error = false;
-                        // The auto table expands relations (expand=*) so a foreign key
-                        // renders as the related record's NAME, not a raw id. Curated
-                        // tables bind their own fields and are left untouched.
-                        var q = '?page=' + self.page + '&per_page=' + self.perPage + (self._auto ? '&expand=*' : '');
-                        fetch(API_BASE + '/' + collection + q, { headers: { Accept: 'application/json' } })
+                        var params = '?page=' + self.page + '&per_page=' + self.perPage + '&expand=*';
+                        if (self._sortKey) { params += '&sort=' + encodeURIComponent((self._sortDir === 'desc' ? '-' : '') + self._sortKey); }
+                        if (self._search) { params += '&search=' + encodeURIComponent(self._search); }
+                        Object.keys(self._filters).forEach(function (k) {
+                            var v = self._filters[k];
+                            if (v !== '' && v != null) { params += '&filter[' + encodeURIComponent(k) + '][eq]=' + encodeURIComponent(v); }
+                        });
+                        fetch(API_BASE + '/' + self._collection + params, { headers: { Accept: 'application/json' } })
                             .then(function (r) { return r.json(); })
                             .then(function (d) {
                                 self.rows = (d && d.data) || [];
                                 self.lastPage = (d && d.last_page) || 1;
                                 self.total = (d && d.total) || self.rows.length;
                                 self.loading = false;
-                                if (self._auto) { self.renderAuto(); }
+                                self.renderTable();
                             })
                             .catch(function () { self.loading = false; self.error = true; });
                     },
-                    renderAuto: function () {
-                        var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-                        var human = function (k) { return k.replace(/_id$/, '').replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); }); };
-                        // A value is an image if it has an image extension OR its column
-                        // is image-ish (image/photo/avatar/thumbnail/picture/logo/cover)
-                        // and the value is a URL/path — covers extensionless image URLs
-                        // (e.g. picsum, CDN links) that a pure-extension test would miss.
-                        var isImgUrl = function (v) { return typeof v === 'string' && /^(https?:\/\/|\/)/.test(v); };
-                        var isImgKey = function (k) { return /(^|_)(image|images|photo|avatar|thumbnail|thumb|picture|logo|cover|banner)($|_)/i.test(k || ''); };
-                        var isImg = function (v, k) { return typeof v === 'string' && v !== '' && (/\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i.test(v) || (isImgKey(k) && isImgUrl(v))); };
-                        var cell = function (v, k) {
-                            if (isImg(v, k)) { return '<img src="' + esc(v) + '" alt="" style="height:2.25rem;width:2.25rem;object-fit:cover;border-radius:.35rem;border:1px solid #e2e8f0;" />'; }
-                            return esc((v && typeof v === 'object') ? (v.name || v.label || v.title || JSON.stringify(v)) : v);
-                        };
-                        if (! this.rows.length) { this.$el.innerHTML = '<p class="pb-table__empty" style="padding:1rem;color:#64748b;font-family:inherit;">No records yet.</p>'; return; }
-                        var row0 = this.rows[0];
-                        // A relation fk `x_id` is expanded onto a sibling `x` (object).
-                        // Drop the sibling as its own column and render the related NAME
-                        // in the `x_id` cell instead of the raw id.
-                        var keys = Object.keys(row0).filter(function (k) {
-                            if (k === 'created_at' || k === 'updated_at' || k === 'deleted_at') { return false; }
-                            return ! Object.prototype.hasOwnProperty.call(row0, k + '_id'); // hide expansion sibling
-                        });
-                        var display = function (row, k) {
-                            if (/_id$/.test(k)) { var sib = row[k.replace(/_id$/, '')]; if (sib && typeof sib === 'object') { return cell(sib, k); } }
-                            return cell(row[k], k);
-                        };
-                        // A management page pairs this list with a form that writes the
-                        // same collection — when present, offer Edit/Delete per row.
-                        var recForm = document.querySelector('form[data-pb-record="' + collection + '"]');
-                        var thStyle = 'padding:.6rem .9rem;text-align:left;border-bottom:1px solid #e2e8f0;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:#64748b;';
-                        var th = keys.map(function (k) { return '<th style="' + thStyle + '">' + esc(human(k)) + '</th>'; }).join('')
-                            + (recForm ? '<th style="' + thStyle + 'text-align:right;">Actions</th>' : '');
-                        var body = this.rows.map(function (row, i) {
-                            var cells = keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + display(row, k) + '</td>'; }).join('');
-                            if (recForm) {
-                                cells += '<td style="padding:.5rem .9rem;text-align:right;white-space:nowrap;">'
-                                    + '<button type="button" data-pb-edit="' + i + '" style="border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;border-radius:.35rem;padding:.2rem .55rem;font-size:.72rem;cursor:pointer;margin-right:.25rem;">Edit</button>'
-                                    + '<button type="button" data-pb-del="' + i + '" style="border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:.35rem;padding:.2rem .55rem;font-size:.72rem;cursor:pointer;">Delete</button>'
-                                    + '</td>';
-                            }
-                            return '<tr style="border-bottom:1px solid #f1f5f9;">' + cells + '</tr>';
-                        }).join('');
-                        this.$el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:.9rem;background:#fff;border:1px solid #e2e8f0;border-radius:.6rem;overflow:hidden;"><thead style="background:#f8fafc;"><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table>';
-                        if (recForm) { this.wireRowActions(recForm, collection); }
-                    },
-                    wireRowActions: function (form, collection) {
+
+                    // Compute visible columns from config + schema (or row keys in state mode)
+                    resolveColumns: function () {
                         var self = this;
-                        var submitBtn = form.querySelector('button[type="submit"], [type="submit"]');
-                        var origLabel = submitBtn ? submitBtn.textContent : '';
-                        this.$el.querySelectorAll('[data-pb-edit]').forEach(function (btn) {
-                            btn.addEventListener('click', function () {
-                                var row = self.rows[+btn.getAttribute('data-pb-edit')];
-                                if (! row) { return; }
-                                // Fill the form's named inputs from the row (raw fk ids fill relation selects).
-                                form.querySelectorAll('[name]').forEach(function (input) {
-                                    var k = input.getAttribute('name');
-                                    if (Object.prototype.hasOwnProperty.call(row, k)) { input.value = row[k] == null ? '' : row[k]; }
-                                });
-                                form.setAttribute('data-pb-record-id', row.id);   // → submitRecord does PUT
-                                if (submitBtn) { submitBtn.textContent = 'Update'; }
-                                form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        var schema = self._schema;
+
+                        if (self._colSpec) {
+                            // Explicit columns: use as-is; fill header from schema if blank
+                            return self._colSpec.map(function (c) {
+                                var header = c.header;
+                                if (! header && schema && schema.fields) {
+                                    var sf = schema.fields.filter(function (f) { return f.key === c.key; })[0];
+                                    header = sf ? sf.label : self.humanize(c.key);
+                                }
+                                return { key: c.key, header: header || self.humanize(c.key) };
                             });
-                        });
-                        this.$el.querySelectorAll('[data-pb-del]').forEach(function (btn) {
-                            btn.addEventListener('click', function () {
-                                var row = self.rows[+btn.getAttribute('data-pb-del')];
-                                if (! row || ! window.confirm('Delete this record?')) { return; }
-                                fetch(API_BASE + '/' + collection + '/' + encodeURIComponent(row.id), {
-                                    method: 'DELETE', headers: { Accept: 'application/json' },
-                                }).then(function () {
-                                    if (form.getAttribute('data-pb-record-id') == String(row.id)) { form.reset(); form.removeAttribute('data-pb-record-id'); if (submitBtn) { submitBtn.textContent = origLabel; } }
-                                    self.load();
-                                });
+                        }
+
+                        // Auto: derive from schema fields or row keys
+                        var SYSTEM = ['created_at', 'updated_at', 'deleted_at'];
+                        var keys;
+                        if (schema && schema.fields && schema.fields.length) {
+                            keys = schema.fields
+                                .map(function (f) { return f.key; })
+                                .filter(function (k) { return SYSTEM.indexOf(k) === -1 && self._hide.indexOf(k) === -1; });
+                        } else if (self.rows.length) {
+                            // State mode or schema unavailable: derive from first row
+                            var row0 = self.rows[0];
+                            keys = Object.keys(row0).filter(function (k) {
+                                return SYSTEM.indexOf(k) === -1 && self._hide.indexOf(k) === -1;
                             });
+                        } else {
+                            return [];
+                        }
+
+                        return keys.map(function (k) {
+                            var header = k;
+                            if (schema && schema.fields) {
+                                var sf = schema.fields.filter(function (f) { return f.key === k; })[0];
+                                header = sf ? sf.label : self.humanize(k);
+                            } else {
+                                header = self.humanize(k);
+                            }
+                            return { key: k, header: header };
                         });
                     },
+
+                    // Render a cell value from TYPE (collection mode) or as-is (state mode)
+                    renderCell: function (row, colKey) {
+                        var self = this;
+                        var schema = self._schema;
+                        var esc = self.esc;
+
+                        // In state mode (no schema) render values as-is
+                        if (! schema) {
+                            var v = row[colKey];
+                            if (v === null || v === undefined) { return ''; }
+                            if (typeof v === 'object') { return esc(JSON.stringify(v)); }
+                            return esc(String(v));
+                        }
+
+                        // Collection mode: look up field type from schema
+                        var fieldDef = (schema.fields || []).filter(function (f) { return f.key === colKey; })[0];
+                        var type = fieldDef ? fieldDef.type : null;
+
+                        // Relation: the API expands `x_id` onto sibling `x` (the related object).
+                        // Display the related row's display_field from schema.relations.
+                        if (type === 'relation') {
+                            var colName = colKey; // may already include _id suffix
+                            var sibKey = /^(.+)_id$/.test(colName) ? colName.replace(/_id$/, '') : colName;
+                            var sib = row[sibKey];
+                            if (sib && typeof sib === 'object') {
+                                var relInfo = schema.relations && schema.relations[colKey];
+                                var displayKey = relInfo ? relInfo.display_field : 'id';
+                                var label = sib[displayKey];
+                                return label != null ? esc(String(label)) : esc(String(sib.id || ''));
+                            }
+                            // Fallback: raw id
+                            var rawId = row[colName];
+                            return rawId != null ? esc(String(rawId)) : '';
+                        }
+
+                        var val = row[colKey];
+                        if (val === null || val === undefined) { return ''; }
+
+                        if (type === 'image') {
+                            if (typeof val !== 'string' || val === '') { return ''; }
+                            return '<img src="' + esc(val) + '" alt="" style="height:2.25rem;width:2.25rem;object-fit:cover;border-radius:.35rem;border:1px solid #e2e8f0;">';
+                        }
+                        if (type === 'boolean') {
+                            return val ? '<span style="color:#16a34a;">&#10003;</span>' : '<span style="color:#dc2626;">&#10007;</span>';
+                        }
+                        if (type === 'date') {
+                            try { return esc(new Date(val).toLocaleDateString()); } catch (e) { return esc(String(val)); }
+                        }
+                        if (type === 'datetime') {
+                            try { return esc(new Date(val).toLocaleString()); } catch (e) { return esc(String(val)); }
+                        }
+                        if (type === 'json') {
+                            if (typeof val === 'object') { return '<code style="font-size:.78rem;color:#475569;">' + esc(JSON.stringify(val)) + '</code>'; }
+                            return '<code style="font-size:.78rem;color:#475569;">' + esc(String(val)) + '</code>';
+                        }
+                        // integer, decimal, string, text, select — render as text
+                        if (typeof val === 'object') { return esc(JSON.stringify(val)); }
+                        return esc(String(val));
+                    },
+
+                    esc: function (s) {
+                        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+                            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+                        });
+                    },
+
+                    humanize: function (k) {
+                        return k.replace(/_id$/, '').replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); });
+                    },
+
+                    // Returns selected ids as an array
+                    selectedIds: function () {
+                        return Object.keys(this._selected).filter(function (k) { return this._selected[k]; }, this);
+                    },
+
+                    toggleAll: function (checked) {
+                        var self = this;
+                        var newSel = {};
+                        if (checked) { self.rows.forEach(function (r) { if (r.id != null) { newSel[String(r.id)] = true; } }); }
+                        self._selected = newSel;
+                    },
+
+                    toggleRow: function (id, checked) {
+                        var newSel = Object.assign({}, this._selected);
+                        if (checked) { newSel[String(id)] = true; } else { delete newSel[String(id)]; }
+                        this._selected = newSel;
+                    },
+
+                    applySort: function (key) {
+                        if (! this._sortable || this._noSort.indexOf(key) !== -1) { return; }
+                        if (this._sortKey === key) {
+                            this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            this._sortKey = key; this._sortDir = 'asc';
+                        }
+                        this.page = 1;
+                        if (this._collection) { this.load(); }
+                    },
+
+                    applySearch: function (val) {
+                        this._search = val;
+                        this.page = 1;
+                        if (this._collection) { this.load(); }
+                    },
+
+                    applyFilter: function (key, val) {
+                        this._filters[key] = val;
+                        this.page = 1;
+                        if (this._collection) { this.load(); }
+                    },
+
+                    doBulk: function (action) {
+                        var self = this;
+                        var ids = self.selectedIds();
+                        if (! ids.length) { return; }
+
+                        // Dispatch custom event so flow/author JS can intercept
+                        self.$el.dispatchEvent(new CustomEvent('pb:bulk', {
+                            bubbles: true, detail: { action: action, ids: ids, collection: self._collection },
+                        }));
+                        document.dispatchEvent(new CustomEvent('pb:bulk', {
+                            bubbles: true, detail: { action: action, ids: ids, collection: self._collection },
+                        }));
+
+                        // Built-in delete: DELETE each id, then reload
+                        if (action === 'delete' && self._collection) {
+                            if (! window.confirm('Delete ' + ids.length + ' record(s)?')) { return; }
+                            var deletes = ids.map(function (id) {
+                                return fetch(API_BASE + '/' + self._collection + '/' + encodeURIComponent(id), {
+                                    method: 'DELETE', headers: { Accept: 'application/json' },
+                                });
+                            });
+                            Promise.all(deletes).then(function () { self._selected = {}; self.load(); });
+                        }
+                    },
+
+                    renderTable: function () {
+                        var self = this;
+                        var esc = self.esc.bind(self);
+                        var cols = self.resolveColumns();
+                        var recForm = self._collection
+                            ? document.querySelector('form[data-pb-record="' + self._collection + '"]')
+                            : null;
+                        var thStyle = 'padding:.6rem .9rem;text-align:left;border-bottom:1px solid #e2e8f0;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:#64748b;white-space:nowrap;';
+                        var sortIcon = function (k) {
+                            if (! self._sortable || self._noSort.indexOf(k) !== -1) { return ''; }
+                            if (self._sortKey !== k) { return '<span style="opacity:.35;margin-left:.3rem;">&#8597;</span>'; }
+                            return '<span style="margin-left:.3rem;">' + (self._sortDir === 'asc' ? '&#8593;' : '&#8595;') + '</span>';
+                        };
+
+                        // Build toolbar (search + filters + bulk actions)
+                        var toolbarParts = [];
+                        if (self._searchable) {
+                            toolbarParts.push('<input type="search" placeholder="Search…" value="' + esc(self._search) + '" data-pb-tbl-search style="padding:.4rem .65rem;border:1px solid #cbd5e1;border-radius:.4rem;font:inherit;font-size:.85rem;min-width:14rem;">');
+                        }
+                        self._filterKeys.forEach(function (fk) {
+                            var ftype = self._filterTypes[fk] || 'string';
+                            var fopts = self._filterOptions[fk] || null;
+                            var curVal = self._filters[fk] || '';
+                            var label = esc(self.humanize(fk));
+                            if (fopts && (ftype === 'select' || ftype === 'boolean')) {
+                                var opts = '<option value="">All ' + label + '</option>';
+                                fopts.forEach(function (o) {
+                                    opts += '<option value="' + esc(o.value) + '"' + (curVal === o.value ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+                                });
+                                toolbarParts.push('<select data-pb-tbl-filter="' + esc(fk) + '" style="padding:.4rem .65rem;border:1px solid #cbd5e1;border-radius:.4rem;font:inherit;font-size:.85rem;">' + opts + '</select>');
+                            } else {
+                                toolbarParts.push('<input type="text" placeholder="Filter ' + label + '…" value="' + esc(curVal) + '" data-pb-tbl-filter="' + esc(fk) + '" style="padding:.4rem .65rem;border:1px solid #cbd5e1;border-radius:.4rem;font:inherit;font-size:.85rem;min-width:10rem;">');
+                            }
+                        });
+                        var selIds = self.selectedIds();
+                        if (self._selectable && selIds.length && self._bulkSpec.length) {
+                            self._bulkSpec.forEach(function (b) {
+                                var btnStyle = b.action === 'delete'
+                                    ? 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;'
+                                    : 'background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;';
+                                toolbarParts.push('<button type="button" data-pb-tbl-bulk="' + esc(b.action) + '" style="' + btnStyle + 'border-radius:.4rem;padding:.4rem .8rem;font:inherit;font-size:.85rem;cursor:pointer;">' + esc(b.label) + ' (' + selIds.length + ')</button>');
+                            });
+                        }
+                        var toolbar = toolbarParts.length
+                            ? '<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .9rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;">' + toolbarParts.join('') + '</div>'
+                            : '';
+
+                        // Build table header
+                        var cbHead = self._selectable
+                            ? '<th style="' + thStyle + 'width:2.5rem;"><input type="checkbox" data-pb-tbl-selall style="cursor:pointer;"></th>'
+                            : '';
+                        var thCells = cols.map(function (c) {
+                            var clickable = self._sortable && self._noSort.indexOf(c.key) === -1;
+                            var cursor = clickable ? 'cursor:pointer;user-select:none;' : '';
+                            var attr = clickable ? ' data-pb-tbl-sort="' + esc(c.key) + '"' : '';
+                            return '<th style="' + thStyle + cursor + '"' + attr + '>' + esc(c.header) + sortIcon(c.key) + '</th>';
+                        }).join('');
+                        var actHead = recForm ? '<th style="' + thStyle + 'text-align:right;">Actions</th>' : '';
+                        var thead = '<thead style="background:#f8fafc;"><tr>' + cbHead + thCells + actHead + '</tr></thead>';
+
+                        // Build table body
+                        var tbody;
+                        if (! self.rows.length) {
+                            var colspan = cols.length + (self._selectable ? 1 : 0) + (recForm ? 1 : 0);
+                            tbody = '<tbody><tr><td colspan="' + colspan + '" style="padding:1rem .9rem;color:#64748b;font-family:inherit;">No records yet.</td></tr></tbody>';
+                        } else {
+                            var tdStyle = 'padding:.55rem .9rem;color:#0f172a;border-bottom:1px solid #f1f5f9;vertical-align:middle;';
+                            var rows = self.rows.map(function (row, i) {
+                                var isChecked = self._selectable && row.id != null && self._selected[String(row.id)];
+                                var cbCell = self._selectable
+                                    ? '<td style="' + tdStyle + 'width:2.5rem;"><input type="checkbox" data-pb-tbl-sel="' + esc(String(row.id)) + '"' + (isChecked ? ' checked' : '') + ' style="cursor:pointer;"></td>'
+                                    : '';
+                                var cells = cols.map(function (c) {
+                                    return '<td style="' + tdStyle + '">' + self.renderCell(row, c.key) + '</td>';
+                                }).join('');
+                                var actCell = recForm
+                                    ? '<td style="' + tdStyle + 'text-align:right;white-space:nowrap;">'
+                                        + '<button type="button" data-pb-edit="' + i + '" style="border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;border-radius:.35rem;padding:.2rem .55rem;font-size:.72rem;cursor:pointer;margin-right:.25rem;">Edit</button>'
+                                        + '<button type="button" data-pb-del="' + i + '" style="border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:.35rem;padding:.2rem .55rem;font-size:.72rem;cursor:pointer;">Delete</button>'
+                                        + '</td>'
+                                    : '';
+                                return '<tr>' + cbCell + cells + actCell + '</tr>';
+                            }).join('');
+                            tbody = '<tbody>' + rows + '</tbody>';
+                        }
+
+                        // Build pagination footer
+                        var colspan2 = cols.length + (self._selectable ? 1 : 0) + (recForm ? 1 : 0);
+                        var tfoot = self.lastPage > 1
+                            ? '<tfoot><tr><td colspan="' + colspan2 + '" style="padding:.55rem .9rem;border-top:1px solid #e2e8f0;">'
+                                + '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#64748b;font-size:.85rem;">'
+                                + '<span>Page ' + self.page + ' of ' + self.lastPage + ' &middot; ' + self.total + ' records</span>'
+                                + '<span style="display:flex;gap:.5rem;">'
+                                + '<button type="button" data-pb-tbl-prev ' + (self.page <= 1 ? 'disabled' : '') + ' style="padding:.35rem .7rem;border:1px solid #e2e8f0;border-radius:.375rem;background:#fff;cursor:pointer;">Prev</button>'
+                                + '<button type="button" data-pb-tbl-next ' + (self.page >= self.lastPage ? 'disabled' : '') + ' style="padding:.35rem .7rem;border:1px solid #e2e8f0;border-radius:.375rem;background:#fff;cursor:pointer;">Next</button>'
+                                + '</span></div></td></tr></tfoot>'
+                            : '';
+
+                        self.$el.innerHTML = toolbar
+                            + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:.9rem;background:#fff;">'
+                            + thead + tbody + tfoot
+                            + '</table></div>';
+
+                        // Wire interactive elements via delegation on the table container
+                        self.wireTableEvents(recForm);
+                    },
+
+                    wireTableEvents: function (recForm) {
+                        var self = this;
+                        var el = self.$el;
+
+                        // Sort headers
+                        el.querySelectorAll('[data-pb-tbl-sort]').forEach(function (th) {
+                            th.addEventListener('click', function () { self.applySort(th.getAttribute('data-pb-tbl-sort')); self.renderTable(); });
+                        });
+
+                        // Search
+                        var searchEl = el.querySelector('[data-pb-tbl-search]');
+                        if (searchEl) {
+                            var debounce;
+                            searchEl.addEventListener('input', function () {
+                                clearTimeout(debounce);
+                                debounce = setTimeout(function () { self.applySearch(searchEl.value); }, 350);
+                            });
+                        }
+
+                        // Filters
+                        el.querySelectorAll('[data-pb-tbl-filter]').forEach(function (fi) {
+                            fi.addEventListener('input', function () { self.applyFilter(fi.getAttribute('data-pb-tbl-filter'), fi.value); });
+                            fi.addEventListener('change', function () { self.applyFilter(fi.getAttribute('data-pb-tbl-filter'), fi.value); });
+                        });
+
+                        // Select all
+                        var selAll = el.querySelector('[data-pb-tbl-selall]');
+                        if (selAll) {
+                            selAll.addEventListener('change', function () { self.toggleAll(selAll.checked); self.renderTable(); });
+                        }
+
+                        // Row checkboxes
+                        el.querySelectorAll('[data-pb-tbl-sel]').forEach(function (cb) {
+                            cb.addEventListener('change', function () { self.toggleRow(cb.getAttribute('data-pb-tbl-sel'), cb.checked); self.renderTable(); });
+                        });
+
+                        // Bulk actions
+                        el.querySelectorAll('[data-pb-tbl-bulk]').forEach(function (btn) {
+                            btn.addEventListener('click', function () { self.doBulk(btn.getAttribute('data-pb-tbl-bulk')); });
+                        });
+
+                        // Pagination
+                        var prevBtn = el.querySelector('[data-pb-tbl-prev]');
+                        if (prevBtn) { prevBtn.addEventListener('click', function () { if (self.page > 1) { self.page--; self.load(); } }); }
+                        var nextBtn = el.querySelector('[data-pb-tbl-next]');
+                        if (nextBtn) { nextBtn.addEventListener('click', function () { if (self.page < self.lastPage) { self.page++; self.load(); } }); }
+
+                        // Per-row Edit / Delete (management pages)
+                        if (recForm) {
+                            var submitBtn = recForm.querySelector('button[type="submit"], [type="submit"]');
+                            var origLabel = submitBtn ? submitBtn.textContent : '';
+                            el.querySelectorAll('[data-pb-edit]').forEach(function (btn) {
+                                btn.addEventListener('click', function () {
+                                    var row = self.rows[+btn.getAttribute('data-pb-edit')];
+                                    if (! row) { return; }
+                                    recForm.querySelectorAll('[name]').forEach(function (input) {
+                                        var k = input.getAttribute('name');
+                                        if (Object.prototype.hasOwnProperty.call(row, k)) { input.value = row[k] == null ? '' : row[k]; }
+                                    });
+                                    recForm.setAttribute('data-pb-record-id', row.id);
+                                    if (submitBtn) { submitBtn.textContent = 'Update'; }
+                                    recForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                });
+                            });
+                            el.querySelectorAll('[data-pb-del]').forEach(function (btn) {
+                                btn.addEventListener('click', function () {
+                                    var row = self.rows[+btn.getAttribute('data-pb-del')];
+                                    if (! row || ! window.confirm('Delete this record?')) { return; }
+                                    fetch(API_BASE + '/' + self._collection + '/' + encodeURIComponent(row.id), {
+                                        method: 'DELETE', headers: { Accept: 'application/json' },
+                                    }).then(function () {
+                                        if (recForm.getAttribute('data-pb-record-id') == String(row.id)) {
+                                            recForm.reset(); recForm.removeAttribute('data-pb-record-id');
+                                            if (submitBtn) { submitBtn.textContent = origLabel; }
+                                        }
+                                        self.load();
+                                    });
+                                });
+                            });
+                        }
+                    },
+
                     prev: function () { if (this.page > 1) { this.page--; this.load(); } },
                     next: function () { if (this.page < this.lastPage) { this.page++; this.load(); } },
                 };
@@ -374,14 +804,29 @@
 
             // pbRecordPicker — searchable tile grid; clicking a tile appends the
             // record (projection) to $store.app[data-pb-target].
+            //
+            // Config attrs (all optional):
+            //   data-pb-collection   — collection to search (required)
+            //   data-pb-label-field  — field key for the tile's primary label text
+            //                          (required; no default — use the schema display field
+            //                          or be explicit; a bare picker shows only this label)
+            //   data-pb-image-field  — OPT-IN field key for a thumbnail image; omit → no image shown
+            //   data-pb-extra-field  — OPT-IN field key for a secondary line on the tile; omit → hidden
+            //   data-pb-target       — $store.app key for the output array (required for picking)
+            //
+            // Each pick appends { id, label } to the target array. If data-pb-image-field
+            // is set the pick also carries { image }. A "qty" merging is NOT applied here —
+            // that is a domain concern; wire it in a flow or custom JS if needed.
+            // The editable_grid / cart qty/price fields are a genuine line-item component,
+            // NOT part of the picker — configure those on the editable_grid block.
             window.Alpine.data('pbRecordPicker', function (root) {
                 return {
                     q: '', results: [], loading: false,
                     collection: (root && root.getAttribute('data-pb-collection')) || '',
-                    labelField: (root && root.getAttribute('data-pb-label-field')) || 'name',
-                    imageField: (root && root.getAttribute('data-pb-image-field')) || 'image',
-                    priceField: (root && root.getAttribute('data-pb-price-field')) || 'price',
-                    target: (root && root.getAttribute('data-pb-target')) || 'cart',
+                    labelField: (root && root.getAttribute('data-pb-label-field')) || '',
+                    imageField: (root && root.getAttribute('data-pb-image-field')) || '',   // '' = no image
+                    extraField: (root && root.getAttribute('data-pb-extra-field')) || '',   // '' = no extra line
+                    target: (root && root.getAttribute('data-pb-target')) || '',
                     init: function () { this.search(); },
                     search: function () {
                         var self = this;
@@ -391,14 +836,20 @@
                         fetch(url, { headers: { Accept: 'application/json' } })
                             .then(function (r) { return r.json(); })
                             .then(function (d) {
+                                var lf = self.labelField;
+                                var imf = self.imageField;
+                                var exf = self.extraField;
                                 self.results = ((d && d.data) || []).map(function (row) {
-                                    return {
+                                    var result = {
                                         id: row.id,
-                                        label: row[self.labelField] != null ? row[self.labelField] : ('#' + row.id),
-                                        image: row[self.imageField] || '',                       // product image URL (if any)
-                                        price: (row[self.priceField] != null) ? row[self.priceField] : '',
+                                        label: lf && row[lf] != null ? row[lf] : ('#' + row.id),
                                         raw: row,
                                     };
+                                    // Image only when explicitly configured
+                                    if (imf) { result.image = row[imf] || ''; }
+                                    // Extra line only when explicitly configured
+                                    if (exf) { result.extra = row[exf] != null ? String(row[exf]) : ''; }
+                                    return result;
                                 });
                                 self.loading = false;
                             })
@@ -406,16 +857,15 @@
                     },
                     pickById: function (id) {
                         var hit = this.results.filter(function (r) { return String(r.id) === String(id); })[0];
-                        if (! hit) { return; }
+                        if (! hit || ! this.target) { return; }
                         var store = window.Alpine.store('app');
                         if (! Array.isArray(store[this.target])) { store[this.target] = []; }
-                        // Picking the same product again MERGES into the existing line
-                        // (bump its qty) rather than adding a duplicate row — expected
-                        // POS/cart behaviour.
-                        var line = store[this.target].filter(function (l) { return String(l.id) === String(hit.id); })[0];
-                        if (line) { line.qty = (Number(line.qty) || 0) + 1; return; }
-                        // Carry the image + price onto the cart line so the cart/grid can show them too.
-                        store[this.target].push({ id: hit.id, label: hit.label, image: hit.image || '', qty: 1, price: Number(hit.price) || 0 });
+                        // Append a projection of the picked row. Include image only when the
+                        // picker is configured with data-pb-image-field.
+                        var line = { id: hit.id, label: hit.label };
+                        if (this.imageField) { line.image = hit.image || ''; }
+                        if (this.extraField) { line.extra = hit.extra || ''; }
+                        store[this.target].push(line);
                     },
                 };
             });

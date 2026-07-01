@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Http\Controllers;
 
+use Andre\AiPageBuilder\Enums\FieldType;
+use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Services\AccessControl;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Illuminate\Http\JsonResponse;
@@ -137,6 +140,95 @@ class RecordApiController extends Controller
         $this->records->delete($this->resolve($model), $id);
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Schema endpoint for a collection. Returns field definitions (key, label,
+     * type, options), the computed display field, and a map of relation fields
+     * to their related collection key + display field. Used by the front-end
+     * data_table to render TYPE-DRIVEN cells without magic name guessing.
+     *
+     * Read-gated with the same permission check as the list endpoint, and it
+     * honours the same field-level read restrictions: a role that may read only
+     * a subset of columns sees only those fields here, and a relation whose
+     * TARGET collection the user can't read is dropped from the relations map
+     * (the expand is dropped server-side anyway). App-user relations (the
+     * RELATION_TARGET sentinel) are not a `collection` resource and are omitted
+     * from the relations map.
+     */
+    public function schema(string $model): JsonResponse
+    {
+        if ($deny = $this->gate('read', $model)) {
+            return $deny;
+        }
+
+        $pbModel = $this->resolve($model);
+        $user = $this->access->currentUser();
+        $allowedFields = $this->access->allowedFields($user, $model, 'read');
+
+        // Field-level projection: keep only readable fields (null = all).
+        $fields = $allowedFields === null
+            ? $pbModel->fields
+            : $pbModel->fields->filter(
+                static fn (PbField $f): bool => in_array($f->key, $allowedFields, true)
+            )->values();
+
+        /** @var class-string<PbModel> $modelClass */
+        $modelClass = config('ai-page-builder.models.model', PbModel::class);
+
+        $fieldList = $fields->map(static function (PbField $f): array {
+            $opts = $f->options ?? [];
+
+            return [
+                'key' => $f->key,
+                'label' => $f->label,
+                'type' => $f->type,
+                'options' => $f->type === FieldType::Select->value
+                    ? array_values(array_map('strval', is_array($opts['choices'] ?? null) ? $opts['choices'] : []))
+                    : null,
+            ];
+        })->values()->all();
+
+        // Build the relations map: for each relation field, resolve its target
+        // collection and expose that collection's display_field so the front-end
+        // can render the related row's label rather than a raw id. Skip user
+        // relations (not a collection resource) and any target the user may not
+        // read.
+        $relations = [];
+        foreach ($fields as $f) {
+            if ($f->type !== FieldType::Relation->value) {
+                continue;
+            }
+
+            $relatedKey = (string) ($f->options['relation_model'] ?? '');
+            if ($relatedKey === '' || $relatedKey === PbUser::RELATION_TARGET) {
+                continue;
+            }
+            if (! $this->access->can($user, 'read', 'collection', $relatedKey)) {
+                continue;
+            }
+
+            /** @var PbModel|null $relatedModel */
+            $relatedModel = $modelClass::query()
+                ->where('key', $relatedKey)
+                ->with('fields')
+                ->first();
+
+            if ($relatedModel === null) {
+                continue;
+            }
+
+            $relations[$f->key] = [
+                'collection' => $relatedKey,
+                'display_field' => $relatedModel->displayField(),
+            ];
+        }
+
+        return response()->json([
+            'fields' => $fieldList,
+            'display_field' => $pbModel->displayField(),
+            'relations' => $relations,
+        ]);
     }
 
     /**

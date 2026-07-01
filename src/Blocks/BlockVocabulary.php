@@ -506,47 +506,22 @@ final class BlockVocabulary
     public static function data(): array
     {
         return [
+            // Config-driven data table. All config is via data-pb-* attributes;
+            // the runtime fetches the schema + rows and renders TYPE-DRIVEN cells.
+            // Set data-pb-collection to point at a collection. Optional attrs:
+            //   data-pb-columns="k,k:Header" — explicit columns + rename
+            //   data-pb-hide="k,k"           — hide columns
+            //   data-pb-sortable="true"       — column sort (default true)
+            //   data-pb-searchable="true"     — search box
+            //   data-pb-filters="k,k"        — filter controls
+            //   data-pb-selectable="true"     — row checkboxes
+            //   data-pb-bulk="delete:Delete,…"— bulk action buttons
+            //   data-pb-per-page="20"         — rows per page
+            //   data-pb-state="key"           — display $store.app[key] instead of collection
             self::block('data_table', 'Data Table', 'A table that lists rows from a collection.', <<<'HTML'
-            <table data-pb-block="data_table" class="pb-data-table" x-data="pbTable('leads')" style="width:100%;border-collapse:collapse;font-family:inherit;font-size:0.9375rem;color:#0f172a;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
-              <thead class="pb-data-table__head" style="background:#f8fafc;text-align:left;">
-                <tr>
-                  <th class="pb-data-table__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Name</th>
-                  <th class="pb-data-table__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Email</th>
-                </tr>
-              </thead>
-              <tbody class="pb-data-table__body">
-                <tr class="pb-data-table__loading" x-show="loading" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#64748b;">Loading…</td></tr>
-                <tr class="pb-data-table__error" x-show="error" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#dc2626;">Couldn’t load records.</td></tr>
-                <tr class="pb-data-table__empty" x-show="!loading && !error && rows.length === 0" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#64748b;">No records</td></tr>
-                <template x-for="row in rows" :key="row.id">
-                  <tr class="pb-data-table__row" style="border-top:1px solid #e2e8f0;">
-                    <td class="pb-data-table__td" x-text="row.name" style="padding:0.75rem 1rem;"></td>
-                    <td class="pb-data-table__td" x-text="row.email" style="padding:0.75rem 1rem;"></td>
-                  </tr>
-                </template>
-                <tr class="pb-data-table__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">Acme Corp</td>
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">hello@acme.com</td>
-                </tr>
-                <tr class="pb-data-table__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">Globex</td>
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">contact@globex.com</td>
-                </tr>
-              </tbody>
-              <tfoot class="pb-data-table__foot" x-show="lastPage > 1" x-cloak>
-                <tr>
-                  <td colspan="2" style="padding:0.6rem 1rem;border-top:1px solid #e2e8f0;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#64748b;font-size:0.85rem;">
-                      <span>Page <span x-text="page"></span> of <span x-text="lastPage"></span> · <span x-text="total"></span> records</span>
-                      <span style="display:flex;gap:0.5rem;">
-                        <button type="button" @click="prev()" :disabled="page<=1" style="padding:0.35rem 0.7rem;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;cursor:pointer;">Prev</button>
-                        <button type="button" @click="next()" :disabled="page>=lastPage" style="padding:0.35rem 0.7rem;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;cursor:pointer;">Next</button>
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+            <div data-pb-block="data_table" class="pb-data-table" data-pb-collection="" data-pb-per-page="20" x-data="pbTable('')" style="font-family:inherit;font-size:0.9375rem;color:#0f172a;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;background:#fff;">
+              <p class="pb-data-table__placeholder" x-show="false" style="padding:1rem;color:#94a3b8;font-size:0.85rem;">Set a collection in the Settings panel — the table renders on the published page.</p>
+            </div>
             HTML, 'Data'),
 
             self::block('list', 'List', 'A list that repeats over a State array.', <<<'HTML'
@@ -728,20 +703,24 @@ final class BlockVocabulary
             </div>
             HTML, 'Interactive'),
 
+            // Bare picker: only data-pb-label-field and data-pb-target are set.
+            // data-pb-image-field and data-pb-extra-field are OPT-IN (no defaults).
+            // A tile shows only the label; add the other attrs in the builder to
+            // opt-in to image thumbnails or an extra info line.
             self::block('record_picker', 'Record picker', 'A searchable tile grid from a collection — click a tile to add it to a State array.', <<<'HTML'
-            <div data-pb-block="record_picker" class="pb-picker" data-pb-collection="" data-pb-label-field="name" data-pb-image-field="image" data-pb-price-field="price" data-pb-target="cart" x-data="pbRecordPicker($el)" style="font-family:inherit;color:#0f172a;max-width:40rem;">
+            <div data-pb-block="record_picker" class="pb-picker" data-pb-collection="" data-pb-label-field="" data-pb-target="" x-data="pbRecordPicker($el)" style="font-family:inherit;color:#0f172a;max-width:40rem;">
               <input type="text" class="pb-picker__search" x-model="q" data-pb-picker-search placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;color:#0f172a;box-sizing:border-box;margin-bottom:0.75rem;">
               <p class="pb-picker__loading" x-show="loading" x-cloak style="color:#64748b;margin:0.25rem 0;">Loading…</p>
               <p class="pb-picker__empty" x-show="!loading && results.length === 0" x-cloak style="color:#64748b;margin:0.25rem 0;">No matches.</p>
               <div class="pb-picker__grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:0.6rem;">
                 <template x-for="r in results" :key="r.id">
                   <button type="button" class="pb-picker__tile" data-pb-pick :data-pb-pick-id="r.id" style="display:flex;flex-direction:column;gap:0.4rem;text-align:left;padding:0.6rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s;">
-                    <img :src="r.image" x-show="r.image" x-cloak alt="" style="width:100%;height:5rem;object-fit:cover;border-radius:0.35rem;background:#f1f5f9;">
+                    <img :src="r.image" x-show="r.image != null" x-cloak alt="" style="width:100%;height:5rem;object-fit:cover;border-radius:0.35rem;background:#f1f5f9;">
                     <span class="pb-picker__tile-label" x-text="r.label" style="font-weight:600;font-size:0.85rem;"></span>
-                    <span class="pb-picker__tile-price" x-show="r.price !== '' && r.price != null" x-text="r.price" style="color:#4f46e5;font-size:0.8rem;font-weight:600;"></span>
+                    <span class="pb-picker__tile-extra" x-show="r.extra != null && r.extra !== ''" x-text="r.extra" style="color:#475569;font-size:0.8rem;"></span>
                   </button>
                 </template>
-                <button type="button" class="pb-picker__sample" x-show="false" style="text-align:left;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;">Sample product</button>
+                <button type="button" class="pb-picker__sample" x-show="false" style="text-align:left;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;">Sample item</button>
               </div>
             </div>
             HTML, 'Interactive'),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Models;
 
+use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,7 @@ use InvalidArgumentException;
  * @property string|null $label_singular
  * @property string|null $label_plural
  * @property string|null $description
+ * @property string|null $display_field
  * @property string|null $icon
  * @property bool $has_timestamps
  * @property bool $has_soft_deletes
@@ -156,5 +158,37 @@ class PbModel extends Model
         }
 
         return $casts;
+    }
+
+    /**
+     * The field key to use as this collection's human label wherever ONE column
+     * must stand in for a row (relation expansion, autocomplete/picker tile,
+     * relation-filter options). Resolution is SCHEMA-driven, never name-driven:
+     *
+     *   1. the explicitly configured `display_field` (if it names a real field);
+     *   2. else the first `string`/`text` field in sort order;
+     *   3. else `id`.
+     *
+     * There is deliberately NO fallback to a magically-named field like "name"/
+     * "title" — this is a general-purpose builder, so the label source is either
+     * declared by the author or inferred purely from field TYPE.
+     */
+    public function displayField(): string
+    {
+        $fields = $this->fields;
+
+        $configured = $this->getAttribute('display_field');
+        if (is_string($configured) && $configured !== ''
+            && $fields->contains(fn (PbField $f): bool => $f->key === $configured)) {
+            return $configured;
+        }
+
+        foreach ($fields as $field) {
+            if (in_array($field->fieldType(), [FieldType::String, FieldType::Text], true)) {
+                return $field->key;
+            }
+        }
+
+        return 'id';
     }
 }
