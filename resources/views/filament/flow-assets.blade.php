@@ -1759,13 +1759,32 @@
                     const existing = this.$wire.get(config.statePath);
                     if (existing && existing._canvas) {
                         try {
+                            // Drawflow's import() throws ("Cannot convert undefined or
+                            // null to object") on any node missing an `inputs`/`outputs`
+                            // map — and a 0-input node like the trigger exports WITHOUT
+                            // an `inputs` key. Normalise every node to carry both maps
+                            // (+ data) so import never throws. Also self-heals flows
+                            // saved before this fix, which otherwise reopened
+                            // trigger-only and then overwrote the DB on the next save.
+                            const cdata = existing._canvas.drawflow
+                                && existing._canvas.drawflow.Home
+                                && existing._canvas.drawflow.Home.data;
+                            if (cdata) {
+                                Object.values(cdata).forEach((nd) => {
+                                    if (! nd || typeof nd !== 'object') { return; }
+                                    if (! nd.inputs) { nd.inputs = {}; }
+                                    if (! nd.outputs) { nd.outputs = {}; }
+                                    if (! nd.data) { nd.data = {}; }
+                                });
+                            }
                             editor.import(existing._canvas);
                             // import() fires no node/connection events, so re-sync
                             // once to re-normalise the definition (recompute `start`,
                             // preserve transaction/loop bodies) — self-heals a flow
                             // saved by an older, lossy version of this editor.
                             this.sync();
-                        } catch (_) {
+                        } catch (e) {
+                            console.error('ai-page-builder: flow canvas import failed, falling back to trigger', e);
                             editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
                         }
                     } else if (existing && existing.nodes && Object.keys(existing.nodes).length) {
@@ -1778,7 +1797,8 @@
                             // Auto-laid-out graph → guarantee no overlap once nodes
                             // have real rendered sizes (a couple frames later).
                             this._needsReflow = true;
-                        } catch (_) {
+                        } catch (e) {
+                            console.error('ai-page-builder: flow reconstruct failed, falling back to trigger', e);
                             editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
                         }
                     } else {
