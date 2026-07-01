@@ -81,6 +81,7 @@
         window.__pbEmailTemplates = @js($pbEmailTemplates);
         window.__pbCredentials = @js($pbCredentials);
         window.__pbIntegrations = @js($pbIntegrations);
+        window.__pbNodeIcons = {'trigger':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#22C55E" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M128,32a96,96,0,1,0,96,96A96,96,0,0,0,128,32ZM108,168V88l64,40Z" opacity="0.2"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48.24-94.78-64-40A8,8,0,0,0,100,88v80a8,8,0,0,0,12.24,6.78l64-40a8,8,0,0,0,0-13.56ZM116,153.57V102.43L156.91,128Z"/></svg>','condition':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#FBBF24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,64a24,24,0,1,1-24-24A24,24,0,0,1,224,64Z" opacity="0.2"/><path d="M232,64a32,32,0,1,0-40,31v17a8,8,0,0,1-8,8H96a23.84,23.84,0,0,0-8,1.38V95a32,32,0,1,0-16,0v66a32,32,0,1,0,16,0V144a8,8,0,0,1,8-8h88a24,24,0,0,0,24-24V95A32.06,32.06,0,0,0,232,64ZM64,64A16,16,0,1,1,80,80,16,16,0,0,1,64,64ZM96,192a16,16,0,1,1-16-16A16,16,0,0,1,96,192ZM200,80a16,16,0,1,1,16-16A16,16,0,0,1,200,80Z"/></svg>','set_variable':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#E879F9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,83.31V208a8,8,0,0,1-8,8H176V152a8,8,0,0,0-8-8H88a8,8,0,0,0-8,8v64H48a8,8,0,0,1-8-8V48a8,8,0,0,1,8-8H172.69a8,8,0,0,1,5.65,2.34l35.32,35.32A8,8,0,0,1,216,83.31Z" opacity="0.2"/><path d="M219.31,72,184,36.69A15.86,15.86,0,0,0,172.69,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V83.31A15.86,15.86,0,0,0,219.31,72ZM168,208H88V152h80Zm40,0H184V152a16,16,0,0,0-16-16H88a16,16,0,0,0-16,16v56H48V48H172.69L208,83.31ZM160,72a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h56A8,8,0,0,1,160,72Z"/></svg>','function':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#F59E0B" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M200,40V200a16,16,0,0,1-16,16H56V56A16,16,0,0,1,72,40Z" opacity="0.2"/><path d="M208,40a8,8,0,0,1-8,8H170.71a24,24,0,0,0-23.62,19.71L137.59,120H184a8,8,0,0,1,0,16H134.68l-10,55.16A40,40,0,0,1,85.29,224H56a8,8,0,0,1,0-16H85.29a24,24,0,0,0,23.62-19.71l9.5-52.29H72a8,8,0,0,1,0-16h49.32l10-55.16A40,40,0,0,1,170.71,32H200A8,8,0,0,1,208,40Z"/></svg>','record':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#2DD4BF" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,80c0,26.51-39.4,48-88,48S40,106.51,40,80s39.4-48,88-48S216,53.49,216,80Z" opacity="0.2"/><path d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64ZM69.61,53.08C85.07,44.65,105.81,40,128,40s42.93,4.65,58.39,13.08C200.12,60.57,208,70.38,208,80s-7.88,19.43-21.61,26.92C170.93,115.35,150.19,120,128,120s-42.93-4.65-58.39-13.08C55.88,99.43,48,89.62,48,80S55.88,60.57,69.61,53.08ZM186.39,202.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"/></svg>','http_request':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#38BDF8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"/><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></svg>','ai_invoke':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#A78BFA" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M194.82,151.43l-55.09,20.3-20.3,55.09a7.92,7.92,0,0,1-14.86,0l-20.3-55.09-55.09-20.3a7.92,7.92,0,0,1,0-14.86l55.09-20.3,20.3-55.09a7.92,7.92,0,0,1,14.86,0l20.3,55.09,55.09,20.3A7.92,7.92,0,0,1,194.82,151.43Z" opacity="0.2"/><path d="M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"/></svg>','send_email':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#34D399" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,56l-96,88L32,56Z" opacity="0.2"/><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48Zm-96,85.15L52.57,64H203.43ZM98.71,128,40,181.81V74.19Zm11.84,10.85,12,11.05a8,8,0,0,0,10.82,0l12-11.05,58,53.15H52.57ZM157.29,128,216,74.18V181.82Z"/></svg>','result':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#F472B6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M232,56l-45.71,96H40l48-48L40,56Z" opacity="0.2"/><path d="M238.76,51.73A8,8,0,0,0,232,48H40a8,8,0,0,0-5.66,13.66L76.69,104,34.34,146.34A8,8,0,0,0,40,160H173.62l-28.84,60.56a8,8,0,1,0,14.44,6.88l80-168A8,8,0,0,0,238.76,51.73ZM181.23,144H59.31l34.35-34.34a8,8,0,0,0,0-11.32L59.31,64h160Z"/></svg>','loop':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#F43F5E" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,64v64a64,64,0,0,1-64,64H32V128A64,64,0,0,1,96,64Z" opacity="0.2"/><path d="M24,128A72.08,72.08,0,0,1,96,56H204.69L194.34,45.66a8,8,0,0,1,11.32-11.32l24,24a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L204.69,72H96a56.06,56.06,0,0,0-56,56,8,8,0,0,1-16,0Zm200-8a8,8,0,0,0-8,8,56.06,56.06,0,0,1-56,56H51.31l10.35-10.34a8,8,0,0,0-11.32-11.32l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L51.31,200H160a72.08,72.08,0,0,0,72-72A8,8,0,0,0,224,120Z"/></svg>','transaction':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#22C55E" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,56v56c0,96-88,120-88,120S40,208,40,112V56a8,8,0,0,1,8-8H208A8,8,0,0,1,216,56Z" opacity="0.2"/><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></svg>','call_flow':'<svg style="width:18px;height:18px;vertical-align:middle;fill:#8B5CF6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M80,176a32,32,0,1,1-32-32A32,32,0,0,1,80,176Z" opacity="0.2"/><path d="M245.66,74.34l-32-32a8,8,0,0,0-11.32,11.32L220.69,72H208c-49.33,0-61.05,28.12-71.38,52.92-9.38,22.51-16.92,40.59-49.48,42.84a40,40,0,1,0,.1,16c43.26-2.65,54.34-29.15,64.14-52.69C161.41,107,169.33,88,208,88h12.69l-18.35,18.34a8,8,0,0,0,11.32,11.32l32-32A8,8,0,0,0,245.66,74.34ZM48,200a24,24,0,1,1,24-24A24,24,0,0,1,48,200Z"/></svg>',};
     </script>
     <style>
         /* ── Drawflow canvas wrapper (dark) ── */
@@ -129,6 +130,11 @@
             align-items: center;
             gap: 0.3rem;
         }
+        /* Drawflow's stylesheet sets `svg { position: absolute }` (for its connection
+           lines); our node-title / node-body icons inherit it and stack on top of the
+           label. Force them back into normal flow so the flex row lays them out. */
+        .ai-pb-node-title svg,
+        .ai-pb-node-label svg { position: static !important; flex: 0 0 auto; }
         .ai-pb-node input,
         .ai-pb-node select {
             width: 100%;
@@ -862,13 +868,13 @@
                 switch (type) {
                     case 'trigger':
                         return '<div class="ai-pb-node" data-node-type="trigger">'
-                            + '<div class="ai-pb-node-title">&#9654; Trigger</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#22C55E" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M128,32a96,96,0,1,0,96,96A96,96,0,0,0,128,32ZM108,168V88l64,40Z" opacity="0.2"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48.24-94.78-64-40A8,8,0,0,0,100,88v80a8,8,0,0,0,12.24,6.78l64-40a8,8,0,0,0,0-13.56ZM116,153.57V102.43L156.91,128Z"/></svg> <span>Trigger</span></div>'
                             + '<span style="font-size:0.7rem;color:#94a3b8;">Flow entry point</span>'
                             + '</div>';
 
                     case 'ai_invoke':
                         return '<div class="ai-pb-node" data-node-type="ai_invoke">'
-                            + '<div class="ai-pb-node-title">&#10024; AI Invoke</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#A78BFA" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M194.82,151.43l-55.09,20.3-20.3,55.09a7.92,7.92,0,0,1-14.86,0l-20.3-55.09-55.09-20.3a7.92,7.92,0,0,1,0-14.86l55.09-20.3,20.3-55.09a7.92,7.92,0,0,1,14.86,0l20.3,55.09,55.09,20.3A7.92,7.92,0,0,1,194.82,151.43Z" opacity="0.2"/><path d="M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"/></svg> <span>AI Invoke</span></div>'
                             + '<label class="ai-pb-node-label">Integration slug</label>'
                             + '<select df-integration>' + optionList(window.__pbIntegrations, 'slug', '— select integration —') + '</select>'
                             + '<label class="ai-pb-node-label">Output variable</label>'
@@ -879,7 +885,7 @@
 
                     case 'http_request':
                         return '<div class="ai-pb-node" data-node-type="http_request">'
-                            + '<div class="ai-pb-node-title">&#127760; HTTP Request</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#38BDF8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"/><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></svg> <span>HTTP Request</span></div>'
                             + '<label class="ai-pb-node-label">Method</label>'
                             + '<select df-method>'
                             + '<option value="GET">GET</option>'
@@ -902,7 +908,7 @@
 
                     case 'function':
                         return '<div class="ai-pb-node" data-node-type="function">'
-                            + '<div class="ai-pb-node-title">&#402; Function</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#F59E0B" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M200,40V200a16,16,0,0,1-16,16H56V56A16,16,0,0,1,72,40Z" opacity="0.2"/><path d="M208,40a8,8,0,0,1-8,8H170.71a24,24,0,0,0-23.62,19.71L137.59,120H184a8,8,0,0,1,0,16H134.68l-10,55.16A40,40,0,0,1,85.29,224H56a8,8,0,0,1,0-16H85.29a24,24,0,0,0,23.62-19.71l9.5-52.29H72a8,8,0,0,1,0-16h49.32l10-55.16A40,40,0,0,1,170.71,32H200A8,8,0,0,1,208,40Z"/></svg> <span>Function</span></div>'
                             + '<label class="ai-pb-node-label">Function</label>'
                             + '<select df-function>' + optionList(window.__pbFlowFunctions, 'slug', '— select function —') + '</select>'
                             + '<label class="ai-pb-node-label">Args (JSON)</label>'
@@ -913,7 +919,7 @@
 
                     case 'send_email':
                         return '<div class="ai-pb-node" data-node-type="send_email">'
-                            + '<div class="ai-pb-node-title">&#9993; Send Email</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#34D399" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,56l-96,88L32,56Z" opacity="0.2"/><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48Zm-96,85.15L52.57,64H203.43ZM98.71,128,40,181.81V74.19Zm11.84,10.85,12,11.05a8,8,0,0,0,10.82,0l12-11.05,58,53.15H52.57ZM157.29,128,216,74.18V181.82Z"/></svg> <span>Send Email</span></div>'
                             + '<label class="ai-pb-node-label">To</label>'
                             + '<input type="text" df-to placeholder="{{input.email}}" />'
                             + '<label class="ai-pb-node-label">Subject</label>'
@@ -935,7 +941,7 @@
                         // matching operation(s) — toggled by __pbRecordOp on
                         // change and re-applied after add / import.
                         return '<div class="ai-pb-node" data-node-type="record">'
-                            + '<div class="ai-pb-node-title">&#128451; Collection</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#2DD4BF" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,80c0,26.51-39.4,48-88,48S40,106.51,40,80s39.4-48,88-48S216,53.49,216,80Z" opacity="0.2"/><path d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64ZM69.61,53.08C85.07,44.65,105.81,40,128,40s42.93,4.65,58.39,13.08C200.12,60.57,208,70.38,208,80s-7.88,19.43-21.61,26.92C170.93,115.35,150.19,120,128,120s-42.93-4.65-58.39-13.08C55.88,99.43,48,89.62,48,80S55.88,60.57,69.61,53.08ZM186.39,202.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"/></svg> <span>Collection</span></div>'
                             + '<label class="ai-pb-node-label">Collection</label>'
                             + '<select df-model>' + optionList(window.__pbCollections, 'key', '— select collection —') + '</select>'
                             + '<label class="ai-pb-node-label">Operation</label>'
@@ -970,7 +976,7 @@
                         // State's definition (df-type is set by __pbSetStateType on
                         // change), so the value is always cast to the right type.
                         return '<div class="ai-pb-node" data-node-type="set_variable">'
-                            + '<div class="ai-pb-node-title">&#128190; Set State</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#E879F9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,83.31V208a8,8,0,0,1-8,8H176V152a8,8,0,0,0-8-8H88a8,8,0,0,0-8,8v64H48a8,8,0,0,1-8-8V48a8,8,0,0,1,8-8H172.69a8,8,0,0,1,5.65,2.34l35.32,35.32A8,8,0,0,1,216,83.31Z" opacity="0.2"/><path d="M219.31,72,184,36.69A15.86,15.86,0,0,0,172.69,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V83.31A15.86,15.86,0,0,0,219.31,72ZM168,208H88V152h80Zm40,0H184V152a16,16,0,0,0-16-16H88a16,16,0,0,0-16,16v56H48V48H172.69L208,83.31ZM160,72a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h56A8,8,0,0,1,160,72Z"/></svg> <span>Set State</span></div>'
                             + '<label class="ai-pb-node-label">State</label>'
                             + '<select df-key onchange="window.__pbSetStateType && window.__pbSetStateType(this)">' + optionList(window.__pbVariables, 'key', '— select state —') + '</select>'
                             + '<div class="ai-pb-statetype" style="font-size:0.66rem;color:#5eead4;margin:0 0 0.3rem;min-height:0.8rem;"></div>'
@@ -983,7 +989,7 @@
 
                     case 'condition':
                         return '<div class="ai-pb-node" data-node-type="condition">'
-                            + '<div class="ai-pb-node-title">&#10067; Condition</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#FBBF24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,64a24,24,0,1,1-24-24A24,24,0,0,1,224,64Z" opacity="0.2"/><path d="M232,64a32,32,0,1,0-40,31v17a8,8,0,0,1-8,8H96a23.84,23.84,0,0,0-8,1.38V95a32,32,0,1,0-16,0v66a32,32,0,1,0,16,0V144a8,8,0,0,1,8-8h88a24,24,0,0,0,24-24V95A32.06,32.06,0,0,0,232,64ZM64,64A16,16,0,1,1,80,80,16,16,0,0,1,64,64ZM96,192a16,16,0,1,1-16-16A16,16,0,0,1,96,192ZM200,80a16,16,0,1,1,16-16A16,16,0,0,1,200,80Z"/></svg> <span>Condition</span></div>'
                             + '<label class="ai-pb-node-label">Left operand</label>'
                             + '<input type="text" df-left placeholder="{{variable}}" />'
                             + '<label class="ai-pb-node-label">Operator</label>'
@@ -1006,7 +1012,7 @@
 
                     case 'result':
                         return '<div class="ai-pb-node" data-node-type="result">'
-                            + '<div class="ai-pb-node-title">&#9632; Result</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#F472B6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M232,56l-45.71,96H40l48-48L40,56Z" opacity="0.2"/><path d="M238.76,51.73A8,8,0,0,0,232,48H40a8,8,0,0,0-5.66,13.66L76.69,104,34.34,146.34A8,8,0,0,0,40,160H173.62l-28.84,60.56a8,8,0,1,0,14.44,6.88l80-168A8,8,0,0,0,238.76,51.73ZM181.23,144H59.31l34.35-34.34a8,8,0,0,0,0-11.32L59.31,64h160Z"/></svg> <span>Result</span></div>'
                             + '<span style="font-size:0.7rem;color:#94a3b8;">What happens when the flow reaches here — add one or more actions.</span>'
                             + '<div class="ai-pb-actions" data-pb-actions-mount></div>'
                             + '<textarea df-actions style="display:none"></textarea>'
@@ -1014,7 +1020,7 @@
 
                     case 'transaction':
                         return '<div class="ai-pb-node" data-node-type="transaction">'
-                            + '<div class="ai-pb-node-title">&#128274; Transaction</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#22C55E" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,56v56c0,96-88,120-88,120S40,208,40,112V56a8,8,0,0,1,8-8H208A8,8,0,0,1,216,56Z" opacity="0.2"/><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></svg> <span>Transaction</span></div>'
                             + '<span style="font-size:0.7rem;color:#94a3b8;">Runs these steps atomically — all commit together, or all roll back on any error.</span>'
                             + '<label class="ai-pb-node-label">Steps (run in order)</label>'
                             + '<div class="ai-pb-steps" data-pb-steps-mount></div>'
@@ -1027,7 +1033,7 @@
 
                     case 'loop':
                         return '<div class="ai-pb-node" data-node-type="loop">'
-                            + '<div class="ai-pb-node-title">&#128260; Loop</div>'
+                            + '<div class="ai-pb-node-title"><svg style="width:18px;height:18px;vertical-align:middle;fill:#F43F5E" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M224,64v64a64,64,0,0,1-64,64H32V128A64,64,0,0,1,96,64Z" opacity="0.2"/><path d="M24,128A72.08,72.08,0,0,1,96,56H204.69L194.34,45.66a8,8,0,0,1,11.32-11.32l24,24a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L204.69,72H96a56.06,56.06,0,0,0-56,56,8,8,0,0,1-16,0Zm200-8a8,8,0,0,0-8,8,56.06,56.06,0,0,1-56,56H51.31l10.35-10.34a8,8,0,0,0-11.32-11.32l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L51.31,200H160a72.08,72.08,0,0,0,72-72A8,8,0,0,0,224,120Z"/></svg> <span>Loop</span></div>'
                             + '<label class="ai-pb-node-label">For each item in</label>'
                             + '<input type="text" df-over placeholder="input.cart_items" />'
                             + '<label class="ai-pb-node-label">Item variable</label>'
