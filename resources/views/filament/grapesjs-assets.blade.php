@@ -1167,22 +1167,32 @@
                         //   as the option label — populated as a dependent dropdown
                         //   (reuses pbFieldOptions + pbReaddSelect, same pattern as
                         //   autocomplete above). Sentinel: 'data-pb-options'.
-                        if (pbBlock === 'select' && ! names.includes('data-pb-options')) {
+                        // The select BLOCK is a <label data-pb-block="select"> wrapping
+                        // a <select> child; the runtime reads data-pb-options from the
+                        // INNER <select>, so the trait must write there — not on the
+                        // wrapper (the old bug: trait set the attr on the label, which
+                        // the runtime never reads → "select has no configuration"). Also
+                        // covers a bare AI-generated <select> (no wrapper).
+                        const pbSelInner = (cmp.get('tagName') === 'select') ? cmp : (cmp.find('select')[0] || null);
+                        if (pbSelInner && (pbBlock === 'select' || cmp.get('tagName') === 'select') && ! names.includes('pb-opt-collection')) {
                             const selCollections = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
                             );
-                            const selCollection = cmp.getAttributes()['data-pb-options'] || '';
-                            cmp.addTrait({ type: 'select', name: 'data-pb-options', label: 'Options from collection', options: selCollections });
-                            cmp.addTrait({
-                                type: 'select', name: 'data-pb-label-field', label: 'Label field',
-                                options: pbFieldOptions(selCollection, 'name', { emptyLabel: '— name (default) —' }),
+                            const curCol = pbSelInner.getAttributes()['data-pb-options'] || '';
+                            const curLbl = pbSelInner.getAttributes()['data-pb-label-field'] || '';
+                            cmp.set('pb-opt-collection', curCol);
+                            cmp.set('pb-opt-label', curLbl);
+                            cmp.addTrait({ type: 'select', name: 'pb-opt-collection', label: 'Options from collection', changeProp: true, options: selCollections });
+                            cmp.addTrait({ type: 'select', name: 'pb-opt-label', label: 'Label field', changeProp: true, options: pbFieldOptions(curCol, 'name', { emptyLabel: '— name (default) —' }) });
+                            cmp.on('change:pb-opt-collection', () => {
+                                const col = cmp.get('pb-opt-collection') || '';
+                                const s = (cmp.get('tagName') === 'select') ? cmp : cmp.find('select')[0];
+                                if (s) { s.addAttributes({ 'data-pb-options': col }); }
+                                pbReaddSelect(cmp, 'pb-opt-label', 'Label field', pbFieldOptions(col, 'name', { emptyLabel: '— name (default) —' }));
                             });
-                            let selLastCollection = selCollection;
-                            cmp.on('change:attributes', () => {
-                                const col = cmp.getAttributes()['data-pb-options'] || '';
-                                if (col === selLastCollection) { return; }
-                                selLastCollection = col;
-                                pbReaddSelect(cmp, 'data-pb-label-field', 'Label field', pbFieldOptions(col, 'name', { emptyLabel: '— name (default) —' }));
+                            cmp.on('change:pb-opt-label', () => {
+                                const s = (cmp.get('tagName') === 'select') ? cmp : cmp.find('select')[0];
+                                if (s) { s.addAttributes({ 'data-pb-label-field': cmp.get('pb-opt-label') || 'name' }); }
                             });
                         }
 
