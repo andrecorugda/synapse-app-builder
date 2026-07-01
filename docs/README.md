@@ -22,8 +22,7 @@ These docs are the reference: how it installs, how each subsystem works, the exa
 3. [Functions & States](functions-and-states.md) — runtimes, the eval-free helper library, the reactive store.
 4. [Authentication & permissions](authentication-and-permissions.md) — the `pb` guard, opt-in permission model, row-level rules.
 5. [Email](email.md) — the isolated SMTP transport and templates.
-6. [Extending](extending.md) — swap models, register custom flow nodes/blocks, the `AiInvoker` contract, observers.
-7. [Extending flow nodes & helpers](extending-flows.md) — the `PageBuilder::registerNode/registerHelper` seam, the capability catalogue, MCP/AI exposure.
+6. [Extending](extending.md) — the overview: the capability-registry model, the `PageBuilder` facade, swapping models, the `AiInvoker` contract, observers. Sub-pages: [Flows](extending-flows.md), [Functions](extending-functions.md), [Components](extending-components.md).
 
 ## All pages
 
@@ -39,8 +38,10 @@ These docs are the reference: how it installs, how each subsystem works, the exa
 | [email.md](email.md) | SMTP settings, the isolated transport, email-template pages, the `send_email` node, mustache interpolation, send-test. |
 | [ai.md](ai.md) | The Build Plan contract, "Build with AI," the floating chat, idempotent apply, the code-generated system prompt, safety. |
 | [configuration.md](configuration.md) | A table of **every** key in `config/ai-page-builder.php`, with env var, default and meaning. |
-| [extending.md](extending.md) | Swapping models, custom flow nodes, custom blocks, the `AiInvoker` contract, events/observers. |
-| [extending-flows.md](extending-flows.md) | The public `PageBuilder::registerNode/registerHelper` API, the merged capability catalogue, and MCP/AI tool exposure (`ai-page-builder:capabilities`). |
+| [extending.md](extending.md) | Extending **overview**: the capability-registry model, the `PageBuilder` facade, swapping models, the `AiInvoker` contract, events/observers. |
+| [extending-flows.md](extending-flows.md) | **Flows** — register a custom flow node (`PageBuilder::registerNode`), output handles, the capability catalogue, MCP/AI exposure (`ai-page-builder:capabilities`). |
+| [extending-functions.md](extending-functions.md) | **Functions** — register a custom helper (`PageBuilder::registerHelper`), the expression sandbox + "Insert helper" dropdown, the callable-`FunctionRegistry` path, MCP/AI exposure. |
+| [extending-components.md](extending-components.md) | **Components** — register a custom/premium draggable block (`PageBuilder::registerComponent`), the `Sections`-category AI-vocabulary nuance, open-core premium component packs. |
 
 ## Conventions used in these docs
 

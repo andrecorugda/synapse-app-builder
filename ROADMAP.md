@@ -7,8 +7,20 @@ connector breadth). "Foundation" notes call out what already exists to build on.
 
 ---
 
-## Status (2026-06-29)
+## Status (2026-06-30)
 
+- **Wave 4 — ✅ shipped (extensibility & security).** A security-hardening pass
+  (SSRF guard on the HTTP node, CSRF guard on cookie data-API writes, sanitize-page-
+  HTML-on-every-save, collection-key DDL lockdown, SSO verified-email gating, hashed
+  2FA recovery codes, PHP-function eval **off by default**), then a **capability
+  registry** backbone that makes flows AND components **extensible**: **loop** +
+  **transaction** flow nodes (atomic, eval-free), a curated **helper library**
+  (db/ui/auth/util, in the expression sandbox — the no-eval power path), a
+  searchable categorized **node drawer** + helper dropdown, and a public registration
+  API — `PageBuilder::registerNode()` / `registerHelper()` / **`registerComponent()`**
+  — plus a `capabilities()` catalogue that doubles as an **MCP/AI tool list**.
+  Third-party / premium packages can now ship nodes, helpers, and components with no
+  core change. Proven end-to-end with an inventory + POS build.
 - **Wave 1 — ✅ shipped & verified.**
 - **Wave 2 — ✅ shipped & verified**, plus extras beyond the original plan:
   collections **API tokens + API docs** (Bearer auth), seeded/settable **404 +
@@ -27,15 +39,19 @@ connector breadth). "Foundation" notes call out what already exists to build on.
   an optional accelerator).
 
 - **Post-1.0 backlog (deferred — depth & ecosystem, none blocking):**
-  ⭐⭐ template/component **marketplace** (mostly community/hosting, not package code);
-  **record history** (data revisions); **AI depth** (edit-existing-section, image
-  generation, streaming chat, usage/cost panel); **SEO/i18n** extras (OG-image/JSON-LD
-  helpers, multi-language content); **more components** (rich-text/markdown, maps,
-  kanban, steppers, conditional visibility); **platform** (backups/snapshots, Sentry/
-  observability, CLI scaffolder); **external HTTP/REST API** as a virtual collection.
+  ⭐⭐ template/component **marketplace** (now has a code foundation — see Wave 5 — but
+  is still mostly community/hosting); **record history** (data revisions); **AI depth**
+  (edit-existing-section, image generation, streaming chat, usage/cost panel; the
+  `capabilities()` catalogue already gives an AI agent the tool list); **SEO/i18n**
+  extras (OG-image/JSON-LD helpers, multi-language content); **more components**
+  (rich-text/markdown, maps, kanban, steppers, conditional visibility); **platform**
+  (backups/snapshots, Sentry/observability, CLI scaffolder); **external HTTP/REST API**
+  as a virtual collection.
 
-The package test suite is green (271 passing; the only failures are GD-dependent
-media tests on the bare CI image) and phpstan is clean. All shipped work is on `main`.
+The package test suite is green (~340 passing; the only failures are GD-dependent
+media tests on the bare CI image) and phpstan is clean. Shipped work is on `main` /
+`develop`; the repo follows [BRANCHING_STRATEGY.md](BRANCHING_STRATEGY.md) with
+protected branches + required CI.
 
 ---
 
@@ -127,6 +143,47 @@ media tests on the bare CI image) and phpstan is clean. All shipped work is on `
   progress, alert, avatar — 55 blocks total); open: rich-text/markdown, maps, kanban, steppers, conditional visibility.
 - [ ] **Platform** — backups / snapshots; Sentry / observability; CLI scaffolder.
 
+## Wave 4 — extensibility & security ✅ shipped (2026-06-30)
+
+- [x] **Security hardening pass** — SSRF guard (HTTP node), CSRF guard (cookie data-API
+  writes), sanitize page HTML on every save, collection-key DDL lockdown, SSO verified-
+  email gating, hashed 2FA recovery codes, and PHP-function `eval` **off by default**.
+- [x] ⭐ **Capability registry spine** — one `CapabilityDefinition` describing nodes,
+  helpers, and components; feeds the canvas drawer, the helper dropdown, and the MCP/AI
+  catalogue from a single source. Backward-compatible (`ProvidesNodeDefinition` is opt-in).
+- [x] ⭐⭐ **Flow extensibility** — `PageBuilder::registerNode()` / `registerHelper()`;
+  **loop** + **transaction** nodes (atomic, all-or-nothing, **no eval**); a curated
+  **helper library** (`db_*`/`ui_*`/`auth_*`/`util_*`) in the expression sandbox — the
+  eval-free power path; a searchable, categorized **node drawer** + helper dropdown.
+- [x] ⭐⭐ **Component extensibility** — `ComponentRegistry` + `PageBuilder::registerComponent()`;
+  `BlockVocabulary` delegates so a registered/premium block appears in the editor block
+  manager, the catalogue, and (if it declares the `Sections` category) the AI vocabulary —
+  **no core change required.**
+- [x] **MCP / AI tool catalogue** — `PageBuilder::capabilities()` + the
+  `ai-page-builder:capabilities` command emit an MCP-tool-shaped list (label → name,
+  description, usage, inputs) of every node, helper, and component.
+
+## Wave 5 — open-core & commercialization ⭐⭐ (planned)
+
+> Wave 4's extensibility is the foundation for this. Premium = **separate,
+> commercially-licensed packages** that `require` the MIT core and register through the
+> public API. The core stays MIT and genuinely capable; paid packages add depth.
+
+- [ ] ⭐⭐ **Premium component & node packs** — proprietary-licensed add-on packages
+  (advanced blocks, integrations, specialized flow nodes) that plug in via
+  `registerComponent()` / `registerNode()` and appear automatically in the builder.
+- [ ] ⭐⭐ **Licensing & distribution** — a **private Composer repository gated by a
+  per-customer license key** (Anystack / Private Packagist / Satis), with a commercial
+  license on the premium packages. (PHP is source-distributed: the model is distribution
+  control + license terms, not DRM.)
+- [ ] **"Pro" upsell UX** — a `tier` flag on `CapabilityDefinition` and **"Pro" badges**
+  for not-yet-licensed capabilities in the node drawer + block manager.
+- [ ] ⭐⭐ **Template & component marketplace** — community + premium starter apps and
+  components, now feasible on the `ComponentRegistry` + the existing app export/import.
+- [ ] **Stable extension-API contract** — version the public registry +
+  `CapabilityDefinition` surface (semver discipline) so premium packs don't break on a
+  core upgrade. *(A maintenance commitment that comes with selling against this API.)*
+
 ---
 
 ## Why these (competitive rationale)
@@ -138,6 +195,9 @@ are **ecosystem maturity** and **connector breadth**. The starred items attack e
 - **Relations + external data sources** → close the gap to Directus / Retool / ToolJet.
 - **App export/import + template/component marketplace** → close the "young, narrow ecosystem" gap.
 - **Page versioning + flow run-history** → raise trust in AI-generated changes.
+- **Extensibility (nodes / helpers / components) + open-core (Wave 5)** → a community
+  contribution surface *and* a sustainable funding path (premium packs) without
+  compromising the MIT core — the answer to "great OSS builders that die unmaintained."
 
 See the platform comparison for context: Directus (now source-available MSCL), n8n (fair-code,
 no embedding), Retool / Lovable (SaaS). Synapse stays MIT + self-hosted + in-your-app.
