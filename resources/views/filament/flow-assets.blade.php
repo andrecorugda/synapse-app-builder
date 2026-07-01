@@ -211,6 +211,30 @@
             cursor: pointer;
         }
         .ai-pb-action-add:hover { background: rgba(99, 102, 241, 0.22); }
+        /* ── Transaction / loop step list ── */
+        .ai-pb-step {
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-left: 3px solid #6366f1;
+            border-radius: 0.45rem;
+            padding: 0.35rem 0.45rem 0.5rem;
+            margin: 0.3rem 0;
+            background: rgba(30, 41, 59, 0.4);
+        }
+        .ai-pb-step-head { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.25rem; }
+        .ai-pb-step-num {
+            flex: 0 0 auto; width: 1.15rem; height: 1.15rem; line-height: 1.15rem;
+            text-align: center; border-radius: 999px; background: #6366f1; color: #eef2ff;
+            font-size: 0.62rem; font-weight: 700;
+        }
+        .ai-pb-step-kind { flex: 0 0 auto; width: auto; margin: 0 !important; }
+        .ai-pb-step-btn {
+            flex: 0 0 auto; border: 0; background: rgba(148, 163, 184, 0.18); color: #cbd5e1;
+            border-radius: 0.3rem; width: 1.3rem; height: 1.3rem; line-height: 1; cursor: pointer; font-size: 0.8rem;
+        }
+        .ai-pb-step-btn:hover { background: rgba(148, 163, 184, 0.34); }
+        .ai-pb-step-del { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
+        .ai-pb-step-nested { margin: 0.25rem 0 0.25rem 0.5rem; padding-left: 0.4rem; border-left: 1px dashed rgba(148,163,184,0.3); }
+        .ai-pb-step-raw { font-size: 0.68rem; color: #94a3b8; font-style: italic; padding: 0.15rem 0; }
         /* ── Entry (START) node badge ── */
         .drawflow .drawflow-node.pb-entry { box-shadow: 0 0 0 2px #22c55e, 0 6px 20px rgba(0,0,0,0.35); }
         .drawflow .drawflow-node.pb-entry::before {
@@ -1366,7 +1390,7 @@
                     const x = 120 + col * 300;
                     const y = 60 + row * 300;
                     this.editor.addNode(type, nodeInputCount(type), nodeOutputCount(type), x, y, type, {}, nodeHtml(type), false);
-                    if (type === 'record' || type === 'result') {
+                    if (type === 'record' || type === 'result' || type === 'transaction' || type === 'loop') {
                         var self = this;
                         setTimeout(function () { self.refreshRecordNodes(); }, 0);
                     }
