@@ -89,6 +89,11 @@
         window.__pbFields = @js($pbFields);
         window.__pbPartials = @js($pbPartials);
         window.__pbThemeCss = @js(app(\Andre\AiPageBuilder\Services\Theme::class)->css());
+        // API base for the live-data canvas preview (same origin, same path as the
+        // render page uses). Injected here so the canvas script can read it via the
+        // parent frame reference (window.parent.__pbEditorApiBase) without relying on
+        // window.__pbApiBase being present inside the canvas iframe itself.
+        window.__pbEditorApiBase = @js('/'.ltrim(config('ai-page-builder.data.api_prefix', 'api/pb'), '/'));
     </script>
     <style>
         /* CSS-based maximize (native fullscreen is unreliable inside the panel). */
@@ -118,6 +123,267 @@
             const pbToAlpine = (html) => (html || '')
                 .replace(/(\s)data-pbat-([\w.:-]+)=/g, '$1@$2=')
                 .replace(/(\s)data-pbcolon-([\w.-]+)=/g, '$1:$2=');
+
+            // ── Live data preview (editor canvas only) ────────────────────────
+            // Renders real data into [data-pb-live] overlay containers inside each
+            // data block in the GrapesJS canvas iframe. These containers are:
+            //
+            //   1. NOT persisted: GrapesJS has no knowledge of them — they are
+            //      injected into the canvas iframe DOM directly via
+            //      editor.Canvas.getDocument(), bypassing GrapesJS's component
+            //      model. editor.getHtml() serialises only the components it
+            //      tracks (via its internal component tree), so [data-pb-live]
+            //      nodes are invisible to it. Belt-and-suspenders: pbToAlpine()
+            //      (called on the getHtml() output in sync()) also strips any
+            //      stray [data-pb-live] elements from the exported string —
+            //      ensuring saved html can never contain data rows even if a
+            //      future GrapesJS version started tracking injected DOM.
+            //
+            //   2. No behavior fires: the overlay uses pointer-events:none so
+            //      every click passes through to the block element below it
+            //      (GrapesJS then selects the block component normally). No flow/
+            //      record/bulk event listeners are attached in the canvas.
+            //
+            //   3. Editability preserved: preview is capped at 5 rows. The
+            //      overlay is a CHILD of the block element, not a replacement —
+            //      GrapesJS still tracks the block element as a selectable/
+            //      draggable component. Re-render is triggered on component:mount
+            //      and component:update (which GrapesJS fires when it re-renders
+            //      a component after editing), since re-rendering wipes injected
+            //      child DOM. An idempotent clear-and-re-inject pattern handles
+            //      that: any existing [data-pb-live] inside a block is removed
+            //      before injecting a fresh one.
+
+            // Strip [data-pb-live] from getHtml() output (belt-and-suspenders for
+            // constraint #1). Uses a brace-depth counter so nested <div>s inside
+            // the live container are correctly consumed — a simple lazy regex would
+            // stop at the first inner </div> and leave broken markup behind.
+            const pbStripLive = (html) => {
+                if (! html || html.indexOf('data-pb-live') === -1) { return html || ''; }
+                let out = '';
+                let i = 0;
+                const n = html.length;
+                while (i < n) {
+                    // Find the next opening of a data-pb-live div
+                    const marker = html.indexOf('<div', i);
+                    if (marker === -1) { out += html.slice(i); break; }
+                    // Check whether this <div … has data-pb-live in its opening tag
+                    const tagEnd = html.indexOf('>', marker);
+                    if (tagEnd === -1) { out += html.slice(i); break; }
+                    const openTag = html.slice(marker, tagEnd + 1);
+                    if (openTag.indexOf('data-pb-live') === -1) {
+                        // Not a live container — copy up to and including this tag and move on
+                        out += html.slice(i, tagEnd + 1);
+                        i = tagEnd + 1;
+                        continue;
+                    }
+                    // It IS a live container. Copy everything before it.
+                    out += html.slice(i, marker);
+                    // Skip past the live container using div-depth counting.
+                    let depth = 1;
+                    let j = tagEnd + 1;
+                    while (j < n && depth > 0) {
+                        const nextOpen = html.indexOf('<div', j);
+                        const nextClose = html.indexOf('</div>', j);
+                        if (nextClose === -1) { j = n; break; } // malformed — bail
+                        if (nextOpen !== -1 && nextOpen < nextClose) {
+                            depth++;
+                            j = nextOpen + 4; // skip past '<div'
+                        } else {
+                            depth--;
+                            j = nextClose + 6; // skip past '</div>'
+                        }
+                    }
+                    i = j; // resume after the closing </div> of the live container
+                }
+                return out;
+            };
+
+            // Escape HTML for safe text insertion.
+            const pbEsc = (s) => String(s == null ? '' : s)
+                .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+            // Humanise a field key ("first_name" → "First Name").
+            const pbHum = (k) => k.replace(/_id$/, '').replace(/_/g, ' ')
+                .replace(/\b\w/g, (m) => m.toUpperCase());
+
+            // Render a single cell value given its field type and the full row
+            // (mirrors renderCell in the render page's pbTable Alpine component,
+            // but as a plain function — read-only, no sort/filter/bulk wiring).
+            const pbRenderCell = (val, type, colKey, row, schema) => {
+                if (type === 'relation') {
+                    const sibKey = /^(.+)_id$/.test(colKey) ? colKey.replace(/_id$/, '') : colKey;
+                    const sib = row[sibKey];
+                    if (sib && typeof sib === 'object') {
+                        const relInfo = schema && schema.relations && schema.relations[colKey];
+                        const dKey = relInfo ? relInfo.display_field : 'id';
+                        const label = sib[dKey];
+                        return label != null ? pbEsc(String(label)) : pbEsc(String(sib.id || ''));
+                    }
+                    return val != null ? pbEsc(String(val)) : '';
+                }
+                if (val === null || val === undefined) { return ''; }
+                if (type === 'image') {
+                    if (typeof val !== 'string' || val === '') { return ''; }
+                    return '<img src="' + pbEsc(val) + '" alt="" style="height:2rem;width:2rem;object-fit:cover;border-radius:.3rem;border:1px solid #e2e8f0;">';
+                }
+                if (type === 'boolean') { return val ? '<span style="color:#16a34a;">✓</span>' : '<span style="color:#dc2626;">✗</span>'; }
+                if (type === 'date') { try { return pbEsc(new Date(val).toLocaleDateString()); } catch (e) { return pbEsc(String(val)); } }
+                if (type === 'datetime') { try { return pbEsc(new Date(val).toLocaleString()); } catch (e) { return pbEsc(String(val)); } }
+                if (type === 'json') { return '<code style="font-size:.75rem;color:#475569;">' + pbEsc(typeof val === 'object' ? JSON.stringify(val) : String(val)) + '</code>'; }
+                if (typeof val === 'object') { return pbEsc(JSON.stringify(val)); }
+                return pbEsc(String(val));
+            };
+
+            // Build a small read-only preview table HTML string from schema + rows.
+            const pbBuildTable = (schema, rows) => {
+                const SYSTEM = ['created_at', 'updated_at', 'deleted_at'];
+                const cols = schema && schema.fields && schema.fields.length
+                    ? schema.fields
+                        .filter((f) => SYSTEM.indexOf(f.key) === -1)
+                        .map((f) => ({ key: f.key, header: f.label || pbHum(f.key), type: f.type }))
+                    : (rows.length ? Object.keys(rows[0]).filter((k) => SYSTEM.indexOf(k) === -1).map((k) => ({ key: k, header: pbHum(k), type: null })) : []);
+                if (! cols.length) { return ''; }
+                const thS = 'padding:.4rem .6rem;text-align:left;border-bottom:1px solid #e2e8f0;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:#64748b;white-space:nowrap;';
+                const tdS = 'padding:.4rem .6rem;color:#0f172a;border-bottom:1px solid #f1f5f9;vertical-align:middle;font-size:.82rem;';
+                let thead = '<thead style="background:#f8fafc;"><tr>' + cols.map((c) => '<th style="' + thS + '">' + pbEsc(c.header) + '</th>').join('') + '</tr></thead>';
+                let tbody;
+                if (! rows.length) {
+                    tbody = '<tbody><tr><td colspan="' + cols.length + '" style="' + tdS + 'color:#94a3b8;">No records.</td></tr></tbody>';
+                } else {
+                    tbody = '<tbody>' + rows.map((row) =>
+                        '<tr>' + cols.map((c) => '<td style="' + tdS + '">' + pbRenderCell(row[c.key], c.type, c.key, row, schema) + '</td>').join('') + '</tr>'
+                    ).join('') + '</tbody>';
+                }
+                return '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:.85rem;background:#fff;">' + thead + tbody + '</table></div>';
+            };
+
+            // Inject (or refresh) the live-data overlay for one block element.
+            // el: the canvas DOM element with [data-pb-block].
+            // Removes any existing [data-pb-live] child first (idempotent).
+            const pbInjectLive = (el, innerHtml) => {
+                // Remove stale overlay first
+                Array.from(el.children).forEach((c) => { if (c.hasAttribute('data-pb-live')) { c.remove(); } });
+                if (! innerHtml) { return; }
+                const wrap = el.ownerDocument.createElement('div');
+                // data-pb-live marks this as a preview container (stripped on export).
+                // pointer-events:none ensures clicks pass through to the block element,
+                // so GrapesJS's click-to-select still works on the underlying component.
+                // position:absolute + inset:0 + z-index:1 overlays the block's template.
+                // overflow:hidden keeps a table from spilling outside a small block.
+                wrap.setAttribute('data-pb-live', '');
+                wrap.style.cssText = 'position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;background:#fff;border-radius:inherit;';
+                wrap.innerHTML = innerHtml;
+                el.style.position = 'relative';
+                el.appendChild(wrap);
+            };
+
+            // Fetch and render live preview for all data blocks in the canvas doc.
+            const pbLivePreview = (editor) => {
+                const apiBase = window.__pbEditorApiBase || '/api/pb';
+                let doc;
+                try { doc = editor.Canvas.getDocument(); } catch (e) { return; }
+                if (! doc) { return; }
+
+                const blocks = doc.querySelectorAll('[data-pb-block]');
+                blocks.forEach((el) => {
+                    const blockType = el.getAttribute('data-pb-block');
+
+                    // ── data_table ───────────────────────────────────────────
+                    if (blockType === 'data_table') {
+                        // data-pb-state tables are client-state driven; skip live fetch
+                        // (there's nothing to fetch — it's populated by flows at runtime).
+                        const stateKey = el.getAttribute('data-pb-state') || '';
+                        if (stateKey) { return; }
+
+                        // Resolve the collection key from x-data="pbTable('<key>')" or
+                        // data-pb-collection attribute (the trait also writes it there).
+                        let collection = (el.getAttribute('data-pb-collection') || '').trim();
+                        if (! collection) {
+                            const xdata = el.getAttribute('x-data') || '';
+                            const m = xdata.match(/pbTable\(\s*['"]([^'"]+)['"]\s*\)/);
+                            collection = m ? m[1] : '';
+                        }
+                        if (! collection) { return; }
+
+                        // Fetch schema + first 5 rows concurrently.
+                        Promise.all([
+                            fetch(apiBase + '/' + collection + '/schema', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                                .then((r) => r.ok ? r.json() : null).catch(() => null),
+                            fetch(apiBase + '/' + collection + '?per_page=5&expand=*', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                                .then((r) => r.ok ? r.json() : null).catch(() => null),
+                        ]).then(([schema, data]) => {
+                            try {
+                                const rows = (data && data.data) || [];
+                                const html = pbBuildTable(schema, rows);
+                                pbInjectLive(el, html);
+                            } catch (e) { /* leave static template */ }
+                        });
+                    }
+
+                    // ── kpi ──────────────────────────────────────────────────
+                    else if (blockType === 'kpi') {
+                        const collection = (el.getAttribute('data-pb-collection') || '').trim();
+                        if (! collection) { return; }
+                        const metric = el.getAttribute('data-pb-metric') || 'count';
+                        const field = el.getAttribute('data-pb-field') || '';
+                        let qs = 'metric=' + encodeURIComponent(metric);
+                        if (field) { qs += '&field=' + encodeURIComponent(field); }
+                        fetch(apiBase + '/' + collection + '/aggregate?' + qs, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                            .then((r) => r.ok ? r.json() : null).catch(() => null)
+                            .then((d) => {
+                                try {
+                                    if (d == null) { return; }
+                                    const total = d.total != null ? d.total : 0;
+                                    const fmt = (n) => {
+                                        n = Number(n) || 0;
+                                        return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                                    };
+                                    // Try to update the [data-pb-kpi-value] element if it
+                                    // exists in the block's template (non-destructive) first.
+                                    const kpiEl = el.querySelector('[data-pb-kpi-value]');
+                                    if (kpiEl) {
+                                        kpiEl.textContent = fmt(total);
+                                    } else {
+                                        // No designated value element: inject an overlay.
+                                        const html = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:3rem;font-size:2rem;font-weight:700;color:#1e293b;font-family:inherit;">' + pbEsc(fmt(total)) + '</div>';
+                                        pbInjectLive(el, html);
+                                    }
+                                } catch (e) { /* leave static template */ }
+                            });
+                    }
+
+                    // ── record_picker ─────────────────────────────────────────
+                    else if (blockType === 'record_picker') {
+                        const collection = (el.getAttribute('data-pb-collection') || '').trim();
+                        if (! collection) { return; }
+                        const labelField = (el.getAttribute('data-pb-label-field') || '').trim();
+                        const imageField = (el.getAttribute('data-pb-image-field') || '').trim();
+                        const extraField = (el.getAttribute('data-pb-extra-field') || '').trim();
+                        fetch(apiBase + '/' + collection + '?per_page=5', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                            .then((r) => r.ok ? r.json() : null).catch(() => null)
+                            .then((d) => {
+                                try {
+                                    const rows = (d && d.data) || [];
+                                    if (! rows.length) { return; }
+                                    // Build read-only tile grid (no click handler — pointer-events:none).
+                                    const tiles = rows.map((row) => {
+                                        const label = labelField && row[labelField] != null ? String(row[labelField]) : ('#' + row.id);
+                                        const imgSrc = imageField ? (row[imageField] || '') : '';
+                                        const extra = extraField && row[extraField] != null ? String(row[extraField]) : '';
+                                        return '<div style="display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:.5rem .6rem;border:1px solid #e2e8f0;border-radius:.5rem;background:#f8fafc;min-width:5rem;max-width:7rem;">'
+                                            + (imgSrc ? '<img src="' + pbEsc(imgSrc) + '" alt="" style="width:2.5rem;height:2.5rem;object-fit:cover;border-radius:.35rem;">' : '')
+                                            + '<span style="font-size:.78rem;font-weight:600;color:#0f172a;text-align:center;word-break:break-word;">' + pbEsc(label) + '</span>'
+                                            + (extra ? '<span style="font-size:.7rem;color:#64748b;text-align:center;">' + pbEsc(extra) + '</span>' : '')
+                                            + '</div>';
+                                    }).join('');
+                                    const html = '<div style="display:flex;flex-wrap:wrap;gap:.5rem;padding:.5rem;">' + tiles + '</div>';
+                                    pbInjectLive(el, html);
+                                } catch (e) { /* leave static template */ }
+                            });
+                    }
+                });
+            };
 
             // --- Page "frame" CSS preservation ------------------------------
             // GrapesJS imports component styles but DROPS page-frame rules
@@ -411,6 +677,22 @@
                                 }, 300);
                             });
                         } catch (e) { /* $wire.$watch unavailable in this context */ }
+
+                        // ── Live data preview ────────────────────────────────
+                        // For each [data-pb-block] element in the canvas that is
+                        // a data block (data_table / kpi / record_picker), fetch
+                        // real data from the same-origin API and render it into a
+                        // dedicated <div data-pb-live> child. That child is:
+                        //  • pointer-events:none  → never intercepts editor clicks
+                        //  • NOT a GrapesJS component → not serialized by getHtml()
+                        //  • also stripped in getHtml() export path via pbToAlpine
+                        //    (see stripping below) — belt-and-suspenders
+                        // The block element's own template content is left untouched;
+                        // the live container is appended as a sibling overlay so
+                        // GrapesJS still tracks the block as one selectable/draggable
+                        // unit (clicks bubble up through the pointer-events:none overlay
+                        // to the underlying block element → GrapesJS picks it up).
+                        pbLivePreview(editor);
                     });
 
                     // Entrance-animation trait, offered on every selected component
@@ -652,7 +934,12 @@
 
                     const sync = () => this.writeState({
                         project_data: editor.getProjectData(),
-                        html: pbToAlpine(editor.getHtml()), // restore real Alpine for the published snapshot
+                        // restore real Alpine for the published snapshot, then strip
+                        // any [data-pb-live] overlay nodes that leaked into the
+                        // serialised html (belt-and-suspenders for constraint #1 —
+                        // GrapesJS does not track these nodes but this guarantees
+                        // clean output even if a future GrapesJS version did).
+                        html: pbStripLive(pbToAlpine(editor.getHtml())),
                         // Append the captured frame CSS (tokens/fonts/base bg) that
                         // GrapesJS drops, so the published page keeps its design
                         // tokens. Frame goes LAST so it wins over GrapesJS's mangled
@@ -670,6 +957,19 @@
                     // EVERY tracked change (components AND styles), so bind to both.
                     editor.on('update', sync);
                     editor.on('change:changesCount style:update styleable:change rule:add rule:update rule:remove', syncSoon);
+
+                    // Re-run live data preview when GrapesJS mounts or updates a
+                    // component. GrapesJS re-renders a component's DOM element when
+                    // it receives attribute/style changes — this wipes any injected
+                    // [data-pb-live] child DOM — so we re-inject after each mount/
+                    // update. Debounced to avoid a flood during bulk re-renders
+                    // (e.g. on initial load where all components mount in sequence).
+                    let pbLiveT = null;
+                    const pbLiveSoon = () => {
+                        clearTimeout(pbLiveT);
+                        pbLiveT = setTimeout(() => { try { pbLivePreview(editor); } catch (e) { /* no-op */ } }, 400);
+                    };
+                    editor.on('component:mount component:update', pbLiveSoon);
 
                     editor.on('component:selected', (c) => {
                         addAnimTraits(c);
