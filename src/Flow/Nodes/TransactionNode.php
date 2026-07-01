@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder\Flow\Nodes;
 
 use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
 use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
+use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\Exceptions\FlowBodyFailed;
@@ -99,7 +100,17 @@ class TransactionNode implements FlowNodeHandler, ProvidesNodeDefinition
             description: 'Runs its body atomically: every record write inside commits together, or all roll back if any step fails. Follows the "committed" branch on success and "rolled_back" on failure. Use it to wrap multi-step writes that must not half-apply.',
             usage: 'Body = create order → Loop over items (decrement stock) → record payment. If stock runs out mid-loop, the order and prior decrements all roll back and the flow takes the rolled_back branch.',
             icon: 'shield-check',
-            inputs: [],
+            inputs: [
+                new CapabilityInput(
+                    'body',
+                    'Body (atomic sub-flow)',
+                    'json',
+                    help: 'A {start, nodes} sub-graph that runs atomically inside a database transaction. '
+                        .'Every record write in the body commits together on success, or all roll back if any node '
+                        .'fails. The canvas "body" handle wires to the first node of the sub-flow; this JSON field '
+                        .'is the serialised sub-graph used when importing/exporting the flow definition.',
+                ),
+            ],
             outputHandles: ['body', 'committed', 'rolled_back'],
             meta: ['has_body' => true],
         );

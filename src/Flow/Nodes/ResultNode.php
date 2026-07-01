@@ -10,6 +10,7 @@ use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
+use Andre\AiPageBuilder\Flow\ResultActionCatalog;
 
 /**
  * Appends result actions returned to the page runtime.
@@ -41,7 +42,17 @@ class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
             usage: 'actions [{type:"notify", message:"Saved!", level:"success"}, {type:"setState", key:"saved", value:true}]. Supported types: setHtml, setText, notify, redirect, logout, addClass, removeClass, setState, setStates.',
             icon: 'bell-alert',
             inputs: [
-                new CapabilityInput('actions', 'Actions', 'json', required: true, help: 'Array of action objects, each with a "type" and its fields. Supported types: setHtml, setText, notify, redirect, logout, addClass, removeClass, setState, setStates.'),
+                new CapabilityInput(
+                    'actions',
+                    'Actions',
+                    'actions',
+                    required: true,
+                    help: 'Array of action objects, each with a "type" and its type-specific fields. '
+                        .'The editor renders a low-code builder; the catalog of available types and their '
+                        .'fields is in the options map. Supported types: '
+                        .implode(', ', array_keys(ResultActionCatalog::types())).'.',
+                    options: ResultActionCatalog::types(),
+                ),
             ],
             outputHandles: ['next'],
         );
