@@ -769,6 +769,11 @@
                                 const cb = document.createElement('input');
                                 cb.type = 'checkbox';
                                 cb.value = o.id;
+                                // GrapesJS's trait CSS forces inputs to width:100%,
+                                // which stretches a native checkbox into a bar that
+                                // reads like a broken multi-select. Pin it to a real
+                                // checkbox box (inline beats the stylesheet).
+                                cb.style.cssText = 'width:15px;height:15px;min-width:15px;flex:0 0 auto;margin:0;padding:0;accent-color:#6366f1;cursor:pointer;appearance:auto;-webkit-appearance:checkbox;';
                                 label.appendChild(cb);
                                 const span = document.createElement('span');
                                 span.textContent = o.name;
