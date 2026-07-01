@@ -352,11 +352,12 @@ final class SystemPromptBuilder
           related row id), a submit button, and NO inputs for computed/auto fields; and (2) a
           `data-pb-block="data_table"` listing the collection (it auto-refreshes when
           the form creates a row). To DELETE, add a small `component`-triggered flow with
-          a `record` delete node and wire a button with `data-pb-flow`. IMAGES: a public
-          page cannot upload files — for an image field, use a URL text input
-          (`<input name="photo" type="url">`) the user pastes into; note that binary
-          upload is done in the admin. A products/inventory screen therefore = add-form
-          (name, price number, stock number, category select) + the products table.
+          a `record` delete node and wire a button with `data-pb-flow`. IMAGES: for an
+          image field emit a file input — `<input type="file" name="<field>" accept="image/*">`;
+          the runtime uploads the chosen image and submits its URL as that field (the
+          upload endpoint is gated + validated). A products/inventory screen therefore =
+          add-form (name, price number, stock number, category select, image file input)
+          + the products table.
         - TRIGGER A FLOW FROM THE UI: put `data-pb-flow="<flow slug>"` on a button (or on
           a `<form>` with `data-pb-flow-event="submit"`). The nearest form's fields +
           current page state become the flow input; the flow's `result` node then
