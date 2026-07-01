@@ -346,8 +346,10 @@ final class SystemPromptBuilder
           (1) an "Add <thing>" `<form data-pb-record="<collection>">` with one labelled
           input per EDITABLE field — `<input name="<field key>">` (type `number` for
           numeric/decimal, `<select name="...">` with the field's options for a select,
-          a `<select>` populated from the related collection for a relation `*_id`), a
-          submit button, and NO inputs for computed/auto fields; and (2) a
+          for a relation field named `<x>_id`, a
+          `<select name="<x>_id" data-pb-options="<related collection>" data-pb-label-field="name"></select>`
+          — the engine fills its options from that collection at runtime, value = the
+          related row id), a submit button, and NO inputs for computed/auto fields; and (2) a
           `data-pb-block="data_table"` listing the collection (it auto-refreshes when
           the form creates a row). To DELETE, add a small `component`-triggered flow with
           a `record` delete node and wire a button with `data-pb-flow`. IMAGES: a public

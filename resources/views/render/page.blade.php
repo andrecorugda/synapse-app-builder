@@ -537,6 +537,26 @@
                     .catch(function () {});
             });
 
+            // Relation <select data-pb-options="<collection>">: populate its options
+            // from the collection's records so a management form can pick a related
+            // row (e.g. a product's category). data-pb-label-field sets the visible
+            // text (default "name"); the option value is the record id.
+            document.querySelectorAll('select[data-pb-options]').forEach(function (sel) {
+                var c = sel.getAttribute('data-pb-options'); if (! c) { return; }
+                var labelField = sel.getAttribute('data-pb-label-field') || 'name';
+                fetch(API + '/' + c + '?per_page=100', { headers: { Accept: 'application/json' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        (((d && d.data) || [])).forEach(function (row) {
+                            var o = document.createElement('option');
+                            o.value = row.id;
+                            o.textContent = row[labelField] != null ? row[labelField] : ('#' + row.id);
+                            sel.appendChild(o);
+                        });
+                    })
+                    .catch(function () {});
+            });
+
             var charts = document.querySelectorAll('[data-pb-block="chart"]');
             if (! charts.length) { return; }
             var palette = ['#6366f1', '#22d3ee', '#fbbf24', '#34d399', '#f472b6', '#60a5fa', '#f87171', '#a78bfa'];
