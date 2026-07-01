@@ -385,6 +385,11 @@ return [
         'navigation_group' => 'Content',
         'navigation_sort' => 10,
 
+        // Content width for every Synapse admin page — wider by default so forms and
+        // the flow canvas have room. Any Filament MaxWidth value ('full', 'screen-2xl',
+        // '7xl', …); set null to leave the host panel's own width untouched.
+        'max_content_width' => env('AI_PAGE_BUILDER_MAX_CONTENT_WIDTH', 'full'),
+
         // Resources + pages are grouped by purpose for a tidy, scannable menu.
         // Override a label to rename a group, or set several keys to the SAME
         // label to merge groups (e.g. fold everything under one "Synapse" group
