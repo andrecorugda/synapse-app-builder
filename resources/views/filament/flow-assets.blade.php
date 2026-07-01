@@ -232,9 +232,12 @@
         .ai-pb-step-menu {
             position: absolute; top: 1.5rem; right: 0; display: flex; gap: 2px;
             background: #0f172a; border: 1px solid rgba(148,163,184,0.3);
-            border-radius: 0.4rem; padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); z-index: 5;
+            border-radius: 0.4rem; padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); z-index: 10000;
         }
         .ai-pb-step-menu[hidden] { display: none; }
+        /* The step whose menu is open floats above sibling steps and the node body
+           (its own stacking context would otherwise trap the popover behind them). */
+        .ai-pb-step.ai-pb-step--menu-open { z-index: 9999; }
         .ai-pb-step-head { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.25rem; padding-right: 1.6rem; }
         .ai-pb-step-num {
             flex: 0 0 auto; width: 1.15rem; height: 1.15rem; line-height: 1.15rem;
@@ -265,7 +268,7 @@
         /* No inner scroll — the node grows to show every step (inner scrolling is
            awkward to use). The canvas zoom / Fit + the non-overlap reflow handle a
            tall node. Horizontal is still contained so nothing spills out sideways. */
-        .ai-pb-steps { overflow-x: hidden; }
+        .ai-pb-steps { overflow: visible; }
         /* ── Entry (START) node badge ── */
         .drawflow .drawflow-node.pb-entry { box-shadow: 0 0 0 2px #22c55e, 0 6px 20px rgba(0,0,0,0.35); }
         .drawflow .drawflow-node.pb-entry::before {
@@ -730,6 +733,7 @@
                 window.__pbStepMenuBound = true;
                 document.addEventListener('click', function () {
                     document.querySelectorAll('.ai-pb-step-menu:not([hidden])').forEach(function (m) { m.setAttribute('hidden', ''); });
+                    document.querySelectorAll('.ai-pb-step--menu-open').forEach(function (s) { s.classList.remove('ai-pb-step--menu-open'); });
                 });
             }
             // Render an editable step list into `mount`, persisting to onChange(steps).
@@ -790,7 +794,9 @@
                             e.stopPropagation();
                             var wasHidden = menu.hasAttribute('hidden');
                             document.querySelectorAll('.ai-pb-step-menu:not([hidden])').forEach(function (m) { m.setAttribute('hidden', ''); });
-                            if (wasHidden) { menu.removeAttribute('hidden'); } else { menu.setAttribute('hidden', ''); }
+                            document.querySelectorAll('.ai-pb-step--menu-open').forEach(function (s) { s.classList.remove('ai-pb-step--menu-open'); });
+                            if (wasHidden) { menu.removeAttribute('hidden'); card.classList.add('ai-pb-step--menu-open'); }
+                            else { menu.setAttribute('hidden', ''); card.classList.remove('ai-pb-step--menu-open'); }
                         });
                         card.querySelector('[data-up]').addEventListener('click', function () { if (idx > 0) { var t = steps[idx - 1]; steps[idx - 1] = steps[idx]; steps[idx] = t; commit(); } });
                         card.querySelector('[data-down]').addEventListener('click', function () { if (idx < steps.length - 1) { var t = steps[idx + 1]; steps[idx + 1] = steps[idx]; steps[idx] = t; commit(); } });
