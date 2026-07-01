@@ -15,6 +15,7 @@ use Andre\AiPageBuilder\Models\PbPermission;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbSetting;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Models\RecordRevision;
 use Andre\AiPageBuilder\Models\Variable;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
@@ -40,6 +41,8 @@ return [
             // Metadata for user-defined data models (the "collections").
             'models' => 'page_builder_models',
             'fields' => 'page_builder_fields',
+            // Per-record change history (data revisions) for collection writes.
+            'record_revisions' => 'page_builder_record_revisions',
             // Persistent, app-wide global variables.
             'variables' => 'page_builder_variables',
             // Builder configuration (home page, email/SMTP transport, …).
@@ -69,6 +72,7 @@ return [
         'flow_function' => FlowFunction::class,
         'model' => PbModel::class,
         'field' => PbField::class,
+        'record_revision' => RecordRevision::class,
         'variable' => Variable::class,
         'setting' => PbSetting::class,
         'user' => PbUser::class,
@@ -106,6 +110,12 @@ return [
         'allow_destructive_sync' => (bool) env('AI_PAGE_BUILDER_DATA_DESTRUCTIVE', false),
         'default_per_page' => (int) env('AI_PAGE_BUILDER_DATA_PER_PAGE', 25),
         'max_per_page' => (int) env('AI_PAGE_BUILDER_DATA_MAX_PER_PAGE', 200),
+        // Snapshot every create/update/delete on a MANAGED collection into the
+        // record_revisions table so an admin can browse (and optionally restore)
+        // a record's history. External / read-only collections are never
+        // snapshotted (the package doesn't own their writes). Turn off to skip
+        // history entirely. A revision-write failure never blocks the real write.
+        'record_history' => (bool) env('AI_PAGE_BUILDER_RECORD_HISTORY', true),
     ],
 
     /*

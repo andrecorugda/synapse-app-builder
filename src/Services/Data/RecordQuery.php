@@ -8,11 +8,15 @@ use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
+use Andre\AiPageBuilder\Models\RecordRevision;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -439,6 +443,8 @@ class RecordQuery
         $record = Record::for($model);
         $record->fill($clean)->save();
 
+        $this->recordRevision($model, RecordRevision::OP_CREATED, $record->getKey(), null, $record->toArray());
+
         return $record;
     }
 
@@ -455,8 +461,12 @@ class RecordQuery
             return null;
         }
 
+        $before = $record->toArray();
+
         $clean = $this->validate($model, $data, partial: true);
         $record->fill($clean)->save();
+
+        $this->recordRevision($model, RecordRevision::OP_UPDATED, $record->getKey(), $before, $record->toArray());
 
         return $record;
     }
@@ -469,7 +479,15 @@ class RecordQuery
             return false;
         }
 
-        return (bool) $record->delete();
+        $before = $record->toArray();
+
+        $deleted = (bool) $record->delete();
+
+        if ($deleted) {
+            $this->recordRevision($model, RecordRevision::OP_DELETED, $id, $before, null);
+        }
+
+        return $deleted;
     }
 
     /**
@@ -674,5 +692,79 @@ class RecordQuery
         $perPage = $requested === null ? $default : (int) $requested;
 
         return max(1, min($perPage, $max));
+    }
+
+    /**
+     * Snapshot a collection write into the record_revisions table. Gated by the
+     * `data.record_history` flag and skipped for external / read-only
+     * collections (the package doesn't own their writes). The acting pb-guard
+     * end-user stamps `changed_by` when present. Resilient by design: a
+     * revision-write failure is logged and swallowed so it can never break the
+     * actual record write.
+     *
+     * @param  array<string,mixed>|null  $before
+     * @param  array<string,mixed>|null  $after
+     */
+    private function recordRevision(
+        PbModel $model,
+        string $operation,
+        int|string|null $recordId,
+        ?array $before,
+        ?array $after,
+    ): void {
+        if (! (bool) config('ai-page-builder.data.record_history', true)) {
+            return;
+        }
+
+        // Only managed, writable collections are snapshotted.
+        if ($model->isExternal() || $model->isReadOnly()) {
+            return;
+        }
+
+        if ($recordId === null) {
+            return;
+        }
+
+        try {
+            /** @var class-string<RecordRevision> $revisionClass */
+            $revisionClass = config('ai-page-builder.models.record_revision', RecordRevision::class);
+
+            $revisionClass::query()->create([
+                'collection' => $model->key,
+                'record_id' => (string) $recordId,
+                'operation' => $operation,
+                'before' => $before,
+                'after' => $after,
+                'changed_by' => $this->actingUserId(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ai-page-builder: failed to write record revision', [
+                'collection' => $model->key,
+                'operation' => $operation,
+                'record_id' => $recordId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * The acting pb-guard end-user's id, or null when unauthenticated / auth off.
+     */
+    private function actingUserId(): ?int
+    {
+        if (! (bool) config('ai-page-builder.auth.enabled', true)) {
+            return null;
+        }
+
+        $guard = (string) config('ai-page-builder.auth.guard', 'pb');
+        $user = Auth::guard($guard)->user();
+
+        if (! $user instanceof Authenticatable) {
+            return null;
+        }
+
+        $id = $user->getAuthIdentifier();
+
+        return is_numeric($id) ? (int) $id : null;
     }
 }
