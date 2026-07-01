@@ -383,6 +383,192 @@
                                 } catch (e) { /* leave static template */ }
                             });
                     }
+
+                    // ── chart ─────────────────────────────────────────────────
+                    // Fetches aggregate data and renders a lightweight inline SVG/CSS
+                    // chart with NO external library dependency (no Chart.js in the
+                    // editor canvas). Bar/line/area → horizontal bar chart in SVG;
+                    // donut/pie → a compact legend+values list.
+                    else if (blockType === 'chart') {
+                        const collection = (el.getAttribute('data-pb-collection') || '').trim();
+                        if (! collection) { return; }
+                        const metric = el.getAttribute('data-pb-metric') || 'count';
+                        const field = el.getAttribute('data-pb-field') || '';
+                        const group = el.getAttribute('data-pb-group') || '';
+                        const dateBucket = el.getAttribute('data-pb-date-bucket') || '';
+                        const chartType = (el.getAttribute('data-pb-chart-type') || 'bar').toLowerCase();
+                        let qs = 'metric=' + encodeURIComponent(metric);
+                        if (field) { qs += '&field=' + encodeURIComponent(field); }
+                        if (group) { qs += '&group_by=' + encodeURIComponent(group); }
+                        if (dateBucket) { qs += '&date_bucket=' + encodeURIComponent(dateBucket); }
+                        fetch(apiBase + '/' + collection + '/aggregate?' + qs, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                            .then((r) => r.ok ? r.json() : null).catch(() => null)
+                            .then((d) => {
+                                try {
+                                    const rows = (d && d.rows) || [];
+                                    if (! rows.length) { return; }
+                                    const palette = ['#6366f1', '#22d3ee', '#fbbf24', '#34d399', '#f472b6', '#60a5fa', '#f87171', '#a78bfa'];
+                                    // Format a number for display
+                                    const fmtN = (n) => {
+                                        n = Number(n) || 0;
+                                        return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                                    };
+                                    let html = '';
+                                    if (chartType === 'donut' || chartType === 'pie') {
+                                        // Donut/pie: compact legend + value list (no SVG arcs needed)
+                                        const total = rows.reduce((s, r) => s + (Number(r.value) || 0), 0);
+                                        const items = rows.slice(0, 8).map((r, i) => {
+                                            const color = palette[i % palette.length];
+                                            const pct = total > 0 ? Math.round((Number(r.value) || 0) / total * 100) : 0;
+                                            const label = r.label == null ? '—' : String(r.label);
+                                            return '<div style="display:flex;align-items:center;gap:.5rem;padding:.25rem 0;">'
+                                                + '<span style="flex-shrink:0;width:.75rem;height:.75rem;border-radius:50%;background:' + color + ';"></span>'
+                                                + '<span style="flex:1;font-size:.8rem;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + pbEsc(label) + '</span>'
+                                                + '<span style="font-size:.8rem;font-weight:600;color:#1e293b;white-space:nowrap;">' + pbEsc(fmtN(r.value)) + ' <span style="font-weight:400;color:#94a3b8;">(' + pct + '%)</span></span>'
+                                                + '</div>';
+                                        }).join('');
+                                        html = '<div style="padding:.75rem 1rem;">'
+                                            + '<div style="font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:#94a3b8;margin-bottom:.5rem;">' + pbEsc(metric) + (group ? ' by ' + pbEsc(group) : '') + '</div>'
+                                            + items
+                                            + (rows.length > 8 ? '<div style="font-size:.72rem;color:#94a3b8;margin-top:.25rem;">+ ' + (rows.length - 8) + ' more</div>' : '')
+                                            + '</div>';
+                                    } else {
+                                        // Bar/line/area → horizontal CSS bar chart in SVG
+                                        // Cap at 8 bars to keep the preview compact.
+                                        const display = rows.slice(0, 8);
+                                        const maxVal = display.reduce((m, r) => Math.max(m, Number(r.value) || 0), 0) || 1;
+                                        const barH = 18;
+                                        const labelW = 90;
+                                        const valW = 52;
+                                        const barAreaW = 160;
+                                        const rowGap = 8;
+                                        const padT = 8; const padB = 8; const padL = 8; const padR = 8;
+                                        const svgW = padL + labelW + 8 + barAreaW + 6 + valW + padR;
+                                        const svgH = padT + display.length * (barH + rowGap) - rowGap + padB;
+                                        let bars = '';
+                                        display.forEach((r, i) => {
+                                            const color = palette[i % palette.length];
+                                            const label = r.label == null ? '—' : String(r.label);
+                                            const val = Number(r.value) || 0;
+                                            const bw = Math.max(2, Math.round((val / maxVal) * barAreaW));
+                                            const y = padT + i * (barH + rowGap);
+                                            const cy = y + barH / 2;
+                                            // Label (right-aligned, truncated via clip-path workaround: just clip text)
+                                            bars += '<text x="' + (padL + labelW) + '" y="' + (cy + 4) + '" text-anchor="end" font-size="11" fill="#475569" font-family="ui-sans-serif,system-ui,sans-serif">'
+                                                + pbEsc(label.length > 14 ? label.slice(0, 13) + '…' : label) + '</text>';
+                                            // Bar
+                                            bars += '<rect x="' + (padL + labelW + 8) + '" y="' + y + '" width="' + bw + '" height="' + barH + '" rx="3" fill="' + color + '"></rect>';
+                                            // Value label
+                                            bars += '<text x="' + (padL + labelW + 8 + bw + 5) + '" y="' + (cy + 4) + '" font-size="11" fill="#1e293b" font-family="ui-sans-serif,system-ui,sans-serif">'
+                                                + pbEsc(fmtN(val)) + '</text>';
+                                        });
+                                        html = '<div style="padding:.5rem;">'
+                                            + '<div style="font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:#94a3b8;margin-bottom:.35rem;">' + pbEsc(metric) + (group ? ' by ' + pbEsc(group) : '') + (dateBucket ? ' / ' + pbEsc(dateBucket) : '') + '</div>'
+                                            + '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + svgH + '" style="display:block;max-width:100%;">' + bars + '</svg>'
+                                            + (rows.length > 8 ? '<div style="font-size:.72rem;color:#94a3b8;margin-top:.2rem;">+ ' + (rows.length - 8) + ' more</div>' : '')
+                                            + '</div>';
+                                    }
+                                    pbInjectLive(el, html);
+                                } catch (e) { /* leave static template */ }
+                            });
+                    }
+
+                    // ── list (collection-bound) ───────────────────────────────
+                    // Renders the first few items' display-field text when the list
+                    // has data-pb-collection (server data). State-bound lists
+                    // (x-for over $store.app.*) have no server data in the editor —
+                    // skip those (the existing state hint on the trait is enough).
+                    else if (blockType === 'list') {
+                        const collection = (el.getAttribute('data-pb-collection') || '').trim();
+                        if (! collection) { return; }
+                        // Fetch schema to find display_field, then rows.
+                        Promise.all([
+                            fetch(apiBase + '/' + collection + '/schema', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                                .then((r) => r.ok ? r.json() : null).catch(() => null),
+                            fetch(apiBase + '/' + collection + '?per_page=5', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                                .then((r) => r.ok ? r.json() : null).catch(() => null),
+                        ]).then(([schema, data]) => {
+                            try {
+                                const rows = (data && data.data) || [];
+                                if (! rows.length) { return; }
+                                const dispField = (schema && schema.display_field) || 'name';
+                                const items = rows.map((row) => {
+                                    const label = row[dispField] != null ? String(row[dispField]) : ('#' + row.id);
+                                    return '<li style="padding:.3rem .1rem;color:#1e293b;font-size:.85rem;border-bottom:1px solid #f1f5f9;">' + pbEsc(label) + '</li>';
+                                }).join('');
+                                const html = '<ul style="list-style:none;margin:0;padding:.5rem .75rem;">' + items + '</ul>';
+                                pbInjectLive(el, html);
+                            } catch (e) { /* leave static template */ }
+                        });
+                    }
+
+                    // ── autocomplete (collection-bound) ───────────────────────
+                    // Shows a static list of a few real suggestion labels beneath
+                    // the input (read-only, no typeahead JS — pointer-events:none
+                    // keeps the block selectable via GrapesJS).
+                    else if (blockType === 'autocomplete') {
+                        const collection = (el.getAttribute('data-pb-collection') || '').trim();
+                        if (! collection) { return; }
+                        const labelField = (el.getAttribute('data-pb-label-field') || '').trim();
+                        // Fetch schema for display_field fallback, then first few rows.
+                        Promise.all([
+                            fetch(apiBase + '/' + collection + '/schema', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                                .then((r) => r.ok ? r.json() : null).catch(() => null),
+                            fetch(apiBase + '/' + collection + '?per_page=5', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                                .then((r) => r.ok ? r.json() : null).catch(() => null),
+                        ]).then(([schema, data]) => {
+                            try {
+                                const rows = (data && data.data) || [];
+                                if (! rows.length) { return; }
+                                const dispField = labelField || (schema && schema.display_field) || 'name';
+                                const items = rows.map((row) => {
+                                    const label = row[dispField] != null ? String(row[dispField]) : ('#' + row.id);
+                                    return '<div style="padding:.3rem .65rem;font-size:.82rem;color:#1e293b;border-bottom:1px solid #f1f5f9;">' + pbEsc(label) + '</div>';
+                                }).join('');
+                                const html = '<div style="border:1px solid #e2e8f0;border-radius:.375rem;background:#fff;overflow:hidden;margin-top:.25rem;">'
+                                    + '<div style="padding:.25rem .65rem;font-size:.7rem;color:#94a3b8;letter-spacing:.04em;text-transform:uppercase;background:#f8fafc;">Sample suggestions</div>'
+                                    + items + '</div>';
+                                pbInjectLive(el, html);
+                            } catch (e) { /* leave static template */ }
+                        });
+                    }
+                });
+
+                // ── select[data-pb-options] ───────────────────────────────────
+                // Populates a preview of the real <select> options from the bound
+                // collection. These elements carry data-pb-options (not data-pb-block)
+                // so they are handled after the main block loop.
+                doc.querySelectorAll('select[data-pb-options]').forEach((selEl) => {
+                    try {
+                        const collection = (selEl.getAttribute('data-pb-options') || '').trim();
+                        if (! collection) { return; }
+                        const labelField = (selEl.getAttribute('data-pb-label-field') || 'name').trim();
+                        // Remove stale live overlay from any prior run.
+                        const parent = selEl.parentNode;
+                        if (! parent) { return; }
+                        Array.from(parent.children).forEach((c) => { if (c.hasAttribute('data-pb-live') && c.getAttribute('data-pb-live') === 'select') { c.remove(); } });
+                        fetch(apiBase + '/' + collection + '?per_page=5', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                            .then((r) => r.ok ? r.json() : null).catch(() => null)
+                            .then((d) => {
+                                try {
+                                    const rows = (d && d.data) || [];
+                                    if (! rows.length) { return; }
+                                    // Build a read-only option-list preview div NEXT TO the select.
+                                    // We don't mutate the <select> itself (GrapesJS tracks it);
+                                    // instead we inject a sibling overlay — same pattern as pbInjectLive
+                                    // but targeted at the parent so pbStripLive still strips it.
+                                    const wrap = selEl.ownerDocument.createElement('div');
+                                    wrap.setAttribute('data-pb-live', 'select');
+                                    wrap.style.cssText = 'pointer-events:none;border:1px solid #e2e8f0;border-radius:.375rem;background:#fff;overflow:hidden;margin-top:.2rem;font-family:inherit;';
+                                    const opts = rows.map((row) => {
+                                        const label = row[labelField] != null ? String(row[labelField]) : ('#' + row.id);
+                                        return '<div style="padding:.3rem .65rem;font-size:.82rem;color:#1e293b;border-bottom:1px solid #f8fafc;">' + pbEsc(label) + '</div>';
+                                    }).join('');
+                                    wrap.innerHTML = '<div style="padding:.2rem .65rem;font-size:.68rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;">Sample options</div>' + opts;
+                                    parent.appendChild(wrap);
+                                } catch (e) { /* leave static template */ }
+                            });
+                    } catch (e) { /* leave static template */ }
                 });
             };
 
