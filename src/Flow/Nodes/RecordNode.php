@@ -83,6 +83,21 @@ class RecordNode implements FlowNodeHandler, ProvidesNodeDefinition
         /** @var array<string,mixed> $config */
         $config = $context->interpolateDeep($raw);
 
+        // The value-bearing fields (create/update `data`, the `id` selector, list
+        // `filter`) are resolved expression-aware: a `{{ token }}` interpolates as
+        // before, a bare EL expression (`vars.order['id']`, `'ORD-' ~ util_uuid()`)
+        // evaluates with its type preserved, and a plain literal (0, "open") is
+        // untouched. Structural fields (model/operation/output) stay author-fixed.
+        if (array_key_exists('data', $raw)) {
+            $config['data'] = $context->resolveDynamic($raw['data']);
+        }
+        if (array_key_exists('id', $raw)) {
+            $config['id'] = $context->resolveDynamic($raw['id']);
+        }
+        if (array_key_exists('filter', $raw)) {
+            $config['filter'] = $context->resolveDynamic($raw['filter']);
+        }
+
         $result = null;
 
         if ($key !== '') {
