@@ -150,11 +150,55 @@
                             if (/_id$/.test(k)) { var sib = row[k.replace(/_id$/, '')]; if (sib && typeof sib === 'object') { return cell(sib); } }
                             return cell(row[k]);
                         };
-                        var th = keys.map(function (k) { return '<th style="padding:.6rem .9rem;text-align:left;border-bottom:1px solid #e2e8f0;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:#64748b;">' + esc(human(k)) + '</th>'; }).join('');
-                        var body = this.rows.map(function (row) {
-                            return '<tr style="border-bottom:1px solid #f1f5f9;">' + keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + esc(display(row, k)) + '</td>'; }).join('') + '</tr>';
+                        // A management page pairs this list with a form that writes the
+                        // same collection — when present, offer Edit/Delete per row.
+                        var recForm = document.querySelector('form[data-pb-record="' + collection + '"]');
+                        var thStyle = 'padding:.6rem .9rem;text-align:left;border-bottom:1px solid #e2e8f0;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:#64748b;';
+                        var th = keys.map(function (k) { return '<th style="' + thStyle + '">' + esc(human(k)) + '</th>'; }).join('')
+                            + (recForm ? '<th style="' + thStyle + 'text-align:right;">Actions</th>' : '');
+                        var body = this.rows.map(function (row, i) {
+                            var cells = keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + esc(display(row, k)) + '</td>'; }).join('');
+                            if (recForm) {
+                                cells += '<td style="padding:.5rem .9rem;text-align:right;white-space:nowrap;">'
+                                    + '<button type="button" data-pb-edit="' + i + '" style="border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;border-radius:.35rem;padding:.2rem .55rem;font-size:.72rem;cursor:pointer;margin-right:.25rem;">Edit</button>'
+                                    + '<button type="button" data-pb-del="' + i + '" style="border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:.35rem;padding:.2rem .55rem;font-size:.72rem;cursor:pointer;">Delete</button>'
+                                    + '</td>';
+                            }
+                            return '<tr style="border-bottom:1px solid #f1f5f9;">' + cells + '</tr>';
                         }).join('');
                         this.$el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:.9rem;background:#fff;border:1px solid #e2e8f0;border-radius:.6rem;overflow:hidden;"><thead style="background:#f8fafc;"><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table>';
+                        if (recForm) { this.wireRowActions(recForm, collection); }
+                    },
+                    wireRowActions: function (form, collection) {
+                        var self = this;
+                        var submitBtn = form.querySelector('button[type="submit"], [type="submit"]');
+                        var origLabel = submitBtn ? submitBtn.textContent : '';
+                        this.$el.querySelectorAll('[data-pb-edit]').forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                var row = self.rows[+btn.getAttribute('data-pb-edit')];
+                                if (! row) { return; }
+                                // Fill the form's named inputs from the row (raw fk ids fill relation selects).
+                                form.querySelectorAll('[name]').forEach(function (input) {
+                                    var k = input.getAttribute('name');
+                                    if (Object.prototype.hasOwnProperty.call(row, k)) { input.value = row[k] == null ? '' : row[k]; }
+                                });
+                                form.setAttribute('data-pb-record-id', row.id);   // → submitRecord does PUT
+                                if (submitBtn) { submitBtn.textContent = 'Update'; }
+                                form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            });
+                        });
+                        this.$el.querySelectorAll('[data-pb-del]').forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                var row = self.rows[+btn.getAttribute('data-pb-del')];
+                                if (! row || ! window.confirm('Delete this record?')) { return; }
+                                fetch(API_BASE + '/' + collection + '/' + encodeURIComponent(row.id), {
+                                    method: 'DELETE', headers: { Accept: 'application/json' },
+                                }).then(function () {
+                                    if (form.getAttribute('data-pb-record-id') == String(row.id)) { form.reset(); form.removeAttribute('data-pb-record-id'); if (submitBtn) { submitBtn.textContent = origLabel; } }
+                                    self.load();
+                                });
+                            });
+                        });
                     },
                     prev: function () { if (this.page > 1) { this.page--; this.load(); } },
                     next: function () { if (this.page < this.lastPage) { this.page++; this.load(); } },
