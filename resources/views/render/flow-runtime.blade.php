@@ -246,8 +246,19 @@
             try { explicitInput = JSON.parse(rawInput); } catch (e) { /* ignore malformed JSON */ }
         }
 
+        // Include the page's reactive state ($store.app — carts, selections, etc.)
+        // so a flow can act on it (e.g. checkout reads input.cart_items). Form
+        // fields and an explicit data-pb-flow-input override it.
+        var storeState = {};
+        try {
+            if (window.Alpine && typeof window.Alpine.store === 'function') {
+                var s = window.Alpine.store('app');
+                if (s && typeof s === 'object') { storeState = JSON.parse(JSON.stringify(s)); }
+            }
+        } catch (e) { /* ignore non-serialisable state */ }
+
         var formInput = collectFormInput(triggerEl);
-        var mergedInput = Object.assign({}, formInput, explicitInput);
+        var mergedInput = Object.assign({}, storeState, formInput, explicitInput);
 
         fetch(FLOW_BASE + '/' + slug, {
             method: 'POST',
