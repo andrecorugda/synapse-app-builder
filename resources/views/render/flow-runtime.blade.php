@@ -1,7 +1,13 @@
 @php
-    $flowBase = url(config('ai-page-builder.routes.flow_prefix', 'pb-flow'));
-    $renderBase = url(config('ai-page-builder.routes.render_prefix', 'p'));
-    $apiBase = url(config('ai-page-builder.data.api_prefix', 'api/pb'));
+    // Origin-RELATIVE bases (path only, no scheme+host): navigation and fetches
+    // then always stay on the exact scheme+host+port the visitor is on. Baking an
+    // absolute url() here breaks behind a port map / TLS-terminating proxy, where
+    // the server thinks it is https://host but the browser is on http://host:8088
+    // (or vice-versa) — clicking a nav link would jump to the wrong origin.
+    $pbPath = static fn (string $key, string $default): string => '/'.ltrim((string) (parse_url(url(config($key, $default)), PHP_URL_PATH) ?: $default), '/');
+    $flowBase = $pbPath('ai-page-builder.routes.flow_prefix', 'pb-flow');
+    $renderBase = $pbPath('ai-page-builder.routes.render_prefix', 'p');
+    $apiBase = $pbPath('ai-page-builder.data.api_prefix', 'api/pb');
 @endphp
 <script>
 (function () {
