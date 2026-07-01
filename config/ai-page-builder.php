@@ -310,6 +310,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public upload endpoint
+    |--------------------------------------------------------------------------
+    | Controls the behaviour of POST /pb-upload — the public image-upload route
+    | used by [data-pb-record] forms on rendered pages.
+    |
+    | allow_anonymous — false (default, safe): only authenticated users (either
+    |   a signed-in pb app-user or a panel/host-app user) may upload. Set to
+    |   true ONLY when you have external controls (WAF, IP allow-list, etc.).
+    |
+    | max_kb — maximum accepted file size in kilobytes (default 5 120 = 5 MB).
+    |   Applies regardless of the allow_anonymous setting.
+    */
+    'uploads' => [
+        'allow_anonymous' => (bool) env('AI_PAGE_BUILDER_ALLOW_ANON_UPLOADS', false),
+        'max_kb' => (int) env('AI_PAGE_BUILDER_UPLOAD_MAX_KB', 5120),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Render cache
     |--------------------------------------------------------------------------
     | The assembled HTML for a published page is cached. ttl 0 disables it.

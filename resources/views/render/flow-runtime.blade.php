@@ -17,6 +17,7 @@
     var FLOW_BASE = '{{ $flowBase }}';
     var RENDER_BASE = '{{ $renderBase }}';
     var API_BASE = '{{ $apiBase }}';
+    var UPLOAD_BASE = '/pb-upload';   // gated public image upload (origin-relative)
 
     /** Show a lightweight toast notification. */
     function showToast(message) {
@@ -230,9 +231,53 @@
             var el = elements[i];
             if (!el.name) { continue; }
             if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) { continue; }
+            // A file input submits the UPLOADED URL (stashed after posting to
+            // /pb-upload), never the raw file value.
+            if (el.type === 'file') { data[el.name] = el.dataset.pbUrl || ''; continue; }
             data[el.name] = el.value;
         }
         return data;
+    }
+
+    /** Upgrade a form's file inputs to upload-on-select: POST the chosen image to
+     *  /pb-upload and stash the returned URL on the input so it submits with the
+     *  record (image fields on a public page; the endpoint is gated + validated). */
+    function bindUploads(form) {
+        var files = form.querySelectorAll('input[type="file"]');
+        for (var i = 0; i < files.length; i++) {
+            (function (input) {
+                if (input.__pbUploadBound) { return; }
+                input.__pbUploadBound = true;
+                var status = document.createElement('span');
+                status.style.cssText = 'display:block;font-size:.75rem;color:#64748b;margin:.15rem 0;';
+                input.parentNode && input.parentNode.insertBefore(status, input.nextSibling);
+                input.addEventListener('change', function () {
+                    var file = input.files && input.files[0];
+                    if (!file) { return; }
+                    status.textContent = 'Uploading…';
+                    var fd = new FormData();
+                    fd.append('file', file);
+                    var m = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+                    fetch(UPLOAD_BASE, {
+                        method: 'POST',
+                        headers: { 'X-XSRF-TOKEN': m ? decodeURIComponent(m[1]) : '', 'Accept': 'application/json' },
+                        credentials: 'same-origin',
+                        body: fd,
+                    })
+                    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+                    .then(function (res) {
+                        if (res.status >= 200 && res.status < 300 && res.body.url) {
+                            input.dataset.pbUrl = res.body.url;
+                            status.innerHTML = '✓ uploaded — <a href="' + res.body.url + '" target="_blank" style="color:#4f46e5;">view</a>';
+                        } else {
+                            input.value = '';
+                            status.textContent = (res.body && res.body.message) || (res.status === 403 ? 'Sign in to upload.' : 'Upload failed.');
+                        }
+                    })
+                    .catch(function () { status.textContent = 'Upload failed.'; });
+                });
+            })(files[i]);
+        }
     }
 
     /** Run the flow bound to a trigger element, merging form + explicit input. */
@@ -331,6 +376,7 @@
                 if (form.hasAttribute('data-pb-flow')) { return; }
                 form.__pbRecordBound = true;
                 form.addEventListener('submit', function (e) { submitRecord(form, e); }, false);
+                bindUploads(form);
             })(recordForms[r]);
         }
 

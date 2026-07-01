@@ -199,6 +199,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerAuthRoutes();
         $this->registerRenderRoutes();
         $this->registerPanelRoutes();
+        $this->registerPublicUploadRoute();
         $this->registerFlowRoutes();
         $this->registerDataApiRoutes();
         $this->registerFilamentAssets();
@@ -342,6 +343,21 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             'middleware' => (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/panel.php');
+        });
+    }
+
+    /**
+     * Public image-upload endpoint used by [data-pb-record] forms on rendered
+     * pages. Uses the `web` middleware group so the session and CSRF cookie are
+     * available for same-origin fetch calls. Auth gating and rate limiting are
+     * applied by the controller / route (throttle:30,1).
+     */
+    private function registerPublicUploadRoute(): void
+    {
+        Route::group([
+            'middleware' => (array) config('ai-page-builder.routes.render_middleware', ['web']),
+        ], function (): void {
+            $this->loadRoutesFrom(__DIR__.'/../routes/public.php');
         });
     }
 
