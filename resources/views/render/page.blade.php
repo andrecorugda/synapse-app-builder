@@ -24,6 +24,14 @@
         body { margin: 0; font-family: var(--pb-font, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); }
         [x-cloak] { display: none !important; }
 
+        /* Auth-gated elements fail CLOSED: hidden by default, revealed only after
+           /pb-auth/me resolves and the element passes its check (see the auth
+           bootstrap below). On a fetch error they stay hidden — no flash, no leak.
+           The html.pb-auth-ready guard keeps them visible with JS disabled (server
+           data is already permission-secured; this is a UX layer). */
+        html.pb-auth-ready [data-pb-auth], html.pb-auth-ready [data-pb-roles] { display: none !important; }
+        html.pb-auth-ready [data-pb-auth].pb-auth-ok, html.pb-auth-ready [data-pb-roles].pb-auth-ok { display: revert !important; }
+
         /* Section colour overlays (the builder's --pb-overlay style property). */
         [data-pb-block] { position: relative; }
         [data-pb-block]::after { content: ""; position: absolute; inset: 0; background: var(--pb-overlay, transparent); pointer-events: none; z-index: 0; }
@@ -75,22 +83,32 @@
             // tagged data-pb-auth show only when logged in; data-pb-roles="a,b"
             // show only for those role slugs (admins always pass). Server-side
             // data is already secured by the permission engine — this is UX.
+            //
+            // FAIL CLOSED: the moment JS runs we add html.pb-auth-ready, which the
+            // stylesheet uses to hide every [data-pb-auth]/[data-pb-roles] element
+            // BEFORE the identity fetch resolves. Only elements that pass the check
+            // get .pb-auth-ok (→ revealed). A fetch error leaves everything hidden,
+            // so a gated block never flashes to a signed-out / unauthorized visitor.
             window.Alpine.store('app').$user = null;
             @unless ($static ?? false)
+            document.documentElement.classList.add('pb-auth-ready');
+            function pbApplyAuth(u) {
+                document.querySelectorAll('[data-pb-auth]').forEach(function (el) {
+                    if (u) { el.classList.add('pb-auth-ok'); } else { el.classList.remove('pb-auth-ok'); }
+                });
+                document.querySelectorAll('[data-pb-roles]').forEach(function (el) {
+                    var allowed = (el.getAttribute('data-pb-roles') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+                    if (u && (u.is_admin || allowed.indexOf(u.role) !== -1)) { el.classList.add('pb-auth-ok'); } else { el.classList.remove('pb-auth-ok'); }
+                });
+            }
             fetch('{{ $pbRel('pb-auth/me') }}', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     var u = (d && d.user) ? d.user : null;
                     window.Alpine.store('app').$user = u;
-                    document.querySelectorAll('[data-pb-auth]').forEach(function (el) {
-                        if (! u) { el.style.display = 'none'; }
-                    });
-                    document.querySelectorAll('[data-pb-roles]').forEach(function (el) {
-                        var allowed = (el.getAttribute('data-pb-roles') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-                        if (! (u && (u.is_admin || allowed.indexOf(u.role) !== -1))) { el.style.display = 'none'; }
-                    });
+                    pbApplyAuth(u);
                 })
-                .catch(function () {});
+                .catch(function () { /* stay hidden — fail closed, no reveal on error */ });
             @endunless
 
             // pbTable — the Data Table block's x-data.
@@ -255,10 +273,20 @@
                         if (self._search) { params += '&search=' + encodeURIComponent(self._search); }
                         Object.keys(self._filters).forEach(function (k) {
                             var v = self._filters[k];
-                            if (v !== '' && v != null) { params += '&filter[' + encodeURIComponent(k) + '][eq]=' + encodeURIComponent(v); }
+                            if (v === '' || v == null) { return; }
+                            // Select / boolean filters match exactly; free-text column
+                            // filters are substring matches (server supports `like`).
+                            var ftype = self._filterTypes[k];
+                            var op = (ftype === 'select' || ftype === 'boolean') ? 'eq' : 'like';
+                            params += '&filter[' + encodeURIComponent(k) + '][' + op + ']=' + encodeURIComponent(v);
                         });
                         fetch(API_BASE + '/' + self._collection + params, { headers: { Accept: 'application/json' } })
-                            .then(function (r) { return r.json(); })
+                            .then(function (r) {
+                                // Distinguish an actual failure (403/500/…) from an empty
+                                // collection — a non-OK status is an error, not "no records".
+                                if (! r.ok) { throw new Error('HTTP ' + r.status); }
+                                return r.json();
+                            })
                             .then(function (d) {
                                 self.rows = (d && d.data) || [];
                                 self.lastPage = (d && d.last_page) || 1;
@@ -266,7 +294,7 @@
                                 self.loading = false;
                                 self.renderTable();
                             })
-                            .catch(function () { self.loading = false; self.error = true; });
+                            .catch(function () { self.loading = false; self.error = true; self.rows = []; self.renderTable(); });
                     },
 
                     // Compute visible columns from config + schema (or row keys in state mode)
@@ -513,7 +541,17 @@
 
                         // Build table body
                         var tbody;
-                        if (! self.rows.length) {
+                        if (self.error) {
+                            // A load failure (403 / server error / network) — surface it
+                            // instead of masquerading as an empty collection.
+                            var colspanE = cols.length + (self._selectable ? 1 : 0) + (recForm ? 1 : 0);
+                            tbody = '<tbody><tr><td colspan="' + colspanE + '" style="padding:1rem .9rem;color:#b91c1c;font-family:inherit;">'
+                                + '<span style="display:inline-flex;align-items:center;gap:.4rem;">'
+                                + '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+                                + 'Could not load records. '
+                                + '<button type="button" data-pb-tbl-retry style="background:none;border:0;color:#b91c1c;text-decoration:underline;cursor:pointer;font:inherit;padding:0;">Retry</button>'
+                                + '</span></td></tr></tbody>';
+                        } else if (! self.rows.length) {
                             var colspan = cols.length + (self._selectable ? 1 : 0) + (recForm ? 1 : 0);
                             tbody = '<tbody><tr><td colspan="' + colspan + '" style="padding:1rem .9rem;color:#64748b;font-family:inherit;">No records yet.</td></tr></tbody>';
                         } else {
@@ -599,6 +637,10 @@
                             btn.addEventListener('click', function () { self.doBulk(btn.getAttribute('data-pb-tbl-bulk')); });
                         });
 
+                        // Retry after a load error
+                        var retryBtn = el.querySelector('[data-pb-tbl-retry]');
+                        if (retryBtn) { retryBtn.addEventListener('click', function () { self.load(); }); }
+
                         // Pagination
                         var prevBtn = el.querySelector('[data-pb-tbl-prev]');
                         if (prevBtn) { prevBtn.addEventListener('click', function () { if (self.page > 1) { self.page--; self.load(); } }); }
@@ -666,6 +708,13 @@
                             .catch(function () { self.results = []; });
                     },
                     pick: function (r) { this.q = r.label; this.selectedId = r.id; this.open = false; this.results = []; },
+                    // Delegated-friendly variant: the option carries data-pb-ac-pick="<id>"
+                    // (the loop var can't reach a delegated handler), so resolve the
+                    // result by id from the current list. Mirrors pbRecordPicker.pickById.
+                    pickById: function (id) {
+                        var hit = this.results.filter(function (r) { return String(r.id) === String(id); })[0];
+                        if (hit) { this.pick(hit); }
+                    },
                 };
             });
 
@@ -823,7 +872,9 @@
                 return {
                     q: '', results: [], loading: false,
                     collection: (root && root.getAttribute('data-pb-collection')) || '',
-                    labelField: (root && root.getAttribute('data-pb-label-field')) || '',
+                    // Default to 'name' when unset — consistent with pbAutocomplete and
+                    // the relation-select populator — so tiles show a label, not #id.
+                    labelField: (root && root.getAttribute('data-pb-label-field')) || 'name',
                     imageField: (root && root.getAttribute('data-pb-image-field')) || '',   // '' = no image
                     extraField: (root && root.getAttribute('data-pb-extra-field')) || '',   // '' = no extra line
                     target: (root && root.getAttribute('data-pb-target')) || '',
@@ -1020,6 +1071,137 @@
                 var pRoot = search.closest('[data-pb-block="record_picker"]');
                 var p = pRoot && ad(pRoot);
                 if (p && p.search) { p.search(); }
+            }, false);
+        })();
+    </script>
+
+    {{-- Components-kit interaction runtime: the disclosure/overlay UI-kit blocks
+         (modal, drawer, tabs, accordion, dropdown_menu, tooltip, autocomplete,
+         banner) wire behaviour through data-pb-* hooks — NEVER inline @click /
+         @keydown / @mouseenter, which the AI HtmlSanitizer strips. The blocks keep
+         declarative Alpine (x-data / x-show / x-bind / x-transition) for their
+         reactive state; this single delegated runtime resolves the owning Alpine
+         component via Alpine.$data(el) and mutates the named x-data prop:
+           data-pb-toggle="<prop>"  — flip a boolean prop
+           data-pb-open="<prop>"    — set a prop true (open overlay)
+           data-pb-close="<prop>"   — set a prop false (close overlay / dismiss)
+           data-pb-set="<prop>:<v>" — assign a literal value (tabs, single-open)
+           data-pb-dismiss          — set `show` false (banner)
+           data-pb-hover="<prop>"   — true on enter/focus, false on leave/blur (tooltip)
+         Overlays additionally close on outside-click (their backdrop carries
+         data-pb-close) and on Escape. --}}
+    <script>
+        (function () {
+            function ad(el) { return (window.Alpine && window.Alpine.$data) ? window.Alpine.$data(el) : null; }
+
+            // Coerce a literal from data-pb-set="prop:value" — quoted → string,
+            // true/false → boolean, numeric → number, else string.
+            function coerce(raw) {
+                if (raw === 'true') { return true; }
+                if (raw === 'false') { return false; }
+                if (/^-?\d+(\.\d+)?$/.test(raw)) { return Number(raw); }
+                if ((raw.charAt(0) === "'" && raw.slice(-1) === "'") || (raw.charAt(0) === '"' && raw.slice(-1) === '"')) {
+                    return raw.slice(1, -1);
+                }
+                return raw;
+            }
+
+            // Apply a prop mutation to the Alpine component owning `el`.
+            function mutate(el, kind, arg) {
+                var data = ad(el);
+                if (! data) { return; }
+                if (kind === 'toggle') { data[arg] = ! data[arg]; return; }
+                if (kind === 'open') { data[arg] = true; return; }
+                if (kind === 'close') { data[arg] = false; return; }
+                if (kind === 'dismiss') { data.show = false; return; }
+                if (kind === 'set') {
+                    var i = arg.indexOf(':');
+                    if (i < 0) { return; }
+                    data[arg.slice(0, i)] = coerce(arg.slice(i + 1));
+                }
+            }
+
+            document.addEventListener('click', function (e) {
+                if (! window.Alpine) { return; }
+
+                var toggle = e.target.closest('[data-pb-toggle]');
+                if (toggle) { mutate(toggle, 'toggle', toggle.getAttribute('data-pb-toggle')); return; }
+
+                var open = e.target.closest('[data-pb-open]');
+                if (open) { mutate(open, 'open', open.getAttribute('data-pb-open')); return; }
+
+                var setEl = e.target.closest('[data-pb-set]');
+                if (setEl) { mutate(setEl, 'set', setEl.getAttribute('data-pb-set')); return; }
+
+                var dismiss = e.target.closest('[data-pb-dismiss]');
+                if (dismiss) { mutate(dismiss, 'dismiss', ''); return; }
+
+                // Autocomplete: pick an option by id (loop var can't reach a
+                // delegated handler, so the id rides on the attribute).
+                var acPick = e.target.closest('[data-pb-ac-pick]');
+                if (acPick) {
+                    var acRoot = acPick.closest('[data-pb-block="autocomplete"]');
+                    var acData = acRoot && ad(acRoot);
+                    if (acData && acData.pickById) { acData.pickById(acPick.getAttribute('data-pb-ac-pick')); }
+                    return;
+                }
+
+                // data-pb-close fires last so a backdrop with data-pb-close only
+                // closes on a click ON the backdrop itself (not bubbled from inside
+                // the panel) — the handler element is the closest match to e.target.
+                var close = e.target.closest('[data-pb-close]');
+                if (close) {
+                    // Guard: a backdrop marked data-pb-close-self closes only when the
+                    // click landed directly on it (mirrors @click.self on overlays).
+                    if (close.hasAttribute('data-pb-close-self') && e.target !== close) { return; }
+                    mutate(close, 'close', close.getAttribute('data-pb-close'));
+                    return;
+                }
+            }, false);
+
+            // Escape closes any open overlay: every element that declares
+            // data-pb-close is asked to close its owning component's named prop.
+            document.addEventListener('keydown', function (e) {
+                if (! window.Alpine || e.key !== 'Escape') { return; }
+                document.querySelectorAll('[data-pb-escape-close]').forEach(function (el) {
+                    mutate(el, 'close', el.getAttribute('data-pb-escape-close'));
+                });
+            }, false);
+
+            // Outside-click closes elements marked data-pb-outside-close="<prop>"
+            // (dropdown menus, autocomplete lists) when the click lands outside the
+            // component root that carries the hook.
+            document.addEventListener('click', function (e) {
+                if (! window.Alpine) { return; }
+                document.querySelectorAll('[data-pb-outside-close]').forEach(function (root) {
+                    if (root.contains(e.target)) { return; }
+                    mutate(root, 'close', root.getAttribute('data-pb-outside-close'));
+                });
+            }, false);
+
+            // Tooltip hover/focus: data-pb-hover="<prop>" sets the prop true on
+            // pointer-enter / focus-in and false on leave / focus-out.
+            function hoverOn(e) {
+                var el = e.target.closest ? e.target.closest('[data-pb-hover]') : null;
+                if (el) { mutate(el, 'set', el.getAttribute('data-pb-hover') + ':true'); }
+            }
+            function hoverOff(e) {
+                var el = e.target.closest ? e.target.closest('[data-pb-hover]') : null;
+                if (el) { mutate(el, 'set', el.getAttribute('data-pb-hover') + ':false'); }
+            }
+            document.addEventListener('mouseenter', hoverOn, true);
+            document.addEventListener('mouseleave', hoverOff, true);
+            document.addEventListener('focusin', hoverOn, true);
+            document.addEventListener('focusout', hoverOff, true);
+
+            // Autocomplete: search-as-you-type on the input (x-model already syncs q).
+            document.addEventListener('input', function (e) {
+                if (! window.Alpine) { return; }
+                var input = e.target.closest('[data-pb-ac-search]');
+                if (! input) { return; }
+                var root = input.closest('[data-pb-block="autocomplete"]');
+                var p = root && ad(root);
+                if (p && p.search) { p.open = true; p.search(); }
             }, false);
         })();
     </script>

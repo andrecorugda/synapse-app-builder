@@ -26,6 +26,11 @@ class MarketingDemo
             'requires_auth' => false,
             'html' => $this->homeHtml(),
             'css' => $this->homeCss(),
+            // Behaviour lives in custom_js (emitted raw to visitors), NOT inline in
+            // the HTML: the AI HtmlSanitizer strips @click / @keydown / @submit, so
+            // nav toggle, demo modal, FAQ and the contact form are wired here via a
+            // window.marketingApp() component + data-act triggers (InventoryDemo pattern).
+            'custom_js' => $this->homeJs(),
             // Force a clean re-import through the editor's Alpine attribute bridge
             // (the canonical GrapesJS tree is rebuilt from html on next open).
             'project_data' => null,
@@ -39,7 +44,7 @@ class MarketingDemo
     private function homeHtml(): string
     {
         return <<<'HTML'
-<div class="nb" x-data="{ navOpen: false, demoOpen: false }" @keydown.escape.window="demoOpen = false; navOpen = false">
+<div class="nb" x-data="marketingApp()">
 
   <!-- ===================== STICKY NAV ===================== -->
   <header class="nb-nav">
@@ -64,8 +69,8 @@ class MarketingDemo
 
       <div class="nb-nav__cta">
         <a href="#pricing" class="nb-btn nb-btn--ghost nb-hide-sm">Sign in</a>
-        <button type="button" class="nb-btn nb-btn--accent" @click="demoOpen = true">Book a demo</button>
-        <button type="button" class="nb-burger" :aria-expanded="navOpen.toString()" aria-label="Toggle menu" @click="navOpen = !navOpen">
+        <button type="button" class="nb-btn nb-btn--accent" data-act="openDemo">Book a demo</button>
+        <button type="button" class="nb-burger" :aria-expanded="navOpen.toString()" aria-label="Toggle menu" data-act="toggleNav">
           <span :class="{ 'is-open': navOpen }"></span>
         </button>
       </div>
@@ -75,11 +80,11 @@ class MarketingDemo
     <div class="nb-mobilemenu" :class="{ 'is-open': navOpen }">
       <div class="nb-mobilemenu__inner-wrap">
       <div class="nb-container nb-mobilemenu__inner">
-        <a href="#features" @click="navOpen = false">Features</a>
-        <a href="#how" @click="navOpen = false">How it works</a>
-        <a href="#pricing" @click="navOpen = false">Pricing</a>
-        <a href="#faq" @click="navOpen = false">FAQ</a>
-        <button type="button" class="nb-btn nb-btn--accent nb-btn--block" @click="navOpen = false; demoOpen = true">Book a demo</button>
+        <a href="#features" data-act="closeNav">Features</a>
+        <a href="#how" data-act="closeNav">How it works</a>
+        <a href="#pricing" data-act="closeNav">Pricing</a>
+        <a href="#faq" data-act="closeNav">FAQ</a>
+        <button type="button" class="nb-btn nb-btn--accent nb-btn--block" data-act="openDemoFromNav">Book a demo</button>
       </div>
       </div>
     </div>
@@ -99,7 +104,7 @@ class MarketingDemo
             so your team ships on time without living in status meetings.
           </p>
           <div class="nb-hero__actions nb-anim" style="--d:240ms">
-            <button type="button" class="nb-btn nb-btn--accent nb-btn--lg" @click="demoOpen = true">Book a demo</button>
+            <button type="button" class="nb-btn nb-btn--accent nb-btn--lg" data-act="openDemo">Book a demo</button>
             <a href="#features" class="nb-btn nb-btn--outline nb-btn--lg">
               See how it works
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -269,7 +274,7 @@ class MarketingDemo
               <li>Basic automations</li>
               <li>Community support</li>
             </ul>
-            <button type="button" class="nb-btn nb-btn--outline nb-btn--block" @click="demoOpen = true">Start free</button>
+            <button type="button" class="nb-btn nb-btn--outline nb-btn--block" data-act="openDemo">Start free</button>
           </article>
 
           <article class="nb-plan nb-plan--featured nb-anim" style="--d:90ms">
@@ -284,7 +289,7 @@ class MarketingDemo
               <li>40+ integrations</li>
               <li>Priority support</li>
             </ul>
-            <button type="button" class="nb-btn nb-btn--accent nb-btn--block" @click="demoOpen = true">Book a demo</button>
+            <button type="button" class="nb-btn nb-btn--accent nb-btn--block" data-act="openDemo">Book a demo</button>
           </article>
 
           <article class="nb-plan nb-anim" style="--d:180ms">
@@ -297,7 +302,7 @@ class MarketingDemo
               <li>Audit log &amp; data residency</li>
               <li>Dedicated success manager</li>
             </ul>
-            <button type="button" class="nb-btn nb-btn--outline nb-btn--block" @click="demoOpen = true">Talk to sales</button>
+            <button type="button" class="nb-btn nb-btn--outline nb-btn--block" data-act="openDemo">Talk to sales</button>
           </article>
         </div>
       </div>
@@ -331,7 +336,7 @@ class MarketingDemo
 
         <div class="nb-faq__list">
           <div class="nb-faq__item">
-            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 1 }" @click="open = (open === 1 ? 0 : 1)" :aria-expanded="(open === 1).toString()">
+            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 1 }" data-faq="1" :aria-expanded="(open === 1).toString()">
               <span>How long does it take to get started?</span>
               <svg class="nb-faq__chev" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -341,7 +346,7 @@ class MarketingDemo
           </div>
 
           <div class="nb-faq__item">
-            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 2 }" @click="open = (open === 2 ? 0 : 2)" :aria-expanded="(open === 2).toString()">
+            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 2 }" data-faq="2" :aria-expanded="(open === 2).toString()">
               <span>Can I migrate from Jira or Trello?</span>
               <svg class="nb-faq__chev" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -351,7 +356,7 @@ class MarketingDemo
           </div>
 
           <div class="nb-faq__item">
-            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 3 }" @click="open = (open === 3 ? 0 : 3)" :aria-expanded="(open === 3).toString()">
+            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 3 }" data-faq="3" :aria-expanded="(open === 3).toString()">
               <span>Is my data secure?</span>
               <svg class="nb-faq__chev" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -361,7 +366,7 @@ class MarketingDemo
           </div>
 
           <div class="nb-faq__item">
-            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 4 }" @click="open = (open === 4 ? 0 : 4)" :aria-expanded="(open === 4).toString()">
+            <button type="button" class="nb-faq__q" :class="{ 'is-open': open === 4 }" data-faq="4" :aria-expanded="(open === 4).toString()">
               <span>What happens when my trial ends?</span>
               <svg class="nb-faq__chev" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -380,7 +385,7 @@ class MarketingDemo
         <h2 class="nb-cta__title">Ready to ship calmly?</h2>
         <p class="nb-cta__sub">Join thousands of teams who traded the chaos for clarity. Try Nimbus free for 14 days.</p>
         <div class="nb-cta__actions">
-          <button type="button" class="nb-btn nb-btn--accent nb-btn--lg" @click="demoOpen = true">Book a demo</button>
+          <button type="button" class="nb-btn nb-btn--accent nb-btn--lg" data-act="openDemo">Book a demo</button>
           <a href="#pricing" class="nb-btn nb-btn--light nb-btn--lg">View pricing</a>
         </div>
       </div>
@@ -432,7 +437,7 @@ class MarketingDemo
     <div class="nb-modal__backdrop"
          x-show="demoOpen"
          x-transition.opacity.duration.250ms
-         @click="demoOpen = false"></div>
+         data-act="closeDemo"></div>
 
     <div class="nb-modal__card"
          x-show="demoOpen"
@@ -442,7 +447,7 @@ class MarketingDemo
          x-transition:leave="nb-modal__t-leave"
          x-transition:leave-start="nb-modal__t-end"
          x-transition:leave-end="nb-modal__t-start">
-      <button type="button" class="nb-modal__close" aria-label="Close" @click="demoOpen = false">
+      <button type="button" class="nb-modal__close" aria-label="Close" data-act="closeDemo">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
 
@@ -450,7 +455,7 @@ class MarketingDemo
       <h2 id="nb-modal-title" class="nb-modal__title">See Nimbus in action</h2>
       <p class="nb-modal__sub">Tell us a little about your team and we'll tailor a 20-minute walkthrough.</p>
 
-      <form class="nb-form" @submit.prevent="demoOpen = false">
+      <form class="nb-form" data-demo-form x-show="! demoSent">
         <div class="nb-form__row">
           <label class="nb-field">
             <span>Full name</span>
@@ -477,6 +482,14 @@ class MarketingDemo
         <button type="submit" class="nb-btn nb-btn--accent nb-btn--block nb-btn--lg">Request my demo</button>
         <p class="nb-form__fine">By submitting you agree to our Privacy Policy. No spam, ever.</p>
       </form>
+      <div class="nb-form__done" x-show="demoSent" x-cloak>
+        <span class="nb-form__done-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <h3 class="nb-form__done-title">Thanks — you're on the list.</h3>
+        <p class="nb-form__done-sub">We'll email you shortly to book your 20-minute walkthrough.</p>
+        <button type="button" class="nb-btn nb-btn--outline nb-btn--block" data-act="closeDemo">Close</button>
+      </div>
     </div>
   </div>
 </div>
@@ -751,6 +764,10 @@ HTML;
 .nb-field input, .nb-field select { font: inherit; width: 100%; padding: .68rem .8rem; border: 1px solid var(--nb-line); border-radius: 10px; background: var(--nb-paper); color: var(--nb-text); transition: border-color .15s ease, box-shadow .15s ease; }
 .nb-field input:focus, .nb-field select:focus { outline: none; border-color: var(--nb-coral); box-shadow: 0 0 0 3px rgba(255,122,89,.18); }
 .nb-form__fine { margin: .2rem 0 0; font-size: .78rem; color: var(--nb-muted); text-align: center; }
+.nb-form__done { text-align: center; padding: .6rem 0 .2rem; }
+.nb-form__done-mark { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; background: rgba(198,242,78,.22); color: #5e7a00; margin-bottom: .8rem; }
+.nb-form__done-title { font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; margin: 0 0 .4rem; }
+.nb-form__done-sub { color: var(--nb-muted); margin: 0 0 1.3rem; font-size: .96rem; }
 
 /* ===== Entrance animation ===== */
 .nb-anim { opacity: 0; transform: translateY(20px); animation: nbReveal .7s cubic-bezier(.2,.7,.25,1) forwards; animation-delay: var(--d, 0ms); }
@@ -782,5 +799,72 @@ HTML;
   .nb-btn:hover { transform: none; }
 }
 CSS;
+    }
+
+    /**
+     * The page's behaviour, emitted RAW in the page's custom_js channel — never
+     * inline in the HTML, where the AI HtmlSanitizer strips @click / @keydown /
+     * @submit. `window.marketingApp()` is the root component (x-data="marketingApp()");
+     * Alpine calls its init() automatically (no x-init needed). init() wires a
+     * single delegated click listener for [data-act] triggers + the FAQ, an
+     * Escape-to-close handler, and a submit handler that intercepts the demo
+     * form (preventDefault in JS, not @submit.prevent). Mirrors InventoryDemo.
+     */
+    private function homeJs(): string
+    {
+        return <<<'JS'
+window.marketingApp = function () {
+  return {
+    navOpen: false,
+    demoOpen: false,
+    demoSent: false,
+    // Alpine auto-calls init(); the sanitizer strips inline @click/@submit, so
+    // behaviour is delegated here from [data-act] hooks (and the FAQ's data-faq).
+    init() {
+      var self = this;
+
+      // Delegated clicks: [data-act="method"] on this component's own buttons,
+      // and the FAQ single-open toggle (its own nested x-data holds `open`).
+      this.$el.addEventListener('click', function (e) {
+        var act = e.target.closest('[data-act]');
+        if (act && self.$el.contains(act)) {
+          var fn = self[act.getAttribute('data-act')];
+          if (typeof fn === 'function') { fn.call(self); return; }
+        }
+        var faq = e.target.closest('[data-faq]');
+        if (faq && self.$el.contains(faq)) {
+          self.toggleFaq(faq);
+        }
+      });
+
+      // Escape closes the mobile nav and the demo modal.
+      window.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { self.demoOpen = false; self.navOpen = false; }
+      });
+
+      // Contact form: intercept submit (no page reload), show the thank-you.
+      this.$el.addEventListener('submit', function (e) {
+        var form = e.target.closest('[data-demo-form]');
+        if (! form) { return; }
+        e.preventDefault();
+        self.demoSent = true;
+      });
+    },
+    toggleNav() { this.navOpen = ! this.navOpen; },
+    closeNav() { this.navOpen = false; },
+    openDemo() { this.demoSent = false; this.demoOpen = true; },
+    // Mobile "Book a demo": close the nav sheet, then open the modal.
+    openDemoFromNav() { this.navOpen = false; this.openDemo(); },
+    closeDemo() { this.demoOpen = false; },
+    // FAQ single-open accordion. The FAQ keeps its own x-data="{ open: 0 }"
+    // scope (declarative :class survives sanitizing); resolve it and toggle.
+    toggleFaq(btn) {
+      var n = parseInt(btn.getAttribute('data-faq'), 10) || 0;
+      var scope = window.Alpine && window.Alpine.$data ? window.Alpine.$data(btn) : null;
+      if (scope) { scope.open = (scope.open === n ? 0 : n); }
+    },
+  };
+};
+JS;
     }
 }
