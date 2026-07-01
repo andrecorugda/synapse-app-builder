@@ -25,6 +25,16 @@
             $pbCollections = [];
         }
         try {
+            // Saved flows feed the "Run Flow" step picker in transaction/loop bodies
+            // (a flow can compose other flows). The current flow is excluded in the
+            // editor to prevent direct self-reference.
+            $flowClass = config('ai-page-builder.models.flow', \Andre\AiPageBuilder\Models\Flow::class);
+            $pbFlows = $flowClass::query()->orderBy('name')->get()
+                ->map(fn ($f) => ['slug' => $f->slug, 'name' => $f->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbFlows = [];
+        }
+        try {
             $varClass = config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class);
             $pbVariables = $varClass::query()->orderBy('key')->get()
                 ->map(fn ($v) => ['key' => $v->key, 'name' => $v->key, 'type' => $v->type])->values()->all();
@@ -65,6 +75,7 @@
     @endphp
     <script>
         window.__pbFlowFunctions = @js($pbFlowFunctions);
+        window.__pbFlows = @js($pbFlows);
         window.__pbCollections = @js($pbCollections);
         window.__pbVariables = @js($pbVariables);
         window.__pbEmailTemplates = @js($pbEmailTemplates);
@@ -563,6 +574,132 @@
                 render();
             };
 
+            // ── Step-list builder for transaction / loop bodies ──────────────
+            // A body is a linear {start, nodes} sub-flow. Instead of raw JSON, edit it
+            // as an ordered, sortable list of STEPS. A step is a Function (reusable
+            // expression), a Flow (reusable sub-flow, current flow excluded), a Loop
+            // (for-each with its own nested step list), or — to preserve anything the
+            // list UI doesn't model yet — a raw node kept verbatim. The list compiles
+            // straight back to {start, nodes} (linear next-chaining), so the runtime is
+            // unchanged.
+            function pbDecompileBody(body) {
+                var steps = [];
+                if (! body || ! body.nodes) { return steps; }
+                var nodes = body.nodes, id = body.start, guard = 0;
+                while (id && nodes[id] && guard++ < 500) {
+                    var n = nodes[id], t = n.type || '', c = n.config || {};
+                    if (t === 'function') { steps.push({ kind: 'function', ref: c.function || '', args: c.args || {}, output: c.output || '' }); }
+                    else if (t === 'call_flow') { steps.push({ kind: 'flow', ref: c.flow || '', output: c.output || '' }); }
+                    else if (t === 'loop') { steps.push({ kind: 'loop', over: c.over || '', item_var: c.item_var || 'item', index_var: c.index_var || '', steps: pbDecompileBody(c.body || {}) }); }
+                    else { steps.push({ kind: 'node', type: t, config: c }); }
+                    var nx = n.next;
+                    id = Array.isArray(nx) ? nx[0] : nx;
+                }
+                return steps;
+            }
+            function pbCompileSteps(steps) {
+                var nodes = {}, start = null, prev = null;
+                (steps || []).forEach(function (s, i) {
+                    var id = 's' + i, node;
+                    if (s.kind === 'function') { node = { type: 'function', config: { function: s.ref || '', args: s.args || {}, output: s.output || '' } }; }
+                    else if (s.kind === 'flow') { node = { type: 'call_flow', config: { flow: s.ref || '', output: s.output || '' } }; }
+                    else if (s.kind === 'loop') { node = { type: 'loop', config: { over: s.over || '', item_var: s.item_var || 'item', index_var: s.index_var || '', body: pbCompileSteps(s.steps || []) } }; }
+                    else { node = { type: s.type || 'record', config: s.config || {} }; }
+                    if (start === null) { start = id; }
+                    if (prev !== null) { nodes[prev].next = [id]; }
+                    nodes[id] = node;
+                    prev = id;
+                });
+                return { start: start, nodes: nodes };
+            }
+            function pbFlowOptions() {
+                var flows = (window.__pbFlows || []).filter(function (f) { return f.slug !== window.__pbCurrentFlowSlug; });
+                return flows.map(function (f) { return '<option value="' + f.slug + '">' + (f.name || f.slug) + '</option>'; }).join('');
+            }
+            function pbFnOptions() {
+                return (window.__pbFlowFunctions || []).map(function (f) { return '<option value="' + f.slug + '">' + (f.name || f.slug) + '</option>'; }).join('');
+            }
+
+            // Render an editable step list into `mount`, persisting to onChange(steps).
+            function pbRenderStepList(mount, steps, onChange) {
+                function commit() { onChange(steps); render(); }
+                function render() {
+                    mount.innerHTML = '';
+                    steps.forEach(function (step, idx) {
+                        var card = document.createElement('div');
+                        card.className = 'ai-pb-step';
+                        var head = '<div class="ai-pb-step-head">'
+                            + '<span class="ai-pb-step-num">' + (idx + 1) + '</span>'
+                            + '<select class="ai-pb-step-kind">'
+                            +   '<option value="function"' + (step.kind === 'function' ? ' selected' : '') + '>ƒ Function</option>'
+                            +   '<option value="flow"' + (step.kind === 'flow' ? ' selected' : '') + '>⚙ Flow</option>'
+                            +   '<option value="loop"' + (step.kind === 'loop' ? ' selected' : '') + '>🔁 Loop</option>'
+                            +   (step.kind === 'node' ? '<option value="node" selected>▪ ' + (step.type || 'node') + '</option>' : '')
+                            + '</select>'
+                            + '<span style="flex:1 1 auto"></span>'
+                            + '<button type="button" class="ai-pb-step-btn" data-up title="Move up">↑</button>'
+                            + '<button type="button" class="ai-pb-step-btn" data-down title="Move down">↓</button>'
+                            + '<button type="button" class="ai-pb-step-btn ai-pb-step-del" data-del title="Remove">×</button>'
+                            + '</div>';
+                        var bodyHtml = '';
+                        if (step.kind === 'function') { bodyHtml = '<label class="ai-pb-node-label">Function</label><select data-ref>' + pbFnOptions() + '</select>'; }
+                        else if (step.kind === 'flow') { bodyHtml = '<label class="ai-pb-node-label">Flow (runs with shared context)</label><select data-ref>' + pbFlowOptions() + '</select>'; }
+                        else if (step.kind === 'loop') {
+                            bodyHtml = '<label class="ai-pb-node-label">For each item in</label><input type="text" data-over placeholder="input.cart_items" value="' + (step.over || '') + '" />'
+                                + '<label class="ai-pb-node-label">Item variable</label><input type="text" data-itemvar value="' + (step.item_var || 'item') + '" />'
+                                + '<div class="ai-pb-step-nested" data-nested></div>'
+                                + '<button type="button" class="ai-pb-action-add" data-addnested>+ Add step (per item)</button>';
+                        } else { bodyHtml = '<div class="ai-pb-step-raw">Advanced node — kept as-is</div>'; }
+                        card.innerHTML = head + bodyHtml;
+
+                        card.querySelector('.ai-pb-step-kind').addEventListener('change', function (e) {
+                            var k = e.target.value;
+                            if (k === 'function') { steps[idx] = { kind: 'function', ref: '', args: {}, output: '' }; }
+                            else if (k === 'flow') { steps[idx] = { kind: 'flow', ref: '', output: '' }; }
+                            else if (k === 'loop') { steps[idx] = { kind: 'loop', over: '', item_var: 'item', index_var: '', steps: [] }; }
+                            commit();
+                        });
+                        card.querySelector('[data-up]').addEventListener('click', function () { if (idx > 0) { var t = steps[idx - 1]; steps[idx - 1] = steps[idx]; steps[idx] = t; commit(); } });
+                        card.querySelector('[data-down]').addEventListener('click', function () { if (idx < steps.length - 1) { var t = steps[idx + 1]; steps[idx + 1] = steps[idx]; steps[idx] = t; commit(); } });
+                        card.querySelector('[data-del]').addEventListener('click', function () { steps.splice(idx, 1); commit(); });
+
+                        var refSel = card.querySelector('[data-ref]');
+                        if (refSel) { if (step.ref) { refSel.value = step.ref; } refSel.addEventListener('change', function () { step.ref = refSel.value; onChange(steps); }); }
+                        var over = card.querySelector('[data-over]'); if (over) { over.addEventListener('input', function () { step.over = over.value; onChange(steps); }); }
+                        var iv = card.querySelector('[data-itemvar]'); if (iv) { iv.addEventListener('input', function () { step.item_var = iv.value; onChange(steps); }); }
+                        var nested = card.querySelector('[data-nested]');
+                        if (nested) {
+                            if (! Array.isArray(step.steps)) { step.steps = []; }
+                            pbRenderStepList(nested, step.steps, function () { onChange(steps); });
+                            card.querySelector('[data-addnested]').addEventListener('click', function () { step.steps.push({ kind: 'function', ref: '', args: {}, output: '' }); commit(); });
+                        }
+                        mount.appendChild(card);
+                    });
+                    var add = document.createElement('button');
+                    add.type = 'button'; add.className = 'ai-pb-action-add'; add.textContent = '+ Add step';
+                    add.addEventListener('click', function () { steps.push({ kind: 'function', ref: '', args: {}, output: '' }); commit(); });
+                    mount.appendChild(add);
+                }
+                render();
+            }
+
+            // Wire a transaction/loop node's hidden df-body <textarea> to a step-list UI.
+            window.__pbStepBody = function (nodeEl) {
+                if (! nodeEl || nodeEl.__pbStepInit) { return; }
+                var hidden = nodeEl.querySelector('textarea[df-body]');
+                var mount = nodeEl.querySelector('[data-pb-steps-mount]');
+                if (! hidden || ! mount) { return; }
+                nodeEl.__pbStepInit = true;
+                var body;
+                try { body = JSON.parse(hidden.value || '{}'); } catch (e) { body = {}; }
+                var steps = pbDecompileBody(body);
+                pbRenderStepList(mount, steps, function (updated) {
+                    hidden.value = JSON.stringify(pbCompileSteps(updated));
+                    hidden.dispatchEvent(new Event('input', { bubbles: true }));
+                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            };
+
             /** Build the inner HTML for a Drawflow node by type. */
             function nodeHtml(type) {
                 switch (type) {
@@ -721,9 +858,10 @@
                     case 'transaction':
                         return '<div class="ai-pb-node" data-node-type="transaction">'
                             + '<div class="ai-pb-node-title">&#128274; Transaction</div>'
-                            + '<span style="font-size:0.7rem;color:#94a3b8;">Runs its body atomically — all writes commit together, or all roll back on any error.</span>'
-                            + '<label class="ai-pb-node-label">Body (sub-flow JSON: {start, nodes})</label>'
-                            + '<textarea df-body placeholder=\'{"start":"mk","nodes":{"mk":{"type":"record","config":{}}}}\'></textarea>'
+                            + '<span style="font-size:0.7rem;color:#94a3b8;">Runs these steps atomically — all commit together, or all roll back on any error.</span>'
+                            + '<label class="ai-pb-node-label">Steps (run in order)</label>'
+                            + '<div class="ai-pb-steps" data-pb-steps-mount></div>'
+                            + '<textarea df-body style="display:none"></textarea>'
                             + '<div style="display:flex;gap:1rem;font-size:0.67rem;margin-top:0.2rem;">'
                             + '<span style="color:#22c55e;">&#9679; output_1 = committed</span>'
                             + '<span style="color:#f87171;">&#9679; output_2 = rolled back</span>'
@@ -733,14 +871,15 @@
                     case 'loop':
                         return '<div class="ai-pb-node" data-node-type="loop">'
                             + '<div class="ai-pb-node-title">&#128260; Loop</div>'
-                            + '<label class="ai-pb-node-label">Over (path to a list)</label>'
+                            + '<label class="ai-pb-node-label">For each item in</label>'
                             + '<input type="text" df-over placeholder="input.cart_items" />'
                             + '<label class="ai-pb-node-label">Item variable</label>'
                             + '<input type="text" df-item_var placeholder="item" />'
                             + '<label class="ai-pb-node-label">Index variable (optional)</label>'
                             + '<input type="text" df-index_var placeholder="index" />'
-                            + '<label class="ai-pb-node-label">Body (sub-flow JSON: {start, nodes})</label>'
-                            + '<textarea df-body placeholder=\'{"start":"line","nodes":{"line":{"type":"record","config":{}}}}\'></textarea>'
+                            + '<label class="ai-pb-node-label">Steps (run once per item)</label>'
+                            + '<div class="ai-pb-steps" data-pb-steps-mount></div>'
+                            + '<textarea df-body style="display:none"></textarea>'
                             + '</div>';
 
                     default:
@@ -1139,6 +1278,9 @@
                 },
 
                 boot() {
+                    // Expose the current flow's slug so the Run-Flow step picker can
+                    // exclude it (no direct self-reference).
+                    window.__pbCurrentFlowSlug = (config && config.currentFlowSlug) || null;
                     const start = () => {
                         if (! window.Drawflow) { return setTimeout(start, 50); }
                         this.init();
@@ -1170,6 +1312,11 @@
                     var nodes = root.querySelectorAll('.ai-pb-node[data-node-type="result"]');
                     for (var i = 0; i < nodes.length; i++) {
                         if (window.__pbResultActions) { window.__pbResultActions(nodes[i]); }
+                    }
+                    // Transaction / loop bodies → step-list UI.
+                    var bodies = root.querySelectorAll('.ai-pb-node[data-node-type="transaction"], .ai-pb-node[data-node-type="loop"]');
+                    for (var k = 0; k < bodies.length; k++) {
+                        if (window.__pbStepBody) { window.__pbStepBody(bodies[k]); }
                     }
                 },
 

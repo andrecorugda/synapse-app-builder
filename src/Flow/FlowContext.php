@@ -39,6 +39,16 @@ class FlowContext
     /** Id of the node whose failure went unhandled (if any). */
     public ?string $failedNode = null;
 
+    /**
+     * Call stack of flow slugs currently executing, used by {@see CallFlowNode}
+     * to detect direct and indirect cycles (A→A, A→B→A) before running a
+     * referenced sub-flow. The shared `flow.max_steps` budget is the primary
+     * runaway guard; this list is a cheap, explicit cycle detector.
+     *
+     * @var array<int,string>
+     */
+    public array $callStack = [];
+
     /** @param array<string,mixed> $input */
     public function __construct(public array $input = []) {}
 
