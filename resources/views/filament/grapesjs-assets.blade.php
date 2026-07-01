@@ -176,6 +176,16 @@
                     this.$wire.set(config.statePath, { ...all, ...patch }, false); // deferred
                 },
 
+                // Livewire path of the sibling `custom_css` form field. Filament
+                // nests form state under a wrapper (e.g. `data.project_data` for the
+                // editor field), so custom_css lives at the same prefix
+                // (`data.custom_css`) — NOT the bare name. Replacing the last
+                // dotted segment derives it from the editor's own state path.
+                cssStatePath() {
+                    const p = config.statePath || '';
+                    return p.indexOf('.') !== -1 ? p.replace(/[^.]+$/, 'custom_css') : 'custom_css';
+                },
+
                 init() {
                     if (this.editor) { return; }
                     this.$refs.blocks.innerHTML = '';
@@ -359,7 +369,12 @@
                                 doc.head.appendChild(fs);
                             }
                             const s = doc.createElement('style');
-                            s.innerHTML = '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
+                            // Base reset + THEME FONT on the canvas body, matching the
+                            // rendered page. Injected after GrapesJS's own canvas CSS so
+                            // the theme font (var(--pb-font)) wins over GrapesJS's default
+                            // — otherwise the editor previews in the wrong typeface.
+                            s.innerHTML = 'html,body{font-family:var(--pb-font,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif)}body{margin:0}'
+                                + '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
                             doc.head.appendChild(s);
                             // Inject the page's custom_css into the canvas so the
                             // visual editor matches the real rendered page (WYSIWYG).
@@ -367,7 +382,7 @@
                             // so it wins over component rules, matching render order.
                             const cs = doc.createElement('style');
                             cs.id = 'pb-custom-css';
-                            cs.textContent = this.$wire.get('custom_css') || '';
+                            cs.textContent = this.$wire.get(this.cssStatePath()) || '';
                             doc.head.appendChild(cs);
                         } catch (e) { /* no-op */ }
 
@@ -380,7 +395,7 @@
                         // own deferred set has settled.
                         let pbCustomCssT = null;
                         try {
-                            this.$wire.$watch('custom_css', (val) => {
+                            this.$wire.$watch(this.cssStatePath(), (val) => {
                                 clearTimeout(pbCustomCssT);
                                 pbCustomCssT = setTimeout(() => {
                                     try {

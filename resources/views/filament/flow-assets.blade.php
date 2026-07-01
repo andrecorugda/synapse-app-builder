@@ -577,6 +577,31 @@
                             + '<textarea df-actions placeholder=\'[{"type":"notify","message":"Done"}]\'></textarea>'
                             + '</div>';
 
+                    case 'transaction':
+                        return '<div class="ai-pb-node" data-node-type="transaction">'
+                            + '<div class="ai-pb-node-title">&#128274; Transaction</div>'
+                            + '<span style="font-size:0.7rem;color:#94a3b8;">Runs its body atomically — all writes commit together, or all roll back on any error.</span>'
+                            + '<label class="ai-pb-node-label">Body (sub-flow JSON: {start, nodes})</label>'
+                            + '<textarea df-body placeholder=\'{"start":"mk","nodes":{"mk":{"type":"record","config":{}}}}\'></textarea>'
+                            + '<div style="display:flex;gap:1rem;font-size:0.67rem;margin-top:0.2rem;">'
+                            + '<span style="color:#22c55e;">&#9679; output_1 = committed</span>'
+                            + '<span style="color:#f87171;">&#9679; output_2 = rolled back</span>'
+                            + '</div>'
+                            + '</div>';
+
+                    case 'loop':
+                        return '<div class="ai-pb-node" data-node-type="loop">'
+                            + '<div class="ai-pb-node-title">&#128260; Loop</div>'
+                            + '<label class="ai-pb-node-label">Over (path to a list)</label>'
+                            + '<input type="text" df-over placeholder="input.cart_items" />'
+                            + '<label class="ai-pb-node-label">Item variable</label>'
+                            + '<input type="text" df-item_var placeholder="item" />'
+                            + '<label class="ai-pb-node-label">Index variable (optional)</label>'
+                            + '<input type="text" df-index_var placeholder="index" />'
+                            + '<label class="ai-pb-node-label">Body (sub-flow JSON: {start, nodes})</label>'
+                            + '<textarea df-body placeholder=\'{"start":"line","nodes":{"line":{"type":"record","config":{}}}}\'></textarea>'
+                            + '</div>';
+
                     default:
                         return '<div class="ai-pb-node"><span>' + type + '</span></div>';
                 }
@@ -587,7 +612,9 @@
              * Inputs: all nodes except trigger have 1 input.
              */
             function nodeOutputCount(type) {
-                return type === 'condition' ? 2 : 1;
+                // condition → next_true / next_false; transaction → committed /
+                // rolled_back. Everything else has a single "next" output.
+                return (type === 'condition' || type === 'transaction') ? 2 : 1;
             }
 
             function nodeInputCount(type) {
@@ -633,6 +660,10 @@
                         return { left: config.left || '', op: config.op || 'equals', right: config.right || '' };
                     case 'result':
                         return { actions: jsonStr(config.actions) };
+                    case 'transaction':
+                        return { body: jsonStr(config.body) };
+                    case 'loop':
+                        return { over: config.over || '', item_var: config.item_var || 'item', index_var: config.index_var || '', body: jsonStr(config.body) };
                     default:
                         return {};
                 }
@@ -659,7 +690,7 @@
                 while (queue.length) {
                     const item = queue.shift();
                     const n = nodes[item[0]] || {};
-                    const outs = [].concat(n.next || [], n.next_true || [], n.next_false || []);
+                    const outs = [].concat(n.next || [], n.next_true || [], n.next_false || [], n.committed || [], n.rolled_back || []);
                     outs.forEach((t) => {
                         t = String(t);
                         if (nodes[t] && depth[t] === undefined) { depth[t] = item[1] + 1; queue.push([t, item[1] + 1]); }
@@ -689,16 +720,28 @@
                     const n = nodes[defId] || {};
                     const from = idMap[defId];
                     const link = (targets, outClass) => {
-                        (targets || []).forEach((t) => {
+                        // `next`/`next_true`/… may be a single string ("node") or an
+                        // array (["a","b"]); [].concat normalises both so a bare
+                        // string never throws on .forEach (which silently killed ALL
+                        // wiring — an AI-generated flow renders its nodes with no
+                        // connection lines at all).
+                        [].concat(targets || []).forEach((t) => {
                             const to = idMap[String(t)];
                             if (from != null && to != null) {
                                 try { editor.addConnection(from, to, outClass, 'input_1'); } catch (_) {}
                             }
                         });
                     };
-                    if ((n.type || '') === 'condition') {
+                    const type = n.type || '';
+                    if (type === 'condition') {
                         link(n.next_true, 'output_1');
                         link(n.next_false, 'output_2');
+                    } else if (type === 'transaction') {
+                        // committed → output_1, rolled_back → output_2; a plain `next`
+                        // (transaction with no explicit branches) also uses output_1.
+                        link(n.committed, 'output_1');
+                        link(n.next, 'output_1');
+                        link(n.rolled_back, 'output_2');
                     } else {
                         link(n.next, 'output_1');
                     }
@@ -803,6 +846,19 @@
                         case 'result':
                             config = { actions: parseJson(data.actions, []) };
                             break;
+                        case 'transaction':
+                            // Preserve the nested body sub-flow — without this the
+                            // atomic body (the real work) is wiped on every save.
+                            config = { body: parseJson(data.body, {}) };
+                            break;
+                        case 'loop':
+                            config = {
+                                over: data.over || '',
+                                item_var: data.item_var || 'item',
+                                body: parseJson(data.body, {}),
+                            };
+                            if (data.index_var) { config.index_var = data.index_var; }
+                            break;
                         default:
                             config = {};
                     }
@@ -813,20 +869,12 @@
                     const nextTrue = [];
                     const nextFalse = [];
 
-                    if (type === 'condition') {
-                        const out1 = outputs['output_1'] && outputs['output_1'].connections
-                            ? outputs['output_1'].connections
-                            : [];
-                        const out2 = outputs['output_2'] && outputs['output_2'].connections
-                            ? outputs['output_2'].connections
-                            : [];
-                        out1.forEach((c) => { if (c.node) { nextTrue.push(String(c.node)); } });
-                        out2.forEach((c) => { if (c.node) { nextFalse.push(String(c.node)); } });
+                    const conns = (out) => (outputs[out] && outputs[out].connections ? outputs[out].connections : []);
+                    if (type === 'condition' || type === 'transaction') {
+                        conns('output_1').forEach((c) => { if (c.node) { nextTrue.push(String(c.node)); } });
+                        conns('output_2').forEach((c) => { if (c.node) { nextFalse.push(String(c.node)); } });
                     } else {
-                        const out1 = outputs['output_1'] && outputs['output_1'].connections
-                            ? outputs['output_1'].connections
-                            : [];
-                        out1.forEach((c) => { if (c.node) { next.push(String(c.node)); } });
+                        conns('output_1').forEach((c) => { if (c.node) { next.push(String(c.node)); } });
                     }
 
                     const defNode = { type, config };
@@ -834,6 +882,10 @@
                     if (type === 'condition') {
                         defNode.next_true = nextTrue;
                         defNode.next_false = nextFalse;
+                    } else if (type === 'transaction') {
+                        // output_1 → committed, output_2 → rolled_back.
+                        defNode.committed = nextTrue;
+                        defNode.rolled_back = nextFalse;
                     } else {
                         defNode.next = next;
                     }
@@ -844,6 +896,21 @@
                         startId = String(id);
                     }
                 });
+
+                // Entry point: prefer an explicit trigger; otherwise the node with
+                // no incoming connection (the graph root); otherwise the first node.
+                // Without this a flow that starts at a condition/transaction (no
+                // trigger node — the common AI shape) lost its `start` on save and
+                // the whole flow became unrunnable ("entry point gone").
+                if (startId === null) {
+                    const targets = new Set();
+                    Object.values(defNodes).forEach((dn) => {
+                        [].concat(dn.next || [], dn.next_true || [], dn.next_false || [], dn.committed || [], dn.rolled_back || [])
+                            .forEach((t) => targets.add(String(t)));
+                    });
+                    const roots = Object.keys(defNodes).filter((id) => ! targets.has(String(id)));
+                    startId = roots[0] || Object.keys(defNodes)[0] || null;
+                }
 
                 return {
                     start: startId,
@@ -996,6 +1063,11 @@
                     if (existing && existing._canvas) {
                         try {
                             editor.import(existing._canvas);
+                            // import() fires no node/connection events, so re-sync
+                            // once to re-normalise the definition (recompute `start`,
+                            // preserve transaction/loop bodies) — self-heals a flow
+                            // saved by an older, lossy version of this editor.
+                            this.sync();
                         } catch (_) {
                             editor.addNode('trigger', 0, 1, 100, 100, 'trigger', {}, nodeHtml('trigger'), false);
                         }

@@ -21,7 +21,7 @@
         {{-- Global theme tokens (brand colours/fonts/shape) — pages reference var(--pb-*). --}}
         {!! app(\Andre\AiPageBuilder\Services\Theme::class)->css() !!}
         *, *::before, *::after { box-sizing: border-box; }
-        body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        body { margin: 0; font-family: var(--pb-font, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); }
         [x-cloak] { display: none !important; }
 
         /* Section colour overlays (the builder's --pb-overlay style property). */
