@@ -165,6 +165,12 @@ Both actions go through `RecordQuery`, so validation, column mapping and permiss
 
 An image field in a form is a `<input type="file" accept="image/*">`. On file selection the runtime immediately uploads the file to `POST /pb-upload` (see [Public upload endpoint](#public-upload-endpoint)) and puts the returned URL into a hidden input. The form then submits the URL string as the field value — the collection stores a plain URL, no binary data.
 
+**Displaying images.** The stored URL renders as an image wherever the value flows:
+
+- **Auto data table** — a cell whose value looks like an image URL (`.png/.jpg/.jpeg/.gif/.webp/.svg/.avif`) renders as a small thumbnail `<img>` instead of raw URL text.
+- **Record picker** — set `data-pb-image-field` (default `image`) and `data-pb-price-field` (default `price`); each tile then shows the record's image thumbnail and price above the label, and every pick carries `{id, label, image, qty, price}` into the target cart state (so a cart/grid can show the image too). This is how a POS product picker shows each product's photo and price.
+- **Curated pages** — bind `<img :src="row.<field>">` in an `x-for` to place the image exactly where you want it.
+
 ## Public upload endpoint
 
 `POST /pb-upload` — a gated endpoint for image uploads from generated forms.
