@@ -58,6 +58,10 @@
     <script>
         window.__pbState = @js($state ?? []);
         window.__pbApiBase = '{{ url(config('ai-page-builder.data.api_prefix', 'api/pb')) }}';
+        {{-- The page currently being rendered. A shared nav partial reads this to
+             auto-mark its own link (is-active) — see flow-runtime's [data-pb-page]
+             loop — so nav markup never hardcodes which link is active. --}}
+        window.__pbCurrentSlug = @js((string) $page->slug);
         document.addEventListener('alpine:init', function () {
             window.Alpine.store('app', Object.assign({}, window.__pbState));
 

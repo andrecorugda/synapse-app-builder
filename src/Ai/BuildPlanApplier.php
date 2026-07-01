@@ -7,6 +7,7 @@ namespace Andre\AiPageBuilder\Ai;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\Partial;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
@@ -42,7 +43,7 @@ class BuildPlanApplier
 
     /**
      * @param  array<string,mixed>  $plan
-     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>,settings:list<string>},errors:list<string>}
+     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>,partials:list<string>,settings:list<string>},errors:list<string>}
      */
     public function apply(array $plan, bool $dryRun = false): array
     {
@@ -55,6 +56,7 @@ class BuildPlanApplier
                 'functions' => [],
                 'flows' => [],
                 'pages' => [],
+                'partials' => [],
                 'settings' => [],
             ],
             'errors' => [],
@@ -92,6 +94,7 @@ class BuildPlanApplier
         $this->applyFunctions($build, $summary);
         $this->applyFlows($build, $summary);
         $this->applyPages($build, $summary);
+        $this->applyPartials($build, $summary);
         $this->applySettings($build, $summary);
 
         return $summary;
@@ -127,6 +130,11 @@ class BuildPlanApplier
         foreach ($build->pages() as $p) {
             if (is_string($p['slug'] ?? null)) {
                 $summary['created']['pages'][] = $p['slug'];
+            }
+        }
+        foreach ($build->partials() as $p) {
+            if (is_string($p['slug'] ?? null)) {
+                $summary['created']['partials'][] = $p['slug'];
             }
         }
         $home = $build->settings()['home_page'] ?? null;
@@ -367,6 +375,51 @@ class BuildPlanApplier
                 $summary['created']['pages'][] = $slug;
             } catch (Throwable $e) {
                 $summary['errors'][] = "pages[{$i}] ('{$slug}'): ".$e->getMessage();
+            }
+        }
+    }
+
+    /**
+     * Apply the plan's `partials` list — reusable chrome (nav / header / footer)
+     * embedded on pages via `<div data-pb-partial="<slug>"></div>`. Mirrors
+     * applyPages(): upsert by slug, sanitize `html` (AI output is untrusted),
+     * keep custom_css/custom_js raw (owner-owned styling/behaviour channels).
+     *
+     * @param  array{created:array<string,list<string>>,errors:list<string>}  $summary
+     */
+    private function applyPartials(BuildPlan $build, array &$summary): void
+    {
+        foreach ($build->partials() as $i => $partial) {
+            $slug = $partial['slug'] ?? null;
+            if (! is_string($slug) || $slug === '') {
+                $summary['errors'][] = "partials[{$i}]: missing slug.";
+
+                continue;
+            }
+
+            try {
+                $html = is_string($partial['html'] ?? null) ? $partial['html'] : '';
+
+                // Same channel discipline as pages: lift any inlined <style> into
+                // custom_css and drop inline <script> before sanitizing the html.
+                $customCss = is_string($partial['custom_css'] ?? null) ? $partial['custom_css'] : '';
+                $customJs = is_string($partial['custom_js'] ?? null) ? $partial['custom_js'] : '';
+                [$html, $liftedCss] = $this->liftInlineAssets($html);
+                $customCss = trim($customCss."\n".$liftedCss);
+
+                Partial::query()->updateOrCreate(
+                    ['slug' => $slug],
+                    [
+                        'name' => (string) ($partial['name'] ?? $slug),
+                        'html' => $this->sanitizer->sanitize($html),
+                        'css' => is_string($partial['css'] ?? null) ? $partial['css'] : null,
+                        'custom_css' => $customCss !== '' ? $customCss : null,
+                        'custom_js' => $customJs !== '' ? $customJs : null,
+                    ],
+                );
+                $summary['created']['partials'][] = $slug;
+            } catch (Throwable $e) {
+                $summary['errors'][] = "partials[{$i}] ('{$slug}'): ".$e->getMessage();
             }
         }
     }

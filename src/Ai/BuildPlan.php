@@ -21,6 +21,7 @@ final readonly class BuildPlan
      * @param  PlanList  $functions
      * @param  PlanList  $flows
      * @param  PlanList  $pages
+     * @param  PlanList  $partials
      * @param  array<string,mixed>  $settings  App-level config (e.g. home_page).
      */
     public function __construct(
@@ -29,6 +30,7 @@ final readonly class BuildPlan
         public array $functions = [],
         public array $flows = [],
         public array $pages = [],
+        public array $partials = [],
         public array $settings = [],
     ) {}
 
@@ -43,6 +45,7 @@ final readonly class BuildPlan
             functions: self::list($plan, 'functions'),
             flows: self::list($plan, 'flows'),
             pages: self::list($plan, 'pages'),
+            partials: self::list($plan, 'partials'),
             settings: is_array($plan['settings'] ?? null) ? $plan['settings'] : [],
         );
     }
@@ -77,6 +80,12 @@ final readonly class BuildPlan
         return $this->pages;
     }
 
+    /** @return PlanList */
+    public function partials(): array
+    {
+        return $this->partials;
+    }
+
     /** @return array<string,mixed> */
     public function settings(): array
     {
@@ -94,6 +103,7 @@ final readonly class BuildPlan
             'functions' => $this->functions,
             'flows' => $this->flows,
             'pages' => $this->pages,
+            'partials' => $this->partials,
             'settings' => $this->settings,
         ];
     }
