@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Ai\HtmlSanitizer;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
@@ -142,7 +143,7 @@ it('does not move an inline <script> body into custom_js on the AI/import path',
 // ---------------------------------------------------------------------------
 
 it('strips SVG SMIL animation tags that can animate an href to javascript:', function (): void {
-    $s = new \Andre\AiPageBuilder\Ai\HtmlSanitizer();
+    $s = new HtmlSanitizer;
 
     $animate = $s->sanitize('<svg><a><animate attributeName="href" values="javascript:alert(1)"/><text>x</text></a></svg>');
     $set = $s->sanitize('<svg><a><set attributeName="href" to="javascript:alert(1)"/><text>x</text></a></svg>');
@@ -165,7 +166,7 @@ it('strips SVG SMIL animation tags that can animate an href to javascript:', fun
 });
 
 it('blocks data:image/svg+xml URIs while keeping raster image data URIs', function (): void {
-    $s = new \Andre\AiPageBuilder\Ai\HtmlSanitizer();
+    $s = new HtmlSanitizer;
 
     // SVG is a scriptable document type — svg+xml data URIs are dropped in both
     // src and href positions.

@@ -804,6 +804,7 @@ CSS;
     /**
      * The page's behaviour, emitted RAW in the page's custom_js channel — never
      * inline in the HTML, where the AI HtmlSanitizer strips @click / @keydown /
+     *
      * @submit. `window.marketingApp()` is the root component (x-data="marketingApp()");
      * Alpine calls its init() automatically (no x-init needed). init() wires a
      * single delegated click listener for [data-act] triggers + the FAQ, an

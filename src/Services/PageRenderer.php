@@ -308,8 +308,8 @@ class PageRenderer
         /** @var class-string<Model> $pageModel */
         $pageModel = config('ai-page-builder.models.page', Page::class);
 
-        $pageModel::query()->select('slug')->get()
-            ->each(fn ($p) => $this->forget((string) $p->slug));
+        $pageModel::query()->pluck('slug')
+            ->each(fn ($slug) => $this->forget((string) $slug));
     }
 
     private function cacheKey(string $slug): string

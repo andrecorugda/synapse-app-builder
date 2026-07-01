@@ -205,6 +205,7 @@ final class BlockVocabulary
      *
      * OWNER-authored blocks that nonetheless survive the AI {@see HtmlSanitizer}
      * unchanged: the sanitizer STRIPS executable Alpine (@click / @keydown /
+     *
      * @mouseenter / x-on: / x-init), so these blocks carry NO inline handlers.
      * Local reactive state stays in DECLARATIVE Alpine (x-data / x-show / x-bind
      * / x-transition), and every action is DELEGATED through data-pb-* hooks
