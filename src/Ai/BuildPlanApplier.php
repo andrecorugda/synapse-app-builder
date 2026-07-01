@@ -14,6 +14,8 @@ use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\Settings;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Throwable;
 
 /**
@@ -344,18 +346,22 @@ class BuildPlanApplier
      * function/collection" impossible once a same-slug row had been trashed). This
      * finds the row trashed-or-not, fills it, un-deletes it, and saves.
      *
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  class-string<Model>  $modelClass
      * @param  array<string,mixed>  $match
      * @param  array<string,mixed>  $values
      */
-    private function upsertWithTrashed(string $modelClass, array $match, array $values): \Illuminate\Database\Eloquent\Model
+    private function upsertWithTrashed(string $modelClass, array $match, array $values): Model
     {
-        $softDeletes = in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($modelClass), true);
+        $softDeletes = in_array(SoftDeletes::class, class_uses_recursive($modelClass), true);
+        // withTrashed()/getDeletedAtColumn() are SoftDeletes-trait methods, guarded
+        // here by $softDeletes — phpstan only sees the base Model, so ignore.
+        /** @phpstan-ignore-next-line staticMethod.notFound */
         $query = $softDeletes ? $modelClass::withTrashed() : $modelClass::query();
-        /** @var \Illuminate\Database\Eloquent\Model $model */
+        /** @var Model $model */
         $model = $query->firstOrNew($match);
         $model->fill($values);
         if ($softDeletes && $model->exists && method_exists($model, 'trashed') && $model->trashed()) {
+            /** @phpstan-ignore-next-line method.notFound */
             $model->{$model->getDeletedAtColumn()} = null;
         }
         $model->save();

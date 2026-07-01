@@ -165,6 +165,24 @@ class PbModelResource extends Resource
                             ->content('For an external collection you define Fields to DESCRIBE the existing columns (used for projection, casts and display) — the app will not create them.')
                             ->columnSpanFull(),
 
+                        // The field used as this collection's human label wherever
+                        // one column stands in for a row (relation display, picker
+                        // tiles, filter options). Options are the collection's OWN
+                        // field keys. Left blank → PbModel::displayField() infers one
+                        // from field type (first string/text, else id) — never a
+                        // magic name.
+                        Forms\Components\Select::make('display_field')
+                            ->label('Display field')
+                            ->options(fn (?PbModel $record): array => $record
+                                ? $record->fields()->orderBy('sort')->pluck('label', 'key')->all()
+                                : [])
+                            ->native(false)
+                            ->searchable()
+                            ->nullable()
+                            ->placeholder('Auto (first text field)')
+                            ->helperText('Label shown when one column represents a row (relations, pickers). Blank = inferred from field type.')
+                            ->columnSpan(2),
+
                         Forms\Components\Textarea::make('description')
                             ->rows(2)
                             ->maxLength(500)
