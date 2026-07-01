@@ -80,6 +80,16 @@ class AiPageBuilderPlugin implements Plugin
         if ($groups !== []) {
             $panel->navigationGroups($groups);
         }
+
+        // Give every Synapse page more room — long forms (Pages, Records) and the
+        // flow canvas all benefit from the extra width. Uniform across the panel via
+        // one setting; a host can dial it back (or null it) through config. Passed as
+        // a STRING (maxContentWidth accepts Width|string|null) so it works whether the
+        // installed Filament exposes the enum as MaxWidth (v3) or Width (v4+).
+        $maxWidth = config('ai-page-builder.filament.max_content_width', 'full');
+        if ($maxWidth) {
+            $panel->maxContentWidth((string) $maxWidth);
+        }
     }
 
     public function boot(Panel $panel): void
