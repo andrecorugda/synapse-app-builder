@@ -99,6 +99,33 @@ class SchemaSynchronizer
         });
     }
 
+    /**
+     * Drop a specific column for an EXPLICIT user action (e.g. deleting a field in
+     * the admin). Unlike {@see dropRemovedColumns} — the cautious auto-sync path
+     * gated behind `data.allow_destructive_sync` so the AI/programmatic sync can
+     * never silently lose data — this is a deliberate, named removal, so it runs
+     * regardless of that flag. Still refuses system columns and external tables.
+     * No-op if the column isn't there (already gone / never created).
+     */
+    public function dropColumnFor(PbModel $model, string $columnName): void
+    {
+        if ($model->isExternal() || $columnName === '') {
+            return;
+        }
+        if (in_array($columnName, ['id', 'created_at', 'updated_at', 'deleted_at'], true)) {
+            return;
+        }
+
+        $builder = $this->builder();
+        if (! $builder->hasTable($model->table_name) || ! $builder->hasColumn($model->table_name, $columnName)) {
+            return;
+        }
+
+        $builder->table($model->table_name, function (Blueprint $table) use ($columnName): void {
+            $table->dropColumn($columnName);
+        });
+    }
+
     public function dropTable(PbModel $model): void
     {
         // Never drop a table the package doesn't own.
