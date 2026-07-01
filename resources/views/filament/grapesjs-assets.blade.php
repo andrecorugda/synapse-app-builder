@@ -361,7 +361,41 @@
                             const s = doc.createElement('style');
                             s.innerHTML = '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
                             doc.head.appendChild(s);
+                            // Inject the page's custom_css into the canvas so the
+                            // visual editor matches the real rendered page (WYSIWYG).
+                            // A dedicated <style id="pb-custom-css"> is appended last
+                            // so it wins over component rules, matching render order.
+                            const cs = doc.createElement('style');
+                            cs.id = 'pb-custom-css';
+                            cs.textContent = this.$wire.get('custom_css') || '';
+                            doc.head.appendChild(cs);
                         } catch (e) { /* no-op */ }
+
+                        // Live update: watch the custom_css Livewire state and push
+                        // changes into the canvas <style> without a full reload.
+                        // $wire.$watch fires whenever Livewire syncs the property,
+                        // which happens ~300 ms after the Ace editor's change event
+                        // calls $wire.set('custom_css', …, false). The debounce here
+                        // guards against rapid keystrokes arriving before Livewire's
+                        // own deferred set has settled.
+                        let pbCustomCssT = null;
+                        try {
+                            this.$wire.$watch('custom_css', (val) => {
+                                clearTimeout(pbCustomCssT);
+                                pbCustomCssT = setTimeout(() => {
+                                    try {
+                                        const doc = editor.Canvas.getDocument();
+                                        let el = doc.getElementById('pb-custom-css');
+                                        if (! el) {
+                                            el = doc.createElement('style');
+                                            el.id = 'pb-custom-css';
+                                            doc.head.appendChild(el);
+                                        }
+                                        el.textContent = val || '';
+                                    } catch (e) { /* canvas not ready */ }
+                                }, 300);
+                            });
+                        } catch (e) { /* $wire.$watch unavailable in this context */ }
                     });
 
                     // Entrance-animation trait, offered on every selected component
