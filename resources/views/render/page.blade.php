@@ -118,7 +118,11 @@
                     load: function () {
                         var self = this;
                         self.loading = true; self.error = false;
-                        fetch(API_BASE + '/' + collection + '?page=' + self.page + '&per_page=' + self.perPage, { headers: { Accept: 'application/json' } })
+                        // The auto table expands relations (expand=*) so a foreign key
+                        // renders as the related record's NAME, not a raw id. Curated
+                        // tables bind their own fields and are left untouched.
+                        var q = '?page=' + self.page + '&per_page=' + self.perPage + (self._auto ? '&expand=*' : '');
+                        fetch(API_BASE + '/' + collection + q, { headers: { Accept: 'application/json' } })
                             .then(function (r) { return r.json(); })
                             .then(function (d) {
                                 self.rows = (d && d.data) || [];
@@ -134,10 +138,21 @@
                         var human = function (k) { return k.replace(/_id$/, '').replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); }); };
                         var cell = function (v) { return (v && typeof v === 'object') ? (v.name || v.label || v.title || JSON.stringify(v)) : v; };
                         if (! this.rows.length) { this.$el.innerHTML = '<p class="pb-table__empty" style="padding:1rem;color:#64748b;font-family:inherit;">No records yet.</p>'; return; }
-                        var keys = Object.keys(this.rows[0]).filter(function (k) { return k !== 'created_at' && k !== 'updated_at' && k !== 'deleted_at'; });
+                        var row0 = this.rows[0];
+                        // A relation fk `x_id` is expanded onto a sibling `x` (object).
+                        // Drop the sibling as its own column and render the related NAME
+                        // in the `x_id` cell instead of the raw id.
+                        var keys = Object.keys(row0).filter(function (k) {
+                            if (k === 'created_at' || k === 'updated_at' || k === 'deleted_at') { return false; }
+                            return ! Object.prototype.hasOwnProperty.call(row0, k + '_id'); // hide expansion sibling
+                        });
+                        var display = function (row, k) {
+                            if (/_id$/.test(k)) { var sib = row[k.replace(/_id$/, '')]; if (sib && typeof sib === 'object') { return cell(sib); } }
+                            return cell(row[k]);
+                        };
                         var th = keys.map(function (k) { return '<th style="padding:.6rem .9rem;text-align:left;border-bottom:1px solid #e2e8f0;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:#64748b;">' + esc(human(k)) + '</th>'; }).join('');
                         var body = this.rows.map(function (row) {
-                            return '<tr style="border-bottom:1px solid #f1f5f9;">' + keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + esc(cell(row[k])) + '</td>'; }).join('') + '</tr>';
+                            return '<tr style="border-bottom:1px solid #f1f5f9;">' + keys.map(function (k) { return '<td style="padding:.6rem .9rem;color:#0f172a;">' + esc(display(row, k)) + '</td>'; }).join('') + '</tr>';
                         }).join('');
                         this.$el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:.9rem;background:#fff;border:1px solid #e2e8f0;border-radius:.6rem;overflow:hidden;"><thead style="background:#f8fafc;"><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table>';
                     },
