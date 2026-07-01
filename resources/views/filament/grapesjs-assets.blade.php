@@ -176,6 +176,16 @@
                     this.$wire.set(config.statePath, { ...all, ...patch }, false); // deferred
                 },
 
+                // Livewire path of the sibling `custom_css` form field. Filament
+                // nests form state under a wrapper (e.g. `data.project_data` for the
+                // editor field), so custom_css lives at the same prefix
+                // (`data.custom_css`) — NOT the bare name. Replacing the last
+                // dotted segment derives it from the editor's own state path.
+                cssStatePath() {
+                    const p = config.statePath || '';
+                    return p.indexOf('.') !== -1 ? p.replace(/[^.]+$/, 'custom_css') : 'custom_css';
+                },
+
                 init() {
                     if (this.editor) { return; }
                     this.$refs.blocks.innerHTML = '';
@@ -367,7 +377,7 @@
                             // so it wins over component rules, matching render order.
                             const cs = doc.createElement('style');
                             cs.id = 'pb-custom-css';
-                            cs.textContent = this.$wire.get('custom_css') || '';
+                            cs.textContent = this.$wire.get(this.cssStatePath()) || '';
                             doc.head.appendChild(cs);
                         } catch (e) { /* no-op */ }
 
@@ -380,7 +390,7 @@
                         // own deferred set has settled.
                         let pbCustomCssT = null;
                         try {
-                            this.$wire.$watch('custom_css', (val) => {
+                            this.$wire.$watch(this.cssStatePath(), (val) => {
                                 clearTimeout(pbCustomCssT);
                                 pbCustomCssT = setTimeout(() => {
                                     try {

@@ -587,7 +587,9 @@
              * Inputs: all nodes except trigger have 1 input.
              */
             function nodeOutputCount(type) {
-                return type === 'condition' ? 2 : 1;
+                // condition → next_true / next_false; transaction → committed /
+                // rolled_back. Everything else has a single "next" output.
+                return (type === 'condition' || type === 'transaction') ? 2 : 1;
             }
 
             function nodeInputCount(type) {
@@ -659,7 +661,7 @@
                 while (queue.length) {
                     const item = queue.shift();
                     const n = nodes[item[0]] || {};
-                    const outs = [].concat(n.next || [], n.next_true || [], n.next_false || []);
+                    const outs = [].concat(n.next || [], n.next_true || [], n.next_false || [], n.committed || [], n.rolled_back || []);
                     outs.forEach((t) => {
                         t = String(t);
                         if (nodes[t] && depth[t] === undefined) { depth[t] = item[1] + 1; queue.push([t, item[1] + 1]); }
@@ -689,16 +691,28 @@
                     const n = nodes[defId] || {};
                     const from = idMap[defId];
                     const link = (targets, outClass) => {
-                        (targets || []).forEach((t) => {
+                        // `next`/`next_true`/… may be a single string ("node") or an
+                        // array (["a","b"]); [].concat normalises both so a bare
+                        // string never throws on .forEach (which silently killed ALL
+                        // wiring — an AI-generated flow renders its nodes with no
+                        // connection lines at all).
+                        [].concat(targets || []).forEach((t) => {
                             const to = idMap[String(t)];
                             if (from != null && to != null) {
                                 try { editor.addConnection(from, to, outClass, 'input_1'); } catch (_) {}
                             }
                         });
                     };
-                    if ((n.type || '') === 'condition') {
+                    const type = n.type || '';
+                    if (type === 'condition') {
                         link(n.next_true, 'output_1');
                         link(n.next_false, 'output_2');
+                    } else if (type === 'transaction') {
+                        // committed → output_1, rolled_back → output_2; a plain `next`
+                        // (transaction with no explicit branches) also uses output_1.
+                        link(n.committed, 'output_1');
+                        link(n.next, 'output_1');
+                        link(n.rolled_back, 'output_2');
                     } else {
                         link(n.next, 'output_1');
                     }
