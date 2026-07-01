@@ -223,8 +223,19 @@
         }
         /* Reorder / delete live in the corner, OUT of the layout flow, so they never
            steal width from the kind dropdown or get clipped. */
-        .ai-pb-step-actions { position: absolute; top: 5px; right: 5px; display: flex; gap: 2px; z-index: 3; }
-        .ai-pb-step-head { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.25rem; padding-right: 3.2rem; }
+        .ai-pb-step-actions { position: absolute; top: 4px; right: 4px; z-index: 4; }
+        .ai-pb-step-kebab {
+            border: 0; background: transparent; color: #94a3b8; cursor: pointer;
+            width: 1.4rem; height: 1.4rem; line-height: 1; font-size: 1rem; border-radius: 0.3rem;
+        }
+        .ai-pb-step-kebab:hover { background: rgba(148,163,184,0.2); color: #e2e8f0; }
+        .ai-pb-step-menu {
+            position: absolute; top: 1.5rem; right: 0; display: flex; gap: 2px;
+            background: #0f172a; border: 1px solid rgba(148,163,184,0.3);
+            border-radius: 0.4rem; padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); z-index: 5;
+        }
+        .ai-pb-step-menu[hidden] { display: none; }
+        .ai-pb-step-head { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.25rem; padding-right: 1.6rem; }
         .ai-pb-step-num {
             flex: 0 0 auto; width: 1.15rem; height: 1.15rem; line-height: 1.15rem;
             text-align: center; border-radius: 999px; background: #6366f1; color: #eef2ff;
@@ -714,6 +725,13 @@
                 return label + '<input type="text" data-cfg="' + key + '" value="' + pbEsc(val) + '" />';
             }
 
+            // Close any open step kebab menu when clicking elsewhere (bound once).
+            if (! window.__pbStepMenuBound) {
+                window.__pbStepMenuBound = true;
+                document.addEventListener('click', function () {
+                    document.querySelectorAll('.ai-pb-step-menu:not([hidden])').forEach(function (m) { m.setAttribute('hidden', ''); });
+                });
+            }
             // Render an editable step list into `mount`, persisting to onChange(steps).
             function pbRenderStepList(mount, steps, onChange) {
                 function commit() { onChange(steps); render(); }
@@ -723,9 +741,12 @@
                         var card = document.createElement('div');
                         card.className = 'ai-pb-step';
                         var head = '<div class="ai-pb-step-actions">'
-                            + '<button type="button" class="ai-pb-step-btn" data-up title="Move up">↑</button>'
-                            + '<button type="button" class="ai-pb-step-btn" data-down title="Move down">↓</button>'
-                            + '<button type="button" class="ai-pb-step-btn ai-pb-step-del" data-del title="Remove">×</button>'
+                            + '<button type="button" class="ai-pb-step-kebab" data-menu title="Options">⋮</button>'
+                            + '<div class="ai-pb-step-menu" data-menu-list hidden>'
+                            +   '<button type="button" class="ai-pb-step-btn" data-up title="Move up">↑</button>'
+                            +   '<button type="button" class="ai-pb-step-btn" data-down title="Move down">↓</button>'
+                            +   '<button type="button" class="ai-pb-step-btn ai-pb-step-del" data-del title="Delete">🗑</button>'
+                            + '</div>'
                             + '</div>'
                             + '<div class="ai-pb-step-head">'
                             + '<span class="ai-pb-step-num">' + (idx + 1) + '</span>'
@@ -762,6 +783,14 @@
                             else if (k === 'loop') { steps[idx] = { kind: 'loop', over: '', item_var: 'item', index_var: '', steps: [] }; }
                             else if (k.indexOf('node:') === 0) { steps[idx] = { kind: 'node', type: k.slice(5), config: {} }; }
                             commit();
+                        });
+                        // Kebab (⋮) toggles the options menu; close others + on outside click.
+                        var kebab = card.querySelector('[data-menu]'), menu = card.querySelector('[data-menu-list]');
+                        kebab.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            var wasHidden = menu.hasAttribute('hidden');
+                            document.querySelectorAll('.ai-pb-step-menu:not([hidden])').forEach(function (m) { m.setAttribute('hidden', ''); });
+                            if (wasHidden) { menu.removeAttribute('hidden'); } else { menu.setAttribute('hidden', ''); }
                         });
                         card.querySelector('[data-up]').addEventListener('click', function () { if (idx > 0) { var t = steps[idx - 1]; steps[idx - 1] = steps[idx]; steps[idx] = t; commit(); } });
                         card.querySelector('[data-down]').addEventListener('click', function () { if (idx < steps.length - 1) { var t = steps[idx + 1]; steps[idx + 1] = steps[idx]; steps[idx] = t; commit(); } });
