@@ -296,6 +296,22 @@ class PageRenderer
         $this->cache()->forget($this->cacheKey($slug));
     }
 
+    /**
+     * Forget every cached page render. Used when a global input to page output
+     * changes (e.g. the theme tokens), which would otherwise stay stale until
+     * each slug's TTL expires. Iterates the known page slugs and forgets each —
+     * correct for the default file/database cache stores, which don't support
+     * prefix- or tag-based flushing (mirrors the per-slug flush in Partial).
+     */
+    public function flushAll(): void
+    {
+        /** @var class-string<Model> $pageModel */
+        $pageModel = config('ai-page-builder.models.page', Page::class);
+
+        $pageModel::query()->pluck('slug')
+            ->each(fn ($slug) => $this->forget((string) $slug));
+    }
+
     private function cacheKey(string $slug): string
     {
         return ((string) config('ai-page-builder.cache.prefix', 'ai-page-builder:rendered:')).$slug;

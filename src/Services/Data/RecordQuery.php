@@ -189,7 +189,16 @@ class RecordQuery
                     $related = $ids === []
                         ? collect()
                         : $this->scopedRelatedQuery($relatedKey, $scope['rule'])->whereIn('id', $ids)->get();
-                } catch (\Throwable) {
+                } catch (\Throwable $e) {
+                    // Drop this expand but don't fail the list — log so a broken
+                    // relation (missing table, bad rule) is visible, not silent.
+                    Log::warning('ai-page-builder: dropped belongs-to expand', [
+                        'model' => $model->key,
+                        'expand' => $name,
+                        'related' => $relatedKey,
+                        'error' => $e->getMessage(),
+                    ]);
+
                     continue;
                 }
 
@@ -242,7 +251,16 @@ class RecordQuery
                 // applyFilters so it passes the model's column whitelist.
                 $this->applyFilters($childModel, $childQuery, $scope['rule']);
                 $childrenByParent = $childQuery->get()->groupBy($column);
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                // Drop this reverse expand but don't fail the list — log so the
+                // dropped has-many is visible rather than silently missing.
+                Log::warning('ai-page-builder: dropped has-many expand', [
+                    'model' => $model->key,
+                    'expand' => $name,
+                    'child' => $childModel->key,
+                    'error' => $e->getMessage(),
+                ]);
+
                 continue;
             }
 

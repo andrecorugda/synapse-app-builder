@@ -29,6 +29,16 @@
         } catch (\Throwable $e) {
             $pbStates = [];
         }
+        // Roles feed the "Visible to roles" component-visibility trait as a
+        // dropdown (never free-typed slugs). `slug` is what /pb-auth/me exposes
+        // as the acting user's role, so it is the value data-pb-roles matches on.
+        try {
+            $pbRoles = (config('ai-page-builder.models.role', \Andre\AiPageBuilder\Models\PbRole::class))::query()
+                ->orderBy('name')->get()
+                ->map(fn ($r) => ['slug' => $r->slug, 'name' => $r->name])->values()->all();
+        } catch (\Throwable $e) {
+            $pbRoles = [];
+        }
         // Collections feed the form "create record in" trait (key => name).
         try {
             $pbCollections = (config('ai-page-builder.models.model', \Andre\AiPageBuilder\Models\PbModel::class))::query()
@@ -85,6 +95,7 @@
         window.__pbFlows = @js($pbFlows);
         window.__pbPages = @js($pbPages);
         window.__pbStates = @js($pbStates);
+        window.__pbRoles = @js($pbRoles);
         window.__pbCollections = @js($pbCollections);
         window.__pbFields = @js($pbFields);
         window.__pbPartials = @js($pbPartials);
@@ -736,6 +747,50 @@
                     this.editor = editor;
                     const rootEl = this.$el;
 
+                    // Custom trait type: a checkbox group that persists a
+                    // comma-separated attribute value. Used for "Visible to roles"
+                    // so component visibility is picked from real roles (tick the
+                    // ones that may see it), never free-typed slugs. Reads/writes the
+                    // plain attribute the runtime already understands
+                    // (e.g. data-pb-roles="admin,manager").
+                    editor.TraitManager.addType('pb-checkboxes', {
+                        createInput({ trait }) {
+                            const wrap = document.createElement('div');
+                            wrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;padding:2px 0;';
+                            const opts = trait.get('options') || [];
+                            if (! opts.length) {
+                                wrap.style.cssText += 'font-size:11px;color:#94a3b8;';
+                                wrap.textContent = 'No roles defined yet.';
+                                return wrap;
+                            }
+                            opts.forEach((o) => {
+                                const label = document.createElement('label');
+                                label.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;';
+                                const cb = document.createElement('input');
+                                cb.type = 'checkbox';
+                                cb.value = o.id;
+                                label.appendChild(cb);
+                                const span = document.createElement('span');
+                                span.textContent = o.name;
+                                label.appendChild(span);
+                                wrap.appendChild(label);
+                            });
+                            return wrap;
+                        },
+                        onEvent({ elInput, component, trait }) {
+                            const name = trait.get('name');
+                            const vals = Array.from(elInput.querySelectorAll('input[type=checkbox]'))
+                                .filter((c) => c.checked).map((c) => c.value).filter(Boolean);
+                            if (vals.length) { component.addAttributes({ [name]: vals.join(',') }); }
+                            else { component.removeAttributes(name); }
+                        },
+                        onUpdate({ elInput, component, trait }) {
+                            const name = trait.get('name');
+                            const cur = String(component.getAttributes()[name] || '').split(',').map((s) => s.trim()).filter(Boolean);
+                            Array.from(elInput.querySelectorAll('input[type=checkbox]')).forEach((c) => { c.checked = cur.includes(c.value); });
+                        },
+                    });
+
                     config.blocks.forEach((b) => {
                         // The 'image' block is GrapesJS's native image component so it
                         // hooks into the Asset Manager (pick/upload) rather than dropping
@@ -1274,7 +1329,10 @@
                                 type: 'select', name: 'data-pb-auth', label: 'Only when logged in',
                                 options: [{ id: '', name: 'No (show always)' }, { id: '1', name: 'Yes — authenticated only' }],
                             });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-roles', label: 'Visible to roles (comma-sep slugs)', placeholder: 'admin,manager' });
+                            cmp.addTrait({
+                                type: 'pb-checkboxes', name: 'data-pb-roles', label: 'Visible to roles',
+                                options: (window.__pbRoles || []).map((r) => ({ id: r.slug, name: r.name + ' (' + r.slug + ')' })),
+                            });
                         }
                     };
 
