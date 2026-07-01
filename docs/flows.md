@@ -107,9 +107,13 @@ Every node has `{ "type": "...", "config": { ... }, "next": [...] }`. Below is e
 
 > **Adding nodes on the canvas.** The toolbar's **+ Add node** button opens a left-anchored, searchable drawer that lists every registered node grouped by category (Flow Control, Data, UI & Feedback, Communication, …) — including any [custom nodes you register](extending-flows.md). It replaces the old fixed palette and stays current as nodes are added, because it is built from the live [capability catalogue](extending-flows.md#mcp--ai-exposure).
 
+### Single entry point
+
+Every flow begins with **exactly one Trigger node**, badged **START** in the editor. Attempting to add a second Trigger is blocked. Branch to different outcomes from there with Condition nodes.
+
 ### `trigger`
 
-Entry node. No config — hands off to `next`. Every flow's `start` should be a trigger.
+Entry node. No config — hands off to `next`. Every flow's `start` must be a trigger (the editor enforces one per flow).
 
 ### `record`
 
@@ -243,6 +247,24 @@ Run a named [Function](functions-and-states.md).
 
 Writes the return value to `vars[output]` (default `result`).
 
+### `call_flow`
+
+Run another saved flow's definition as a sub-step, sharing the caller's context (`vars`/`input`), so outputs flow between steps.
+
+```json
+{ "type": "call_flow", "config": {
+  "flow": "calculate-discount",
+  "output": "discount_result"
+} }
+```
+
+- `flow` — the slug of the target flow to run. Its `definition` is executed as a nested sub-graph against the **same** `FlowContext`, so any vars the callee writes are visible to the caller's subsequent nodes.
+- `output` — optional; when set, the callee's final `result` actions (or return value) are stored here.
+
+**Cycle guard:** a flow cannot call itself directly or transitively (A→B→A is blocked). The call also counts against the shared `flow.max_steps` budget, so runaway call chains are bounded the same way as runaway loops.
+
+This is the canonical way to factor a multi-step process used by more than one flow into a reusable unit — see [Functions & States → Compose, don't repeat](functions-and-states.md#compose-dont-repeat).
+
 ### `send_email`
 
 Send an email via the [isolated mailer](email.md).
@@ -263,6 +285,21 @@ Send an email via the [isolated mailer](email.md).
 
 Append actions returned to the page runtime. **All action fields are interpolated.**
 
+The `result` node uses a **low-code actions builder** in the editor: a type dropdown selects the action type and the relevant fields for that type appear automatically. Supported types:
+
+| Type | Fields | Effect |
+|---|---|---|
+| `notify` | `message`, `level` (success/error/warning/info) | Toast notification |
+| `alert` | `title`, `message` | Blocking alert dialog |
+| `modal` | `action` (open/close), `target` (CSS selector), `html` (optional) | Open or close a modal |
+| `redirect` | `url` | Navigate the browser |
+| `setState` | `key`, `value` | Update a reactive State in `$store.app` |
+| `setHtml` | `target` (CSS selector), `html` | Replace inner HTML of an element |
+| `setText` | `target` (CSS selector), `text` | Replace text content of an element |
+| `addClass` | `target` (CSS selector), `class` | Add a CSS class |
+| `removeClass` | `target` (CSS selector), `class` | Remove a CSS class |
+| `logout` | — | Sign the end-user out |
+
 ```json
 { "type": "result", "config": { "actions": [
   { "type": "notify",  "message": "Saved!", "level": "success" },
@@ -274,7 +311,37 @@ Append actions returned to the page runtime. **All action fields are interpolate
 ] } }
 ```
 
-The `result` node accepts exactly these action types: `setHtml`, `setText`, `notify`, `redirect`, `addClass`, `removeClass`. (The page runtime *also* understands `setState`/`setStates` when present in an actions array, but the `result` node only emits the six above.)
+(The page runtime *also* understands `setState`/`setStates` when present in an actions array from any node.)
+
+## Canvas tools
+
+### Auto-layout
+
+When the AI generates or updates a flow, or when you trigger **Auto-layout** from the toolbar, the canvas arranges all nodes so that no two overlap and edges are easy to follow. This is deterministic — calling it twice produces the same result.
+
+### Zoom controls
+
+The editor toolbar provides four zoom controls:
+
+| Button | Action |
+|---|---|
+| Zoom out | Step down one zoom level |
+| Reset zoom | Return to 100 % |
+| Zoom in | Step up one zoom level |
+| Fit to screen | Scale and pan so every node is visible |
+
+### Editing transaction and loop bodies as step lists
+
+Rather than editing a `transaction` or `loop` body as raw JSON, the canvas opens the body in a **step list** editor. Each step is one of:
+
+| Step kind | What it does |
+|---|---|
+| **Function** | Run a named reusable expression function |
+| **Flow** | Invoke a saved flow as a sub-step via `call_flow` |
+| **Loop** | A for-each with its own `over`/`item_var` and a nested step list |
+| **Node** | Any other node type — Record, Set state, Condition, HTTP request, Send email, AI invoke, Result — edited via its schema fields, with conditional field visibility |
+
+Steps are ordered and sortable. A ⋮ kebab menu on each row provides **Reorder** (drag handle) and **Delete**. The step list compiles to and from the engine's `{ start, nodes }` sub-graph losslessly — the runtime is unchanged; only the editing surface is different. Editing an AI-generated flow in the step list and re-saving round-trips correctly.
 
 ## Worked example: atomic POS-style checkout (no eval)
 

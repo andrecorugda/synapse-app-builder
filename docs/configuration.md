@@ -141,5 +141,15 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 |---|---|---|
 | `filament.navigation_group` | `Content` | Navigation group for all resources/pages |
 | `filament.navigation_sort` | `10` | Base navigation sort (resources offset from it) |
+| `filament.max_content_width` | `'full'` | Content width for every Synapse admin page. Accepts any Filament width value (`'xl'`, `'2xl'`, `'full'`, etc.) or `null` to fall back to the host panel's default. |
+
+## `uploads`
+
+Controls the public image upload endpoint (`POST /pb-upload`) used by generated forms.
+
+| Key | Env | Default | Meaning |
+|---|---|---|---|
+| `uploads.allow_anonymous` | `AI_PAGE_BUILDER_UPLOADS_ANON` | `false` | Allow unauthenticated uploads. **Off by default** — safe for public sites. Set `true` only when anonymous image submission is intentional. |
+| `uploads.max_kb` | `AI_PAGE_BUILDER_UPLOADS_MAX_KB` | `5120` | Maximum upload size in KB (default 5 MB). Requests over the limit return `413`. |
 
 Next: [Extending](extending.md).

@@ -5,6 +5,42 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Flow editor & engine
+
+- Transaction and Loop node bodies are now edited as an ordered, sortable **step list** (Function / Flow / Loop / node) with per-step kebab menu for reorder and delete; compiles to/from the engine's `{start, nodes}` losslessly.
+- New **`call_flow`** node: runs another saved flow's definition as a sub-step, sharing the caller's `vars`/`input` context; cycle-guarded (direct and transitive cycles blocked); counts against the shared step budget.
+- **Single entry point** enforced: every flow has exactly one Trigger node (badged START); the editor blocks adding a second.
+- **Non-overlapping auto-layout** for AI-generated and programmatic flows.
+- **Zoom controls** in the canvas toolbar: zoom out / reset / zoom in / fit-to-screen.
+- **Result** node now uses a low-code actions builder: a type dropdown (Notify / Alert / Modal / Redirect / Set state / Set HTML / Set text / Add class / Remove class / Log out) with conditional field visibility per type.
+- Editing an AI-generated flow round-trips losslessly through the step-list editor.
+
+### Data
+
+- List endpoint supports `?expand=*` (or `?expand=field1,field2`): resolves belongs-to relations so the response includes the related record's `name` instead of the raw foreign-key id.
+- Auto `data_table` uses `?expand=*` by default — relation columns show names, never blank ids.
+- Per-row **Edit** (fills form, switches POST → PUT) and **Delete** on management-page data tables.
+
+### Pages & components
+
+- **Management page** pattern: an Add form (`data-pb-record`) + auto-refreshing data table + per-row Edit/Delete — the canonical way to build a CRUD UI.
+- `data_table` shell auto-renders columns from fetched data (relation names resolved); KPI/chart widgets render from a configured-but-empty wrapper.
+- **Image fields** — file input that uploads on select via the `/pb-upload` endpoint and submits the returned URL.
+- **`POST /pb-upload`** public image upload: authenticated by default (anonymous opt-in via config), image-only (jpeg/jpg/png/gif/webp), size-capped, rate-limited, safe filenames, returns `{url}`.
+
+### Configuration
+
+- `ai-page-builder.filament.max_content_width` (default `'full'`) — widens every Synapse admin page; any Filament width value accepted; `null` inherits the host default.
+- `ai-page-builder.uploads.allow_anonymous` (default `false`) — opt-in anonymous uploads to `/pb-upload`.
+- `ai-page-builder.uploads.max_kb` (default `5120`) — size cap for `/pb-upload`.
+
+### AI
+
+- Generator composes reusable functions/flows rather than repeating logic (conditional factoring; no over-factoring of one-off steps).
+- Deterministic **generation quality harness** (`tests/Feature/GenerationQualityTest.php`) asserts a generated app's full stack: pages render, data binds, checkout runs, relations resolve.
+
 ## [1.0.2] - 2026-06-29
 
 ### Fixed

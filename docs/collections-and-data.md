@@ -124,6 +124,18 @@ GET /api/pb/leads?search=acme
 GET /api/pb/leads?page=2&per_page=50
 ```
 
+**Relation expansion** — `expand=*` (or `expand=field1,field2`) resolves belongs-to relations so the list response includes the related record's `name` (and `id`) instead of the raw foreign-key id. The auto `data_table` block uses `?expand=*` by default, so the table shows human-readable names in relation columns without extra work.
+
+```
+GET /api/pb/orders?expand=*
+```
+
+A response row with a `customer_id` relation field becomes:
+
+```json
+{ "id": 42, "customer_id": 7, "customer": { "id": 7, "name": "Acme Corp" }, "total": 199.0 }
+```
+
 ### Response envelope
 
 `list()` returns Laravel's paginator JSON:
@@ -142,7 +154,7 @@ Single-record verbs return `{ "data": { ... } }`. `store` returns `201`; `destro
 
 - **Flows** — the [`record` node](flows.md#record) does `list`/`get`/`create`/`update`/`delete` against a collection, going through `RecordQuery`.
 - **Functions** — a `php`-runtime [Function](functions-and-states.md) can call `RecordQuery` directly (or use the `record` node).
-- **Pages** — the [`data_table` block / `pbTable`](pages-and-components.md#data-tables-with-pbtable) fetches the list endpoint; a `data-pb-record="<collection>"` form POSTs a create.
+- **Pages** — the [`data_table` block / `pbTable`](pages-and-components.md#data-tables-with-pbtable) fetches the list endpoint; a `data-pb-record="<collection>"` form POSTs a create; a management page pairs the form with per-row Edit/Delete (see [Management pages](pages-and-components.md#management-pages)).
 
 Every one of these paths funnels through `RecordQuery`, so validation, column mapping (field key ↔ `_id`), and the row-level permission filter are applied consistently.
 
