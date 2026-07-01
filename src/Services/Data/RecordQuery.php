@@ -148,6 +148,15 @@ class RecordQuery
         $fields = $model->fields()->get();
         $relationFields = $fields->filter(fn ($f) => $f->fieldType() === FieldType::Relation)->keyBy('key');
 
+        // `expand=*` — expand every belongs-to relation (used by the auto data table
+        // so a list shows the related NAME, not a raw foreign-key id).
+        if (in_array('*', $expand, true)) {
+            $expand = array_values(array_unique(array_merge(
+                array_values(array_diff($expand, ['*'])),
+                $relationFields->keys()->all(),
+            )));
+        }
+
         /** @var class-string<PbModel> $pbModelClass */
         $pbModelClass = config('ai-page-builder.models.model', PbModel::class);
 
@@ -188,9 +197,14 @@ class RecordQuery
                     ->map(fn (Model $row) => $this->projectRelated($row, $scope['fields']))
                     ->keyBy('id');
 
+                // When the relation field is keyed `<x>_id` its key IS the fk column,
+                // which carries an integer cast that would coerce the related array
+                // back to an int. Attach the expanded row under the stripped key
+                // (`<x>`) so it survives, leaving the id on `<x>_id`.
+                $attachKey = ($name === $column && str_ends_with($name, '_id')) ? substr($name, 0, -3) : $name;
                 foreach ($records as $record) {
                     $fk = $record->getAttribute($column);
-                    $record->setAttribute($name, $fk !== null ? $relatedById->get($fk) : null);
+                    $record->setAttribute($attachKey, $fk !== null ? $relatedById->get($fk) : null);
                 }
 
                 continue;
