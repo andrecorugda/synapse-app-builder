@@ -109,6 +109,11 @@
                         // the data so the table is never blank.
                         this._auto = ! this.$el.querySelector('template[x-for], [x-for]');
                         this.load();
+                        // Live-refresh when a [data-pb-record] form on the page creates
+                        // a row, so a management page's list reflects the new record
+                        // without a manual reload.
+                        var self = this;
+                        document.addEventListener('pb:record-created', function () { self.page = 1; self.load(); });
                     },
                     load: function () {
                         var self = this;
@@ -529,6 +534,26 @@
                 var c = el.getAttribute('data-pb-collection'); if (! c) { return; }
                 agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '' })
                     .then(function (d) { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = fmt(d && d.total); } })
+                    .catch(function () {});
+            });
+
+            // Relation <select data-pb-options="<collection>">: populate its options
+            // from the collection's records so a management form can pick a related
+            // row (e.g. a product's category). data-pb-label-field sets the visible
+            // text (default "name"); the option value is the record id.
+            document.querySelectorAll('select[data-pb-options]').forEach(function (sel) {
+                var c = sel.getAttribute('data-pb-options'); if (! c) { return; }
+                var labelField = sel.getAttribute('data-pb-label-field') || 'name';
+                fetch(API + '/' + c + '?per_page=100', { headers: { Accept: 'application/json' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        (((d && d.data) || [])).forEach(function (row) {
+                            var o = document.createElement('option');
+                            o.value = row.id;
+                            o.textContent = row[labelField] != null ? row[labelField] : ('#' + row.id);
+                            sel.appendChild(o);
+                        });
+                    })
                     .catch(function () {});
             });
 
