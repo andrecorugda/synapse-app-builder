@@ -953,9 +953,10 @@
                                 + '[data-pb-block="tabs"] .pb-tabs__panel{display:block !important;}'
                                 + '[data-pb-block="accordion"] .pb-accordion__body{display:block !important;}'
                                 + '[data-pb-block="dropdown_menu"] .pb-dropdown__menu{display:block !important;position:static !important;box-shadow:none !important;z-index:auto !important;}'
+                                + '[data-pb-block="context_menu"] .pb-context__menu{display:block !important;position:static !important;box-shadow:none !important;z-index:auto !important;}'
                                 + '[data-pb-block="tooltip"] .pb-tooltip__bubble{display:inline-block !important;position:static !important;transform:none !important;white-space:normal !important;}'
                                 // a quiet marker so authors know these are open only for editing
-                                + '[data-pb-block="modal"] .pb-modal__overlay,[data-pb-block="drawer"] .pb-drawer__panel,[data-pb-block="dropdown_menu"] .pb-dropdown__menu,[data-pb-block="tabs"] .pb-tabs__panel,[data-pb-block="accordion"] .pb-accordion__body{outline:1px dashed #c7d2fe;outline-offset:3px;}';
+                                + '[data-pb-block="modal"] .pb-modal__overlay,[data-pb-block="drawer"] .pb-drawer__panel,[data-pb-block="dropdown_menu"] .pb-dropdown__menu,[data-pb-block="context_menu"] .pb-context__menu,[data-pb-block="tabs"] .pb-tabs__panel,[data-pb-block="accordion"] .pb-accordion__body{outline:1px dashed #c7d2fe;outline-offset:3px;}';
                             doc.head.appendChild(s);
                             // Inject the page's custom_css into the canvas so the
                             // visual editor matches the real rendered page (WYSIWYG).

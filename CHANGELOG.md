@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`context_menu` content is now editable in the editor** — it was missing from
+  the dialog/disclosure reveal set, so its menu items stayed hidden in the canvas.
+- **KPI / chart no longer show a fake "0" on a failed data load.** A denied
+  (403) or failed aggregate now renders "—" (KPI) or a "Could not load … you may
+  not have access" note (chart) instead of a misleading zero / empty canvas —
+  matching how `data_table` already surfaces the error.
 - **Inventory demo "Sign out" works (was a 419).** The demo shipped a raw
   `<form action="/pb-logout">` with no CSRF token → every logout hit 419 and the
   user was stranded, still signed in. It now uses the token-aware
