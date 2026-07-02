@@ -36,10 +36,38 @@ new SectionBlock(
     template:    string,  // the block's HTML
     description: string,  // optional; surfaced to the AI / capabilities
     icon:        string,  // optional; block-manager icon key
+    settings:    array,   // optional; ComponentSetting[] — author-configurable traits (see below)
 );
 ```
 
-Keep the `data-pb-block="{key}"` convention on the wrapping element of any block you want imported as a **labelled, editable component** and recognised by the validator. Primitive markup without it still drops in as free-form GrapesJS content, but won't be a named component. Use inline styles + stable `pb-{key}__*` classes (the published page carries no host Tailwind), the same convention the built-ins follow — see [`BlockVocabulary`](../src/Blocks/BlockVocabulary.php) for reference blocks.
+Keep the `data-pb-block="{key}"` convention on the wrapping element of any block you want imported as a **labelled, editable component** and recognised by the validator.
+
+### Author-configurable settings
+
+A block can declare its own **settings** — the component analog of a flow node's
+config inputs. Each becomes a trait in the editor's "Component settings" panel on
+the selected component, and writes a **plain attribute** named by its `key` (kept
+by the sanitizer), which your `template` / `custom_js` reads at render time:
+
+```php
+use Andre\AiPageBuilder\Blocks\ComponentSetting;
+
+new SectionBlock(
+    key: 'countdown',
+    label: 'Countdown',
+    category: 'Pro',
+    template: '<div data-pb-block="countdown" data-target="" data-style="plain">…</div>',
+    settings: [
+        ComponentSetting::make('data-target', 'Target date'),                       // text (default)
+        new ComponentSetting('data-style', 'Style', 'select',                        // select
+            options: ['flip' => 'Flip', 'plain' => 'Plain'], category: 'Appearance'),
+    ],
+);
+```
+
+`type` is one of `text` | `number` | `checkbox` | `select` (select uses `options`
+as a `value => label` map); `category` groups the trait (default `Settings`). Name
+each setting after the attribute your template consumes (e.g. `data-*`). Primitive markup without it still drops in as free-form GrapesJS content, but won't be a named component. Use inline styles + stable `pb-{key}__*` classes (the published page carries no host Tailwind), the same convention the built-ins follow — see [`BlockVocabulary`](../src/Blocks/BlockVocabulary.php) for reference blocks.
 
 ## Register a component from a service provider
 

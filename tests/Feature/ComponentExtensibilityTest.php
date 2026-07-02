@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Blocks\BlockVocabulary;
+use Andre\AiPageBuilder\Blocks\ComponentSetting;
 use Andre\AiPageBuilder\Blocks\SectionBlock;
 use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
 use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
@@ -106,6 +107,34 @@ it('exposes the registered component in the capability catalogue alongside nodes
     expect($kinds)->toContain('component')
         ->and($kinds)->toContain(CapabilityDefinition::KIND_NODE)
         ->and($kinds)->toContain(CapabilityDefinition::KIND_HELPER);
+});
+
+it('carries author-declared settings through toArray + the registry + the field', function (): void {
+    PageBuilder::registerComponent(new SectionBlock(
+        key: 'pro_countdown',
+        label: 'Countdown',
+        category: 'Pro',
+        template: '<div data-pb-block="pro_countdown" data-target=""></div>',
+        settings: [
+            ComponentSetting::make('data-target', 'Target date'),
+            new ComponentSetting('data-style', 'Style', 'select', ['flip' => 'Flip', 'plain' => 'Plain'], 'Appearance', 'plain'),
+        ],
+    ));
+
+    $block = collect(app(ComponentRegistry::class)->toArray())->firstWhere('key', 'pro_countdown');
+    expect($block)->not->toBeNull()
+        ->and($block['settings'])->toHaveCount(2)
+        ->and($block['settings'][0])->toMatchArray(['key' => 'data-target', 'label' => 'Target date', 'type' => 'text'])
+        ->and($block['settings'][1])->toMatchArray(['key' => 'data-style', 'type' => 'select', 'category' => 'Appearance', 'default' => 'plain'])
+        ->and($block['settings'][1]['options'])->toBe(['flip' => 'Flip', 'plain' => 'Plain']);
+
+    // Reaches the editor via the field's block payload.
+    $fieldBlock = collect((new GrapesJsField('content'))->getBlocks())->firstWhere('key', 'pro_countdown');
+    expect($fieldBlock['settings'])->toHaveCount(2);
+
+    // Built-in blocks default to an empty settings list (BC).
+    $hero = collect(app(ComponentRegistry::class)->toArray())->firstWhere('key', 'hero');
+    expect($hero['settings'])->toBe([]);
 });
 
 it('returns the full block catalogue from PageBuilder::components()', function (): void {

@@ -15,6 +15,12 @@ namespace Andre\AiPageBuilder\Blocks;
  */
 final readonly class SectionBlock
 {
+    /**
+     * @param  list<ComponentSetting>  $settings  Author-configurable settings the
+     *                                            editor renders as traits on the
+     *                                            selected component (each writes a
+     *                                            plain attribute named by its key).
+     */
     public function __construct(
         public string $key,
         public string $label,
@@ -22,10 +28,11 @@ final readonly class SectionBlock
         public string $template,
         public string $description = '',
         public string $icon = '',
+        public array $settings = [],
     ) {}
 
     /**
-     * @return array{key:string,label:string,category:string,template:string,description:string,icon:string}
+     * @return array{key:string,label:string,category:string,template:string,description:string,icon:string,settings:list<array<string,mixed>>}
      */
     public function toArray(): array
     {
@@ -36,6 +43,7 @@ final readonly class SectionBlock
             'template' => $this->template,
             'description' => $this->description,
             'icon' => $this->icon,
+            'settings' => array_map(static fn (ComponentSetting $s): array => $s->toArray(), $this->settings),
         ];
     }
 }

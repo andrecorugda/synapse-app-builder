@@ -797,6 +797,17 @@
                         },
                     });
 
+                    // Author-declared per-component settings (registered/premium
+                    // blocks ship their own) → looked up by block key when a
+                    // component is selected, to render as traits. Keyed global so
+                    // the trait handler (which only sees window.__pb*) can read them.
+                    window.__pbBlockSettings = window.__pbBlockSettings || {};
+                    config.blocks.forEach((b) => {
+                        if (Array.isArray(b.settings) && b.settings.length) {
+                            window.__pbBlockSettings[b.key] = b.settings;
+                        }
+                    });
+
                     config.blocks.forEach((b) => {
                         // The 'image' block is GrapesJS's native image component so it
                         // hooks into the Asset Manager (pick/upload) rather than dropping
@@ -1084,6 +1095,25 @@
                                 cmp.addTrait({ type: 'number', name: 'maxlength', category: 'Validation', label: 'Max length' });
                             }
                         }
+
+                        // Author-declared component settings (extensible: a
+                        // registered/premium block ships its own via SectionBlock
+                        // settings). Each renders as a native trait writing a plain
+                        // attribute named by its key — sanitizer-safe; the block's
+                        // template / custom_js reads it at render time.
+                        const pbBlockKey = cmp.getAttributes()['data-pb-block'];
+                        const pbSettings = (window.__pbBlockSettings || {})[pbBlockKey] || [];
+                        pbSettings.forEach((s) => {
+                            if (names.includes(s.key)) { return; }
+                            const trait = { type: 'text', name: s.key, label: s.label || s.key, category: s.category || 'Settings' };
+                            if (s.type === 'number') { trait.type = 'number'; }
+                            else if (s.type === 'checkbox') { trait.type = 'checkbox'; }
+                            else if (s.type === 'select') {
+                                trait.type = 'select';
+                                trait.options = Object.entries(s.options || {}).map(([id, name]) => ({ id, name }));
+                            }
+                            cmp.addTrait(trait);
+                        });
 
                         // Data Table — "Collection" select (from __pbCollections).
                         // The table binds rows via x-data="pbTable('<key>')"; the
