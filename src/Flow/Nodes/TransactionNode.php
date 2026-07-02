@@ -50,6 +50,7 @@ class TransactionNode implements FlowNodeHandler, ProvidesNodeDefinition
         $runner = app(FlowRunner::class);
         $actionsBefore = count($context->actions);
         $committed = true;
+        $failure = null;
 
         try {
             DB::connection(Schema::connection())->transaction(function () use ($runner, $body, $context): void {
@@ -62,10 +63,15 @@ class TransactionNode implements FlowNodeHandler, ProvidesNodeDefinition
         } catch (\Throwable $e) {
             $committed = false;
             // Handled here via the rolled_back branch, so clear the soft-fail flag
-            // and discard any UI actions the now-rolled-back body queued.
+            // and discard any UI actions the now-rolled-back body queued. Expose
+            // the reason to the branch as `vars.error`, but clear the RUN-level
+            // error: a transaction that rolled back and took its rolled_back
+            // branch completed as designed, so telemetry records it `ok` — not an
+            // "ok" run carrying a stray error message.
+            $failure = $e->getMessage();
             $context->failed = false;
-            $context->error = $e->getMessage();
-            $context->set('error', $e->getMessage());
+            $context->error = null;
+            $context->set('error', $failure);
             array_splice($context->actions, $actionsBefore);
         }
 
@@ -78,8 +84,9 @@ class TransactionNode implements FlowNodeHandler, ProvidesNodeDefinition
             return (array) $rolledBack;
         }
 
-        // No rollback branch wired — surface the failure like any other node error.
-        throw new RuntimeException($context->error ?? 'Transaction rolled back.');
+        // No rollback branch wired — surface the failure like any other node
+        // error (this DOES fail the run; the walk records it and toasts).
+        throw new RuntimeException($failure ?? 'Transaction rolled back.');
     }
 
     /**
