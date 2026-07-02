@@ -126,8 +126,22 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
             return true;
         }
 
+        // Normalize the host to the form the transport actually dials: strip the
+        // brackets parse_url leaves on an IPv6 literal (`[::1]` → `::1`), and
+        // expand a dotless/decimal IPv4 (`2130706433` → `127.0.0.1`) — cURL
+        // accepts these numeric spellings, so the raw string alone would slip
+        // past the IP check.
+        $host = $this->normalizeHost($host);
+
         $allowed = array_map('strtolower', (array) config('ai-page-builder.flow.http_allowed_hosts', []));
         if ($allowed !== [] && ! in_array($host, $allowed, true)) {
+            return true;
+        }
+
+        // `localhost` (and any *.localhost) never leaves the box; dns_get_record
+        // ignores /etc/hosts so it would otherwise resolve to nothing and slip
+        // through.
+        if ($host === 'localhost' || str_ends_with($host, '.localhost')) {
             return true;
         }
 
@@ -136,6 +150,15 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             $ips[] = $host;
         } else {
+            // gethostbynamel() uses the libc resolver (consults /etc/hosts,
+            // matching what cURL dials, so a name mapped to loopback there is
+            // caught); dns_get_record() adds AAAA. A name that resolves to
+            // NOTHING is left to connect and fail on its own — an unresolvable
+            // host can't reach an internal target, and refusing it here would
+            // break legitimate hosts PHP's resolver happens not to see.
+            foreach ((array) (@gethostbynamel($host) ?: []) as $ip) {
+                $ips[] = $ip;
+            }
             foreach (@dns_get_record($host, DNS_A + DNS_AAAA) ?: [] as $rec) {
                 $ips[] = $rec['ip'] ?? $rec['ipv6'] ?? null;
             }
@@ -148,6 +171,30 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         }
 
         return false;
+    }
+
+    /**
+     * Rewrite a host into the canonical form the HTTP transport will dial, so
+     * the IP checks below see the real address. Handles the two spellings that
+     * bypass a naive check: bracketed IPv6 literals and dotless/decimal IPv4.
+     */
+    private function normalizeHost(string $host): string
+    {
+        // IPv6 literal: parse_url keeps the surrounding brackets.
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            return substr($host, 1, -1);
+        }
+
+        // Dotless / decimal IPv4 (e.g. 2130706433 == 127.0.0.1): an all-digit
+        // host in the valid 32-bit range expands to dotted-quad.
+        if (ctype_digit($host)) {
+            $long = (int) $host;
+            if ($long >= 0 && $long <= 4294967295) {
+                return long2ip($long);
+            }
+        }
+
+        return $host;
     }
 
     /** True for private / reserved / loopback / link-local (incl. 169.254.169.254). */
