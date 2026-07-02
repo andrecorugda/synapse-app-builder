@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\PbRole;
+use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Seeders\SystemPagesSeeder;
 use Andre\AiPageBuilder\Services\Settings;
 
@@ -65,4 +67,20 @@ it('returns a 503 maintenance page to visitors when maintenance mode is on', fun
     $this->get('/p/home')
         ->assertStatus(503)
         ->assertSee('right back');
+});
+
+it('lets an admin end-user bypass maintenance mode, but not a non-admin', function (): void {
+    app(SystemPagesSeeder::class)->run();
+    app(Settings::class)->set('maintenance_mode', true);
+
+    $adminRole = PbRole::create(['name' => 'Admin', 'slug' => 'admin', 'is_admin' => true]);
+    $admin = PbUser::create(['name' => 'Ada', 'email' => 'ada@x.com', 'password' => 'secret123', 'role_id' => $adminRole->id, 'is_active' => true]);
+
+    $staffRole = PbRole::create(['name' => 'Staff', 'slug' => 'staff', 'is_admin' => false]);
+    $staff = PbUser::create(['name' => 'Sam', 'email' => 'sam@x.com', 'password' => 'secret123', 'role_id' => $staffRole->id, 'is_active' => true]);
+
+    // Admin bypasses the maintenance gate and sees the real page…
+    $this->actingAs($admin, 'pb')->get('/p/home')->assertOk();
+    // …a non-admin end-user still gets the 503.
+    $this->actingAs($staff, 'pb')->get('/p/home')->assertStatus(503);
 });
