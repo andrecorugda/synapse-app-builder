@@ -104,7 +104,7 @@ it('ResultActionCatalog::types() returns a non-empty map', function (): void {
 
 it('ResultActionCatalog includes all expected action type keys', function (string $expected): void {
     expect(ResultActionCatalog::types())->toHaveKey($expected);
-})->with(['notify', 'alert', 'modal', 'redirect', 'setState', 'setHtml', 'setText', 'addClass', 'removeClass', 'logout']);
+})->with(['notify', 'alert', 'modal', 'redirect', 'setHtml', 'addClass', 'removeClass', 'logout']);
 
 it('each ResultActionCatalog entry has a label string and a non-empty fields list', function (string $type, array $descriptor): void {
     expect($descriptor)->toHaveKey('label')

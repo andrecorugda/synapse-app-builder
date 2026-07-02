@@ -67,21 +67,10 @@ final class ResultActionCatalog
                 'label' => 'Redirect',
                 'fields' => [
                     ['key' => 'url', 'label' => 'URL', 'type' => 'string', 'required' => true],
-                ],
-            ],
-
-            'setState' => [
-                'label' => 'Set state (reactive store)',
-                'fields' => [
-                    ['key' => 'key', 'label' => 'State key', 'type' => 'string', 'required' => true],
-                    ['key' => 'value', 'label' => 'Value', 'type' => 'expression', 'required' => true],
-                ],
-            ],
-
-            'setStates' => [
-                'label' => 'Set states (bulk)',
-                'fields' => [
-                    ['key' => 'values', 'label' => 'Values (key → value map)', 'type' => 'keyvalue', 'required' => true],
+                    ['key' => 'newTab', 'label' => 'Open in', 'type' => 'select', 'options' => [
+                        '' => 'Same tab',
+                        '1' => 'New tab',
+                    ]],
                 ],
             ],
 
@@ -90,14 +79,6 @@ final class ResultActionCatalog
                 'fields' => [
                     ['key' => 'target', 'label' => 'Target selector', 'type' => 'string', 'required' => true],
                     ['key' => 'html', 'label' => 'HTML', 'type' => 'text', 'required' => true],
-                ],
-            ],
-
-            'setText' => [
-                'label' => 'Set text',
-                'fields' => [
-                    ['key' => 'target', 'label' => 'Target selector', 'type' => 'string', 'required' => true],
-                    ['key' => 'text', 'label' => 'Text', 'type' => 'text', 'required' => true],
                 ],
             ],
 

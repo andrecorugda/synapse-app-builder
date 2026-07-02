@@ -14,18 +14,21 @@ use Andre\AiPageBuilder\Flow\ResultActionCatalog;
 
 /**
  * Appends result actions returned to the page runtime.
- * config: { actions: [ {type:setHtml,target,html} | {type:notify,message,level} | {type:redirect,url}
- *                     | {type:setState,key,value} | {type:setStates,values:{...}} ] }
+ * config: { actions: [ {type:setHtml,target,html} | {type:notify,message,level} | {type:alert,title,message}
+ *                     | {type:modal,target,action,html} | {type:redirect,url,newTab} | {type:logout,url} ] }
  * Action fields are interpolated against the context (so they can carry AI/HTTP output).
  */
 class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
 {
     /**
-     * Action types the page runtime knows how to apply. setState/setStates push
-     * live values into the published page's reactive Alpine store ($store.app),
-     * so a flow can drive bound components without a reload.
+     * Action types the page runtime knows how to apply from a Result node.
+     *
+     * State-setting (setState/setStates) is deliberately NOT here: it's the job
+     * of the dedicated Set Variable node, which emits its own setState action —
+     * offering it here too was redundant. setText is likewise dropped as a
+     * duplicate of setHtml (textContent is just html without markup).
      */
-    private const ALLOWED = ['setHtml', 'setText', 'notify', 'redirect', 'logout', 'addClass', 'removeClass', 'setState', 'setStates'];
+    private const ALLOWED = ['setHtml', 'notify', 'alert', 'modal', 'redirect', 'logout', 'addClass', 'removeClass'];
 
     public function type(): string
     {
@@ -39,7 +42,7 @@ class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
             label: 'Result',
             category: CapabilityCategory::Ui,
             description: 'Returns one or more UI actions to the page that triggered the flow, driving the live page without a reload. Each action\'s fields are interpolated, so they can carry AI/HTTP output. Unknown action types are skipped.',
-            usage: 'actions [{type:"notify", message:"Saved!", level:"success"}, {type:"setState", key:"saved", value:true}]. Supported types: setHtml, setText, notify, redirect, logout, addClass, removeClass, setState, setStates.',
+            usage: 'actions [{type:"notify", message:"Saved!", level:"success"}, {type:"alert", title:"Done", message:"Saved."}]. Supported types: setHtml, notify, alert, modal, redirect, logout, addClass, removeClass. (To set page state, use the Set Variable node.)',
             icon: 'bell-alert',
             inputs: [
                 new CapabilityInput(
