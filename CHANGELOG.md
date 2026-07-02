@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Editor
+
+- **Input constraint traits** — `<input>` blocks expose `min` / `max` / `step` /
+  `pattern` / `maxlength` under Validation (native HTML attributes; persist to
+  the published page).
+
 ### Automation
 
 - **Legacy cron flows surface as Schedules** — a back-fill migration creates an

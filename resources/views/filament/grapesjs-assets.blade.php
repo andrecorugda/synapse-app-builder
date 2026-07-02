@@ -1073,6 +1073,15 @@
                                     { id: 'tel', name: 'Phone' }, { id: 'url', name: 'URL' }, { id: 'password', name: 'Password' },
                                     { id: 'date', name: 'Date' }, { id: 'time', name: 'Time' }, { id: 'search', name: 'Search' },
                                 ] });
+                                // Constraint attributes — plain HTML validation
+                                // attrs GrapesJS syncs straight through; meaningful
+                                // per-type (min/max/step for number/date/range,
+                                // pattern/maxlength for text-like). Sanitizer keeps them.
+                                cmp.addTrait({ type: 'text', name: 'min', category: 'Validation', label: 'Min' });
+                                cmp.addTrait({ type: 'text', name: 'max', category: 'Validation', label: 'Max' });
+                                cmp.addTrait({ type: 'text', name: 'step', category: 'Validation', label: 'Step' });
+                                cmp.addTrait({ type: 'text', name: 'pattern', category: 'Validation', label: 'Pattern (regex)' });
+                                cmp.addTrait({ type: 'number', name: 'maxlength', category: 'Validation', label: 'Max length' });
                             }
                         }
 
