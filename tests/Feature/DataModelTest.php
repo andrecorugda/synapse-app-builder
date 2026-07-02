@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\Nodes\RecordNode;
 use Andre\AiPageBuilder\Models\PbModel;
@@ -57,6 +58,30 @@ it('adds a column when a new field is added to an existing model', function (): 
     app(SchemaSynchronizer::class)->sync($model->fresh());
 
     expect(Schema::hasColumn('pb_leads', 'phone'))->toBeTrue();
+});
+
+it('alters the physical column when a field type changes (string → integer)', function (): void {
+    $model = makeLeadsModel();
+    expect(FieldType::normalizeDbType(Schema::getColumnType('pb_leads', 'name')))->toBe('string');
+
+    // Author edits the "name" field from string to integer.
+    $field = $model->fields()->where('key', 'name')->firstOrFail();
+    $field->update(['type' => 'integer']);
+
+    app(SchemaSynchronizer::class)->sync($model->fresh());
+
+    expect(FieldType::normalizeDbType(Schema::getColumnType('pb_leads', 'name')))->toBe('integer');
+});
+
+it('does not alter a column when the field type is unchanged (idempotent sync)', function (): void {
+    $model = makeLeadsModel();
+
+    // A no-op edit (relabel only) must not change the column's storage type.
+    $model->fields()->where('key', 'score')->firstOrFail()->update(['label' => 'Lead Score']);
+    app(SchemaSynchronizer::class)->sync($model->fresh());
+
+    expect(FieldType::normalizeDbType(Schema::getColumnType('pb_leads', 'score')))->toBe('integer')
+        ->and(Schema::hasColumns('pb_leads', ['name', 'email', 'score', 'status']))->toBeTrue();
 });
 
 it('drops the physical table on dropTable', function (): void {

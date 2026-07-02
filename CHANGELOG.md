@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Editing a collection field's type now ALTERs the column.** The synchronizer
+  only ever *added* columns, so changing an existing field's type (e.g.
+  string → number) in the admin left the physical column at its old type — the
+  edit silently didn't take. Sync now ALTERs a column when the field's storage
+  category changes; a no-op edit (relabel, length tweak, text↔json) issues no
+  needless ALTER. (Renames and index changes remain create/destructive-sync
+  concerns.)
 - **Set Variable applies the chosen type everywhere.** Only the persisted State
   was cast; the live `setState` action pushed to the page and the downstream
   `output` var kept the raw interpolated string — so a `number`/`boolean` State
