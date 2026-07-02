@@ -13,7 +13,8 @@ These docs are the reference: how it installs, how each subsystem works, the exa
 3. [Pages & components](pages-and-components.md) — build and publish pages.
 4. [Collections & data](collections-and-data.md) — your own data tables.
 5. [Flows](flows.md) — make things happen on clicks and data events (including atomic [transaction](flows.md#transaction) + [loop](flows.md#loop) automations).
-6. [AI](ai.md) — describe an app, review the plan, apply it, refine by chat.
+6. [Watchers](watchers.md) — react to collection and state changes: run a flow when a record or a variable changes.
+7. [AI](ai.md) — describe an app, review the plan, apply it, refine by chat.
 
 **Developer / integrator** — you embed Synapse in a host app, extend it, or self-host its assets:
 
@@ -33,6 +34,7 @@ These docs are the reference: how it installs, how each subsystem works, the exa
 | [pages-and-components.md](pages-and-components.md) | GrapesJS builder, block vocabulary, per-page CSS/JS, the render route, home page, `requires_auth`, declarative Alpine binding, `pbTable`. |
 | [collections-and-data.md](collections-and-data.md) | Collections → `pb_<key>` tables, field types, the auto REST API, the `filter`/`sort`/`search`/paginate syntax, schema sync. |
 | [flows.md](flows.md) | The flow engine: triggers, every node type and its config (including the atomic `transaction` + `loop` control-flow nodes), the searchable node drawer, `FlowContext` interpolation, the public run endpoint, cron. |
+| [watchers.md](watchers.md) | Reactive triggers: bind a collection event (created/updated/deleted, with criteria + changed-field conditions) or a state change (server or live-browser, with path/transition/operator conditions) to a target flow/function; test-fire, runs, export/import, and how they replace flow `trigger_type`. |
 | [functions-and-states.md](functions-and-states.md) | Functions (expression / callable / PHP) and the eval-free `db.* / ui.* / auth.* / util.*` helper library; States (the persistent reactive store). |
 | [authentication-and-permissions.md](authentication-and-permissions.md) | The built app's users/roles/permissions, the `pb` guard, opt-in gating, row-level rules, component visibility. |
 | [email.md](email.md) | SMTP settings, the isolated transport, email-template pages, the `send_email` node, mustache interpolation, send-test. |
