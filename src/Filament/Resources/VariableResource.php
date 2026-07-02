@@ -16,6 +16,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class VariableResource extends Resource
@@ -109,10 +110,38 @@ class VariableResource extends Resource
                             })
                             ->columnSpanFull(),
 
-                        static::shapeRepeater()
+                        // Object shape: the nested builder and a read-only JSON
+                        // view of the same shape, on two tabs you can flip between.
+                        Schemas\Components\Tabs::make('Shape')
                             ->visible(fn (Get $get): bool => $get('type') === 'json')
-                            ->helperText('Define the object\'s fields, their types, and optional defaults. Nest Objects freely, or reuse another Object state.')
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->tabs([
+                                Schemas\Components\Tabs\Tab::make('Builder')
+                                    ->schema([
+                                        static::shapeRepeater()
+                                            ->helperText('Define the object\'s fields, their types, and optional defaults. Nest Objects freely, or reuse another Object state.'),
+                                    ]),
+                                Schemas\Components\Tabs\Tab::make('JSON')
+                                    ->schema([
+                                        // The shape rendered as the actual object it
+                                        // describes — keys with their default values,
+                                        // nested — e.g. {"city":"Paris","geo":{"lat":"48.85"}}.
+                                        Forms\Components\Placeholder::make('shape_json')
+                                            ->label('Object (read-only)')
+                                            ->content(fn (Get $get): HtmlString => new HtmlString(
+                                                '<pre style="margin:0;padding:.75rem;background:#0f172a;color:#5eead4;'
+                                                .'border-radius:.5rem;font-size:.75rem;line-height:1.5;overflow:auto;'
+                                                .'max-height:24rem;white-space:pre;">'
+                                                .e((string) json_encode(
+                                                    app(StateShapeService::class)->composeDefault(
+                                                        is_array($get('shape')) ? $get('shape') : []
+                                                    ),
+                                                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT
+                                                ))
+                                                .'</pre>'
+                                            )),
+                                    ]),
+                            ]),
 
                         Forms\Components\Textarea::make('description')
                             ->rows(2)
@@ -141,6 +170,7 @@ class VariableResource extends Resource
                 ->placeholder('fieldName')
                 ->required()
                 ->regex('/^[a-zA-Z_][a-zA-Z0-9_]*$/')
+                ->live(onBlur: true) // keep the JSON tab in sync as fields are edited
                 ->columnSpan(2),
 
             Forms\Components\Select::make('type')
@@ -159,6 +189,7 @@ class VariableResource extends Resource
             Forms\Components\TextInput::make('default')
                 ->label('Default')
                 ->placeholder('optional')
+                ->live(onBlur: true)
                 ->visible(fn (Get $get): bool => in_array($get('type'), ['string', 'number', 'boolean'], true))
                 ->columnSpan(2),
 
