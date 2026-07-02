@@ -20,6 +20,7 @@ final readonly class BuildPlan
      * @param  PlanList  $states
      * @param  PlanList  $functions
      * @param  PlanList  $flows
+     * @param  PlanList  $watchers
      * @param  PlanList  $pages
      * @param  PlanList  $partials
      * @param  array<string,mixed>  $settings  App-level config (e.g. home_page).
@@ -29,6 +30,7 @@ final readonly class BuildPlan
         public array $states = [],
         public array $functions = [],
         public array $flows = [],
+        public array $watchers = [],
         public array $pages = [],
         public array $partials = [],
         public array $settings = [],
@@ -44,6 +46,7 @@ final readonly class BuildPlan
             states: self::list($plan, 'states'),
             functions: self::list($plan, 'functions'),
             flows: self::list($plan, 'flows'),
+            watchers: self::list($plan, 'watchers'),
             pages: self::list($plan, 'pages'),
             partials: self::list($plan, 'partials'),
             settings: is_array($plan['settings'] ?? null) ? $plan['settings'] : [],
@@ -75,6 +78,12 @@ final readonly class BuildPlan
     }
 
     /** @return PlanList */
+    public function watchers(): array
+    {
+        return $this->watchers;
+    }
+
+    /** @return PlanList */
     public function pages(): array
     {
         return $this->pages;
@@ -102,6 +111,7 @@ final readonly class BuildPlan
             'states' => $this->states,
             'functions' => $this->functions,
             'flows' => $this->flows,
+            'watchers' => $this->watchers,
             'pages' => $this->pages,
             'partials' => $this->partials,
             'settings' => $this->settings,

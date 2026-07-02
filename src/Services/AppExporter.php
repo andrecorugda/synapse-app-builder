@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Variable;
+use Andre\AiPageBuilder\Models\Watcher;
 use Throwable;
 
 /**
@@ -44,6 +45,7 @@ class AppExporter
      *   states:list<array{key:string,type:string,value:mixed}>,
      *   functions:list<array{slug:string,name:string,runtime:string,body:?string}>,
      *   flows:list<array{slug:string,name:string,trigger_type:string,trigger_config:array<string,mixed>,definition:array<string,mixed>}>,
+     *   watchers:list<array{name:string,source_type:string,source_key:string,event:?string,config:?array<string,mixed>,target_type:string,target_key:string,is_active:bool}>,
      *   pages:list<array{slug:string,title:string,kind:string,status:string,html:?string,css:?string,custom_css:?string,custom_js:?string,meta:?array<string,mixed>}>,
      *   settings:array{home_page:mixed,not_found_page:mixed,maintenance_page:mixed}
      * }
@@ -56,6 +58,7 @@ class AppExporter
             'states' => $this->states(),
             'functions' => $this->functions(),
             'flows' => $this->flows(),
+            'watchers' => $this->watchers(),
             'pages' => $this->pages(),
             'settings' => $this->appSettings(),
         ];
@@ -168,6 +171,38 @@ class AppExporter
                     'trigger_type' => (string) $flow->trigger_type,
                     'trigger_config' => is_array($triggerConfig) ? $triggerConfig : [],
                     'definition' => is_array($flow->definition) ? $flow->definition : [],
+                ];
+            }
+
+            return $out;
+        });
+    }
+
+    /**
+     * Watchers are part of the app's automation and travel with it. Schedules
+     * do NOT: their cron cadence is a deployment decision, not app content.
+     *
+     * @return list<array{name:string,source_type:string,source_key:string,event:?string,config:?array<string,mixed>,target_type:string,target_key:string,is_active:bool}>
+     */
+    private function watchers(): array
+    {
+        return $this->guard(function (): array {
+            /** @var class-string<Watcher> $watcherClass */
+            $watcherClass = config('ai-page-builder.models.watcher', Watcher::class);
+
+            $out = [];
+            foreach ($watcherClass::query()->orderBy('id')->get() as $watcher) {
+                /** @var Watcher $watcher */
+                $config = $watcher->getAttribute('config');
+                $out[] = [
+                    'name' => (string) $watcher->name,
+                    'source_type' => (string) $watcher->source_type,
+                    'source_key' => (string) $watcher->source_key,
+                    'event' => $watcher->event,
+                    'config' => is_array($config) ? $config : null,
+                    'target_type' => (string) $watcher->target_type,
+                    'target_key' => (string) $watcher->target_key,
+                    'is_active' => (bool) $watcher->is_active,
                 ];
             }
 

@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\Watcher;
 use Andre\AiPageBuilder\Services\AppExporter;
 use Andre\AiPageBuilder\Services\AppImporter;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
@@ -61,8 +62,8 @@ it('exports the app as an import-ready, plan-shaped document', function (): void
 
     $plan = app(AppExporter::class)->export();
 
-    // Top-level shape: version + the six sections the applier reads.
-    expect($plan)->toHaveKeys(['version', 'collections', 'states', 'functions', 'flows', 'pages', 'settings'])
+    // Top-level shape: version + the sections the applier reads.
+    expect($plan)->toHaveKeys(['version', 'collections', 'states', 'functions', 'flows', 'watchers', 'pages', 'settings'])
         ->and($plan['version'])->toBe(AppExporter::VERSION);
 
     // Collection with fields (+ options) carried through.
@@ -86,6 +87,17 @@ it('exports the app as an import-ready, plan-shaped document', function (): void
         ->and($plan['flows'][0]['definition'])->toHaveKey('nodes')
         ->and($plan['pages'][0])->toMatchArray(['slug' => 'home', 'kind' => 'page', 'status' => 'published'])
         ->and($plan['settings']['home_page'])->toBe('home');
+
+    // The watcher materialized from the collection flow travels with the app.
+    expect($plan['watchers'])->toHaveCount(1)
+        ->and($plan['watchers'][0])->toMatchArray([
+            'source_type' => 'collection',
+            'source_key' => 'leads',
+            'event' => 'created',
+            'target_type' => 'flow',
+            'target_key' => 'on-lead',
+            'is_active' => true,
+        ]);
 });
 
 it('round-trips losslessly: export then import recreates every row', function (): void {
@@ -97,6 +109,7 @@ it('round-trips losslessly: export then import recreates every row', function ()
     PbField::query()->delete();
     PbModel::query()->forceDelete();
     Flow::query()->forceDelete();
+    Watcher::query()->forceDelete();
     FlowFunction::query()->forceDelete();
     Page::query()->forceDelete();
     app(VariableStore::class)->forget('cart_total');
@@ -109,6 +122,7 @@ it('round-trips losslessly: export then import recreates every row', function ()
         ->and($summary['created']['states'])->toBe(['cart_total'])
         ->and($summary['created']['functions'])->toBe(['markup'])
         ->and($summary['created']['flows'])->toBe(['on-lead'])
+        ->and($summary['created']['watchers'])->toBe(['collection:leads created → on-lead'])
         ->and($summary['created']['pages'])->toBe(['home']);
 
     // Rows + physical table are back.
@@ -117,6 +131,7 @@ it('round-trips losslessly: export then import recreates every row', function ()
         ->and(Schema::hasColumns('pb_leads', ['name', 'email']))->toBeTrue()
         ->and(FlowFunction::query()->where('slug', 'markup')->exists())->toBeTrue()
         ->and(Flow::query()->where('slug', 'on-lead')->exists())->toBeTrue()
+        ->and(Watcher::query()->where('target_key', 'on-lead')->where('event', 'created')->exists())->toBeTrue()
         ->and(Page::query()->where('slug', 'home')->firstOrFail()->status->value)->toBe('published')
         ->and(app(VariableStore::class)->get('cart_total'))->toBe(42)
         ->and(app(Settings::class)->get('home_page'))->toBe('home');
@@ -127,7 +142,8 @@ it('export of an empty app is still a valid, importable plan', function (): void
 
     expect($plan['collections'])->toBe([])
         ->and($plan['pages'])->toBe([])
-        ->and($plan['flows'])->toBe([]);
+        ->and($plan['flows'])->toBe([])
+        ->and($plan['watchers'])->toBe([]);
 
     // An empty plan imports cleanly (creates nothing, no errors).
     $summary = app(AppImporter::class)->import($plan);
