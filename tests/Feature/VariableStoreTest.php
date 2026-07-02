@@ -38,6 +38,21 @@ it('reads a boolean value back as bool', function (): void {
         ->and($store->get('disabled'))->toBeFalse();
 });
 
+it('parses textual boolean values by meaning, not string-truthiness', function (): void {
+    $store = app(VariableStore::class);
+
+    // A form/flow supplies boolean values as strings. "false"/"no"/"off"/"0"
+    // must store FALSE — a plain `$v ? …` stored any non-empty string as true.
+    foreach (['false', 'no', 'off', '0'] as $falsey) {
+        $store->set('flag', $falsey, 'boolean');
+        expect($store->get('flag'))->toBeFalse("'{$falsey}' should be false");
+    }
+    foreach (['true', 'yes', 'on', '1'] as $truthy) {
+        $store->set('flag', $truthy, 'boolean');
+        expect($store->get('flag'))->toBeTrue("'{$truthy}' should be true");
+    }
+});
+
 it('reads a json value back as an array', function (): void {
     $store = app(VariableStore::class);
     $store->set('config', ['a' => 1, 'b' => [2, 3]], 'json');
