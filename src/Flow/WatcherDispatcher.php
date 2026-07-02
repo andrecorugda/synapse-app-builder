@@ -77,9 +77,14 @@ class WatcherDispatcher
 
         try {
             foreach ($watchers as $watcher) {
-                $criteria = (array) (($watcher->config['criteria'] ?? []));
+                $config = (array) ($watcher->config ?? []);
 
+                $criteria = (array) ($config['criteria'] ?? []);
                 if ($criteria !== [] && ! $this->matchesCriteria($record, $criteria)) {
+                    continue;
+                }
+
+                if (! $this->changedFieldsTouched($config['changed'] ?? [], $record, $old)) {
                     continue;
                 }
 
@@ -88,6 +93,32 @@ class WatcherDispatcher
         } finally {
             self::$depth--;
         }
+    }
+
+    /**
+     * `config.changed` narrows an update watcher to fire only when at least one
+     * of the named fields actually changed (old ≠ new). No prior state (`$old`
+     * empty — i.e. a create) or an empty list means "don't filter": every field
+     * of a new record is a change, and deletes have no meaningful diff.
+     *
+     * @param  array<string,mixed>  $record
+     * @param  array<string,mixed>  $old
+     */
+    private function changedFieldsTouched(mixed $fields, array $record, array $old): bool
+    {
+        $fields = array_values(array_filter((array) $fields, static fn ($f): bool => is_string($f) && $f !== ''));
+
+        if ($fields === [] || $old === []) {
+            return true;
+        }
+
+        foreach ($fields as $field) {
+            if (($old[$field] ?? null) != ($record[$field] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
