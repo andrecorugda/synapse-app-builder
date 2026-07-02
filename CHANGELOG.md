@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A loop/transaction that overruns the step budget now fails, not silently
+  half-commits.** When a Loop's cumulative steps crossed `flow.max_steps`
+  mid-iteration the walk exited silently without flagging failure — the Loop
+  kept counting un-run iterations and reported the full count, and a wrapping
+  Transaction *committed* the partial writes and followed the `committed`
+  branch. Budget exhaustion is now a run failure (a Transaction rolls back). The
+  default `max_steps` is also raised (1000 → 100000) so a Loop at its
+  10k-iteration ceiling with a small body no longer trips the cap.
+- **An unknown node type fails the run instead of silently truncating it.** A
+  node whose `type` had no handler was logged and skipped, its `next` never
+  enqueued — every downstream node vanished and the run was recorded `ok`. A
+  typo'd/removed node type is now a run failure.
+- **A flow that calls itself is caught at the first level.** The running flow's
+  slug was not seeded onto the call stack, so a top-level `call_flow` back to
+  the same flow ran its whole body one extra pass (side effects fired twice)
+  before the cycle guard tripped one level deeper. The entry slug is now seeded.
 - **Boolean state watcher fires when a flag turns off.** A state watcher with
   `to: false` (stored by the form as the string `"false"`) never fired: PHP's
   loose `==` treats the non-empty string `"false"` as truthy, so `false ==

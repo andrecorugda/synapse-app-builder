@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Flow\FlowContext;
+use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
 use Andre\AiPageBuilder\Flow\NodeRegistry;
 use Andre\AiPageBuilder\Models\Flow;
@@ -171,6 +172,44 @@ it('blocks a flow that directly calls itself (self-reference)', function (): voi
     expect($context->failed)->toBeTrue()
         ->and($context->error)->toContain('self-loop');
 
+    Log::assertLogged('warning', fn (string $message, array $ctx) => str_contains($message, 'call_flow cycle blocked'));
+});
+
+it('catches a top-level self-call at the first level (body does not run an extra pass)', function (): void {
+    Log::spy();
+
+    // A flow whose body appends to a global then calls ITSELF. Run through the
+    // FlowManager (the real entry point), which seeds the call stack with the
+    // running flow's slug. Without that seed the guard only tripped one level
+    // deep, so the body ran a whole extra pass (the notify/side effect fired
+    // twice). The append node must therefore run exactly once.
+    Flow::create([
+        'slug' => 'self-loop',
+        'name' => 'self-loop',
+        'trigger_type' => 'component',
+        'is_active' => true,
+        'definition' => [
+            'start' => 'set',
+            'nodes' => [
+                'set' => [
+                    'type' => 'set_variable',
+                    'config' => ['key' => 'hits', 'value' => '{{ vars.hits }}x', 'output' => 'hits'],
+                    'next' => ['again'],
+                ],
+                'again' => [
+                    'type' => 'call_flow',
+                    'config' => ['flow' => 'self-loop'],
+                    'next' => [],
+                ],
+            ],
+        ],
+    ]);
+
+    $flow = Flow::where('slug', 'self-loop')->firstOrFail();
+    $ctx = app(FlowManager::class)->run($flow, ['hits' => '']);
+
+    // The set_variable ran exactly once → 'hits' is a single "x", not "xx".
+    expect($ctx->get('vars.hits'))->toBe('x');
     Log::assertLogged('warning', fn (string $message, array $ctx) => str_contains($message, 'call_flow cycle blocked'));
 });
 
