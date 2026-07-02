@@ -112,6 +112,25 @@ class WatcherResource extends Resource
                             ])
                             ->helperText('One event per watcher — add separate watchers to run different flows per event.'),
 
+                        Forms\Components\Select::make('config.side')
+                            ->label('Watch where')
+                            ->visible(fn (Get $get): bool => $get('source_type') === 'state')
+                            ->live()
+                            ->default('server')
+                            ->selectablePlaceholder(false)
+                            ->options([
+                                'server' => 'Server — when the persisted state changes',
+                                'client' => 'Browser — live page state, as the visitor interacts',
+                            ])
+                            // The browser fires flows through /pb-flow, which only
+                            // runs flows — a function target would 404.
+                            ->afterStateUpdated(function (callable $set, Get $get): void {
+                                if ($get('config.side') === 'client') {
+                                    $set('target_type', 'flow');
+                                }
+                            })
+                            ->helperText('Server catches set_variable / API writes. Browser watches the live $store.app on rendered pages (typing, selections) — like a JS framework watcher.'),
+
                         // Object states: pick the flattened value to watch instead
                         // of typing a dotted path (mirrors the flow/page pickers).
                         Forms\Components\Select::make('config.path')
@@ -207,10 +226,10 @@ class WatcherResource extends Resource
                         Forms\Components\Select::make('target_type')
                             ->label('Run a')
                             ->required()
-                            ->options([
-                                'flow' => 'Flow',
-                                'function' => 'Function',
-                            ])
+                            // Browser-side watchers fire through /pb-flow → flows only.
+                            ->options(fn (Get $get): array => ($get('source_type') === 'state' && $get('config.side') === 'client')
+                                ? ['flow' => 'Flow']
+                                : ['flow' => 'Flow', 'function' => 'Function'])
                             ->default('flow')
                             ->live()
                             // Clear a now-mismatched target when the type flips.
@@ -313,10 +332,15 @@ class WatcherResource extends Resource
             $config = (array) ($data['config'] ?? []);
             unset($config['criteria']);
 
-            foreach (['path', 'from', 'to', 'op', 'value'] as $key) {
+            foreach (['path', 'from', 'to', 'op', 'value', 'side'] as $key) {
                 if (($config[$key] ?? null) === null || $config[$key] === '') {
                     unset($config[$key]);
                 }
+            }
+
+            // 'server' is the default — only a browser-side watcher needs the marker.
+            if (($config['side'] ?? null) === 'server') {
+                unset($config['side']);
             }
 
             $data['config'] = $config === [] ? null : $config;

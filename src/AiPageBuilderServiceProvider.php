@@ -53,6 +53,7 @@ use Andre\AiPageBuilder\Http\Controllers\TwoFactorController;
 use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
+use Andre\AiPageBuilder\Models\Watcher;
 use Andre\AiPageBuilder\Seeders\AppBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Seeders\PageBuilderIntegrationSeeder;
 use Andre\AiPageBuilder\Seeders\SystemPagesSeeder;
@@ -209,6 +210,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerFilamentAssets();
         $this->autoSeedGatewayIntegration();
         $this->registerRecordObserver();
+        $this->registerWatcherCacheFlush();
         $this->registerPublishableAssets();
         $this->registerScheduledCommands();
         $this->ensureSystemPages();
@@ -310,6 +312,22 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     private function registerRecordObserver(): void
     {
         Record::observe(RecordObserver::class);
+    }
+
+    /**
+     * Rendered pages embed the browser-side state watcher list (flow-runtime),
+     * and rendered HTML is cached — so any watcher change must flush the render
+     * cache or pages would keep firing a stale watcher set until TTL expiry
+     * (mirrors the theme-settings flush).
+     */
+    private function registerWatcherCacheFlush(): void
+    {
+        /** @var class-string<Watcher> $watcherModel */
+        $watcherModel = config('ai-page-builder.models.watcher', Watcher::class);
+
+        $flush = static fn () => app(PageRenderer::class)->flushAll();
+        $watcherModel::saved($flush);
+        $watcherModel::deleted($flush);
     }
 
     /**

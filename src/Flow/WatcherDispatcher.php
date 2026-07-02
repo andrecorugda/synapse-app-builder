@@ -122,6 +122,13 @@ class WatcherDispatcher
 
         try {
             foreach ($watchers as $watcher) {
+                // Browser-side watchers observe the page's LIVE store and fire
+                // from flow-runtime.js — the server write path must skip them
+                // or a persisted change would run the target twice.
+                if ((($watcher->config['side'] ?? 'server')) === 'client') {
+                    continue;
+                }
+
                 if (! $this->stateConditionMet($watcher, $old, $new)) {
                     continue;
                 }

@@ -39,6 +39,20 @@ it('normalizes a state watcher: forces event=changed and strips empty conditions
         ->and($data['config'])->toBe(['path' => 'address.city', 'to' => 'LA']);
 });
 
+it('keeps side=client but strips the server default', function (): void {
+    $client = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'config' => ['side' => 'client', 'path' => ''],
+    ]);
+    expect($client['config'])->toBe(['side' => 'client']);
+
+    $server = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'config' => ['side' => 'server', 'to' => 'won'],
+    ]);
+    expect($server['config'])->toBe(['to' => 'won']);
+});
+
 it('nulls a state watcher config when no conditions are set', function (): void {
     $data = WatcherResource::normalizeConfig([
         'source_type' => 'state',

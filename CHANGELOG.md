@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### State & Watchers
+
+- **Browser-side state watchers** — a state watcher can watch **live page state** (`$store.app`) as the visitor interacts, like a JS framework watcher: pick *Browser* under "Watch where". Rendered pages install debounced reactive effects that fire the target flow on change (with the same path / from→to / operator conditions, evaluated client-side) and apply the returned actions; a loop guard stops a flow that rewrites its own watched key from re-triggering itself. Server dispatch skips browser-side watchers so a persisted write never double-fires.
+- **Watcher form UX** — the form now reads as a sentence in three sections (*Watch* → *Only when (optional)* → *Then run*); for Object states the watched value is picked from the shape's **flattened dotted paths** (no more free-typed path), and collection criteria pick from the collection's fields.
+- **`trigger_type` is now an advisory label** — flows are reusable graphs; collection/state triggering is managed by Watchers and scheduling by Schedules. The Flow form drops the embedded collection trigger config. AI-generated collection flows keep working: applying a build plan materializes the equivalent watchers automatically.
+- **Watchers travel with the app** — app export/import round-trips watchers (the build-plan contract gained a `watchers` section); the AI sees existing watchers as app context. The Watchers menu icon is now an eye.
+
 ## [1.1.0] - 2026-07-02
 
 ### Flow editor & engine
