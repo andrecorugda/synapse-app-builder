@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Editor
 
+- **Extensible component settings** — a registered/premium block
+  (`SectionBlock`) can declare its own `settings` (`ComponentSetting[]`: text /
+  number / checkbox / select), mirroring the flow-node config-input pattern. The
+  editor renders each as a trait on the selected component, writing a plain
+  attribute the block's template / `custom_js` reads. Built-ins are unchanged
+  (empty settings by default).
 - **Input constraint traits** — `<input>` blocks expose `min` / `max` / `step` /
   `pattern` / `maxlength` under Validation (native HTML attributes; persist to
   the published page).
