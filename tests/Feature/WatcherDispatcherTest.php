@@ -156,6 +156,54 @@ it('forwards the previous record state as input.old on update', function (): voi
         ->and($run->input['record']['status'])->toBe('won');
 });
 
+it('fires only when a watched field actually changed (config.changed)', function (): void {
+    $model = makeWatchedLeadsModel();
+    makeNotifyFlow('on-status-change');
+    makeCollectionWatcher('leads', 'updated', 'on-status-change', ['changed' => ['status']]);
+    $q = app(RecordQuery::class);
+
+    $rec = $q->create($model, ['name' => 'Acme', 'email' => 'a@acme.com', 'status' => 'open', 'score' => 1]);
+
+    // Update touching only a non-watched field -> no fire.
+    $q->update($model, $rec->id, ['score' => 2]);
+    expect(FlowRun::where('flow_slug_snapshot', 'on-status-change')->count())->toBe(0);
+
+    // Update that changes the watched field -> fires.
+    $q->update($model, $rec->id, ['status' => 'won']);
+    expect(FlowRun::where('flow_slug_snapshot', 'on-status-change')->count())->toBe(1);
+});
+
+it('config.changed does not suppress created events', function (): void {
+    $model = makeWatchedLeadsModel();
+    makeNotifyFlow('on-created');
+    makeCollectionWatcher('leads', 'created', 'on-created', ['changed' => ['status']]);
+
+    app(RecordQuery::class)->create($model, ['name' => 'Acme', 'email' => 'a@acme.com', 'status' => 'open']);
+
+    // Create has no prior state — changed filter is a no-op, so it fires.
+    expect(FlowRun::where('flow_slug_snapshot', 'on-created')->count())->toBe(1);
+});
+
+it('combines changed-fields with criteria', function (): void {
+    $model = makeWatchedLeadsModel();
+    makeNotifyFlow('on-won-change');
+    makeCollectionWatcher('leads', 'updated', 'on-won-change', [
+        'changed' => ['status'],
+        'criteria' => ['status' => ['eq' => 'won']],
+    ]);
+    $q = app(RecordQuery::class);
+
+    $rec = $q->create($model, ['name' => 'Acme', 'email' => 'a@acme.com', 'status' => 'open']);
+
+    // status changed but new value isn't 'won' -> criteria fails, no fire.
+    $q->update($model, $rec->id, ['status' => 'lost']);
+    expect(FlowRun::where('flow_slug_snapshot', 'on-won-change')->count())->toBe(0);
+
+    // status changed to 'won' -> both conditions pass.
+    $q->update($model, $rec->id, ['status' => 'won']);
+    expect(FlowRun::where('flow_slug_snapshot', 'on-won-change')->count())->toBe(1);
+});
+
 it('runs a function target through the function runtime', function (): void {
     $ran = [];
 
