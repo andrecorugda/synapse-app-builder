@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Automation
+
+- **Legacy cron flows surface as Schedules** — a back-fill migration creates an
+  **inactive** Schedule row (placeholder cadence, "(review cadence)" name) for
+  each `trigger_type='cron'` flow, so cron automations move to the first-class
+  Schedules model (per-flow cron + function targets) without silently changing
+  timing. The `run-cron-flows` command still works; its description notes the
+  deprecation.
+
 ### State & Watchers
 
 - **AI authors watchers directly** — the build-plan contract now teaches the
