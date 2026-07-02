@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`data_table` and `list` now render when built as prescribed.** A bare
+  `<div data-pb-block="data_table" data-pb-collection="…">` (the form the docs +
+  AI emit) was never expanded — those blocks are category *Data*, but the
+  renderer only expanded *Interactive* blocks + `kpi`/`chart` — so they got no
+  `x-data`, never fetched, and showed an empty div. Both are now expanded;
+  `data_table` binds its collection, and a bare `list` rebinds `x-for` to its
+  `data-pb-state` key. (The single most user-visible data defect.)
+
 ### Flows
 
 - **A flow can open the modal the author designed** — the Result `modal` action
