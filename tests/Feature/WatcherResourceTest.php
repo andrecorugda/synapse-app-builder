@@ -28,6 +28,32 @@ it('drops empty criteria and skips rows without a field', function (): void {
     expect($data['config'])->not->toHaveKey('criteria');
 });
 
+it('normalizes a state watcher: forces event=changed and strips empty conditions', function (): void {
+    $data = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'event' => 'created',
+        'config' => ['path' => 'address.city', 'from' => '', 'to' => 'LA', 'op' => '', 'value' => null],
+    ]);
+
+    expect($data['event'])->toBe('changed')
+        ->and($data['config'])->toBe(['path' => 'address.city', 'to' => 'LA']);
+});
+
+it('nulls a state watcher config when no conditions are set', function (): void {
+    $data = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'config' => ['path' => '', 'from' => '', 'to' => '', 'op' => '', 'value' => ''],
+    ]);
+
+    expect($data['config'])->toBeNull();
+});
+
+it('leaves a state watcher config untouched on denormalize', function (): void {
+    $stored = ['source_type' => 'state', 'config' => ['path' => 'a.b', 'to' => 'x']];
+
+    expect(WatcherResource::denormalizeConfig($stored))->toBe($stored);
+});
+
 it('round-trips criteria through denormalize → normalize', function (): void {
     $stored = ['config' => ['criteria' => ['status' => ['eq' => 'won']]]];
 
