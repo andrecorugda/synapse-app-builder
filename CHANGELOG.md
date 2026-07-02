@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Reference fields get their pickers inside transaction/loop bodies.** A
+  node used as a body step rendered `integration` / `credential` / email
+  `template` / `function` / `flow` as free-typed text (the top-level canvas
+  showed dropdowns); body steps now render the same dropdowns from the live
+  lists.
 - **`context_menu` content is now editable in the editor** — it was missing from
   the dialog/disclosure reveal set, so its menu items stayed hidden in the canvas.
 - **KPI / chart no longer show a fake "0" on a failed data load.** A denied
