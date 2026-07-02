@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The Embed block works again.** Its `<iframe>` was stripped on every save
+  (the HTML sanitizer removed all iframes, and it runs on owner saves too), so
+  the block never rendered. The sanitizer now keeps the **Embed block's** iframe
+  — hardened: `srcdoc` dropped, a `sandbox` forced (permits YouTube/Vimeo/Maps,
+  blocks top-window navigation), and the embed URL scheme-checked — while any
+  stray/AI-injected iframe is still removed.
 - **Flow Result-action builder now uses the real catalog.** The builder fell
   back to a stale inline list because `window.__pbActionCatalog` was never
   injected — so it offered `setState`/`setText` actions the node silently

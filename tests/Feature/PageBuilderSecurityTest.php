@@ -142,6 +142,30 @@ it('does not move an inline <script> body into custom_js on the AI/import path',
 // C3c — SVG script vectors: SMIL animation tags + data:image/svg+xml URIs
 // ---------------------------------------------------------------------------
 
+it('keeps the Embed block iframe (hardened) but strips stray iframes', function (): void {
+    $s = new HtmlSanitizer;
+
+    // The owner Embed block's iframe survives — but srcdoc is dropped and a
+    // sandbox is forced.
+    $embed = $s->sanitize(
+        '<div data-pb-block="embed" class="pb-embed" data-pb-embed-url="https://youtu.be/x">'
+        .'<iframe class="pb-embed__iframe" src="" allowfullscreen srcdoc="<script>alert(1)</script>"></iframe></div>'
+    );
+    expect($embed)
+        ->toContain('pb-embed__iframe')
+        ->toContain('sandbox=')
+        ->not->toContain('srcdoc')
+        ->and($embed)->toContain('data-pb-embed-url="https://youtu.be/x"');
+
+    // A stray / AI-injected iframe (not the embed block) is still removed.
+    $stray = $s->sanitize('<div><iframe src="https://evil.test"></iframe><p>keep</p></div>');
+    expect($stray)->not->toContain('<iframe')->toContain('<p>keep</p>');
+
+    // A javascript: embed URL is neutralized (it becomes the iframe src at runtime).
+    $js = $s->sanitize('<div data-pb-block="embed" data-pb-embed-url="javascript:alert(1)"><iframe class="pb-embed__iframe"></iframe></div>');
+    expect($js)->not->toContain('javascript:');
+});
+
 it('strips SVG SMIL animation tags that can animate an href to javascript:', function (): void {
     $s = new HtmlSanitizer;
 
