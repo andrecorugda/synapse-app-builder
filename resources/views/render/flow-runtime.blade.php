@@ -394,7 +394,26 @@
                 if (!el.getAttribute('data-pb-flow')) { return; }
                 el.__pbFlowBound = true;
                 var ev = el.getAttribute('data-pb-flow-event') || 'click';
-                el.addEventListener(ev, function (e) { runFlow(el, e); }, false);
+                el.addEventListener(ev, function (e) {
+                    // A click-triggered flow bound to a CONTAINER (e.g. a section or
+                    // the page body wrapping a form) must not fire when the user
+                    // clicks a field to focus/type in it — only when they activate a
+                    // real control (button/link/non-field area). If the click bubbled
+                    // up from a form control inside the trigger, ignore it. (When the
+                    // trigger IS the clicked element, or a nested element carries its
+                    // own data-pb-flow, this doesn't apply.)
+                    if (ev === 'click' && e.target !== el && e.target.closest) {
+                        // If the click is on/inside a nested element with its OWN
+                        // data-pb-flow, that inner trigger handles it — don't
+                        // double-fire from the container.
+                        var inner = e.target.closest('[data-pb-flow]');
+                        if (inner && inner !== el && el.contains(inner)) { return; }
+                        // Focusing a form field inside the container is not activation.
+                        var field = e.target.closest('input, textarea, select, option, label, [contenteditable=""], [contenteditable="true"]');
+                        if (field && el.contains(field)) { return; }
+                    }
+                    runFlow(el, e);
+                }, false);
             })(flowEls[i]);
         }
 

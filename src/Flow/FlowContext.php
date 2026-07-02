@@ -49,8 +49,26 @@ class FlowContext
      */
     public array $callStack = [];
 
-    /** @param array<string,mixed> $input */
-    public function __construct(public array $input = []) {}
+    /**
+     * @param  array<string,mixed>  $input  The trigger payload.
+     * @param  array<string,mixed>  $stateOverlay  Per-run values that shadow the
+     *                                             persisted States for `{{ states.* }}` resolution. Used for component
+     *                                             (page-button) triggers, where the page's live $store.app state IS the
+     *                                             authoritative state at trigger time (never persisted server-side).
+     */
+    public function __construct(public array $input = [], public array $stateOverlay = []) {}
+
+    /**
+     * Persisted app-wide States, with any per-run overlay applied on top.
+     *
+     * @return array<string,mixed>
+     */
+    private function states(): array
+    {
+        $persisted = app(VariableStore::class)->all();
+
+        return $this->stateOverlay === [] ? $persisted : array_replace($persisted, $this->stateOverlay);
+    }
 
     public function set(string $key, mixed $value): void
     {
@@ -67,7 +85,7 @@ class FlowContext
             // Persistent, app-wide States (a.k.a. globals — kept as an alias for
             // backward compatibility). Resolved lazily so reading the store (and
             // thus hitting the DB) only happens when referenced.
-            'states', 'globals' => app(VariableStore::class)->all(),
+            'states', 'globals' => $this->states(),
             default => null,
         };
 
@@ -136,7 +154,7 @@ class FlowContext
             return $value;
         }
 
-        $states = app(VariableStore::class)->all();
+        $states = $this->states();
 
         try {
             return app(ExpressionEvaluator::class)->evaluateOrThrow($value, [
