@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Services\Data;
 
+use Andre\AiPageBuilder\Flow\WatcherDispatcher;
 use Andre\AiPageBuilder\Models\Variable;
 
 /**
@@ -47,6 +48,11 @@ class VariableStore
 
         $modelClass = $this->model();
 
+        // Snapshot the prior value before the write so state watchers can see
+        // the transition (and so we can skip firing when nothing changed).
+        $existed = $this->has($key);
+        $old = $existed ? $this->get($key) : null;
+
         /** @var Variable $variable */
         $variable = $modelClass::query()->updateOrCreate(
             ['key' => $key],
@@ -57,6 +63,15 @@ class VariableStore
         );
 
         $this->cache = null;
+
+        // Fire state watchers on a real change (or first write). Resolved lazily
+        // to avoid a construction cycle (WatcherDispatcher → FlowManager → …
+        // → VariableStore). The dispatcher's depth guard bounds cascades, and
+        // the change check keeps a watcher that re-sets the same value from
+        // looping.
+        if (! $existed || $old != $value) {
+            app(WatcherDispatcher::class)->dispatchStateChange($key, $old, $value);
+        }
 
         return $variable;
     }
