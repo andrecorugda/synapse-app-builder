@@ -956,7 +956,10 @@
                                 + '[data-pb-block="context_menu"] .pb-context__menu{display:block !important;position:static !important;box-shadow:none !important;z-index:auto !important;}'
                                 + '[data-pb-block="tooltip"] .pb-tooltip__bubble{display:inline-block !important;position:static !important;transform:none !important;white-space:normal !important;}'
                                 // a quiet marker so authors know these are open only for editing
-                                + '[data-pb-block="modal"] .pb-modal__overlay,[data-pb-block="drawer"] .pb-drawer__panel,[data-pb-block="dropdown_menu"] .pb-dropdown__menu,[data-pb-block="context_menu"] .pb-context__menu,[data-pb-block="tabs"] .pb-tabs__panel,[data-pb-block="accordion"] .pb-accordion__body{outline:1px dashed #c7d2fe;outline-offset:3px;}';
+                                + '[data-pb-block="modal"] .pb-modal__overlay,[data-pb-block="drawer"] .pb-drawer__panel,[data-pb-block="dropdown_menu"] .pb-dropdown__menu,[data-pb-block="context_menu"] .pb-context__menu,[data-pb-block="tabs"] .pb-tabs__panel,[data-pb-block="accordion"] .pb-accordion__body{outline:1px dashed #c7d2fe;outline-offset:3px;}'
+                                // Shared component CONFIG styles (same rules the published
+                                // page uses) so size/side/variant/etc. preview live in-canvas.
+                                + @json(view('ai-page-builder::render.component-styles')->render());
                             doc.head.appendChild(s);
                             // Inject the page's custom_css into the canvas so the
                             // visual editor matches the real rendered page (WYSIWYG).
@@ -1128,9 +1131,22 @@
                         const pbSettings = (window.__pbBlockSettings || {})[pbBlockKey] || [];
                         pbSettings.forEach((s) => {
                             if (names.includes(s.key)) { return; }
+                            // Seed the declared default as the attribute (once) so the
+                            // control reflects the real value AND the CSS/runtime read an
+                            // explicit value rather than relying on attribute-absence.
+                            if (s.default !== null && s.default !== undefined
+                                && ! Object.prototype.hasOwnProperty.call(cmp.getAttributes(), s.key)) {
+                                cmp.addAttributes({ [s.key]: String(s.default) });
+                            }
                             const trait = { type: 'text', name: s.key, label: s.label || s.key, category: s.category || 'Settings' };
                             if (s.type === 'number') { trait.type = 'number'; }
-                            else if (s.type === 'checkbox') { trait.type = 'checkbox'; }
+                            else if (s.type === 'checkbox') {
+                                // Write literal "true"/"false" (not attribute presence) so
+                                // the config CSS selectors [data-pb-x="true"] match.
+                                trait.type = 'checkbox';
+                                trait.valueTrue = 'true';
+                                trait.valueFalse = 'false';
+                            }
                             else if (s.type === 'select') {
                                 trait.type = 'select';
                                 trait.options = Object.entries(s.options || {}).map(([id, name]) => ({ id, name }));

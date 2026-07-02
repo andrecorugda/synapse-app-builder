@@ -55,6 +55,9 @@
         @keyframes pbZoomIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
         @media (prefers-reduced-motion: reduce) { html.pb-anim-ready [data-pb-anim] { opacity: 1 !important; animation: none !important; } }
 
+        /* Component config styles (driven by the components' data-pb-* settings). */
+        @include('ai-page-builder::render.component-styles')
+
         {!! $css !!}
         {{-- Per-page custom CSS overrides (authored in the builder's Advanced section). --}}
         {!! $customCss !!}

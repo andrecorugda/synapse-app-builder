@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Blocks;
 
+use Andre\AiPageBuilder\Blocks\ComponentSetting as CS;
 use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
 
 /**
@@ -241,13 +242,20 @@ final class BlockVocabulary
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-variant', 'Type', 'select', ['info' => 'Info', 'success' => 'Success', 'warning' => 'Warning', 'error' => 'Error', 'neutral' => 'Neutral'], 'Appearance', 'info'),
+                new CS('data-pb-dismissible', 'Show dismiss ✕', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-icon', 'Show icon', 'checkbox', [], 'Appearance', 'true'),
+            ]),
 
             self::block('modal', 'Modal', 'Trigger button with a centered overlay dialog.', <<<'HTML'
             <div data-pb-block="modal" class="pb-modal" x-data="{ open: false }">
               <button type="button" class="pb-modal__trigger" data-pb-open="open" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open modal</button>
               <div class="pb-modal__overlay" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-close-self data-pb-escape-close="open" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,0.55);z-index:1000;">
-                <div class="pb-modal__panel" role="dialog" aria-modal="true" x-transition style="width:100%;max-width:28rem;background:#fff;border-radius:0.75rem;box-shadow:0 20px 50px rgba(15,23,42,0.25);overflow:hidden;">
+                <div class="pb-modal__panel" role="dialog" aria-modal="true" x-transition style="position:relative;width:100%;max-width:28rem;background:#fff;border-radius:0.75rem;box-shadow:0 20px 50px rgba(15,23,42,0.25);overflow:hidden;">
+                  <button type="button" class="pb-modal__x" data-pb-close="open" aria-label="Close">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
                   <div class="pb-modal__body" style="padding:1.75rem;">
                     <h3 class="pb-modal__title" style="margin:0 0 0.75rem;font-size:1.25rem;color:#0f172a;">Modal title</h3>
                     <p class="pb-modal__text" style="margin:0;color:#475569;line-height:1.6;">Put your dialog content here. Press Escape, click the backdrop, or use the buttons to close.</p>
@@ -259,7 +267,15 @@ final class BlockVocabulary
                 </div>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-display', 'Display as', 'select', ['center' => 'Centered dialog', 'drawer-right' => 'Drawer — right', 'drawer-left' => 'Drawer — left', 'drawer-top' => 'Drawer — top', 'drawer-bottom' => 'Drawer — bottom'], 'Layout', 'center'),
+                new CS('data-pb-size', 'Size', 'select', ['sm' => 'Small', 'md' => 'Medium', 'lg' => 'Large', 'xl' => 'Extra large', 'full' => 'Full width'], 'Layout', 'md'),
+                new CS('data-pb-backdrop-close', 'Click outside to close', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-backdrop', 'Show dark backdrop', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-close-icon', 'Show ✕ close icon', 'checkbox', [], 'Behaviour', 'false'),
+                new CS('data-pb-close-icon-pos', 'Close icon position', 'select', ['right' => 'Top right', 'left' => 'Top left'], 'Behaviour', 'right'),
+                new CS('data-pb-open-on-load', 'Open on page load', 'checkbox', [], 'Behaviour', 'false'),
+            ]),
 
             self::block('drawer', 'Drawer', 'Trigger button with a right-edge slide-over panel.', <<<'HTML'
             <div data-pb-block="drawer" class="pb-drawer" x-data="{ open: false }">
@@ -277,7 +293,12 @@ final class BlockVocabulary
                 </div>
               </aside>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-side', 'Slide from', 'select', ['right' => 'Right', 'left' => 'Left', 'top' => 'Top', 'bottom' => 'Bottom'], 'Layout', 'right'),
+                new CS('data-pb-size', 'Panel size', 'select', ['sm' => 'Small', 'md' => 'Medium', 'lg' => 'Large', 'xl' => 'Extra large'], 'Layout', 'md'),
+                new CS('data-pb-backdrop-close', 'Click outside to close', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-backdrop', 'Show dark backdrop', 'checkbox', [], 'Behaviour', 'true'),
+            ]),
 
             self::block('tabs', 'Tabs', 'Tabbed panels — switch content without navigating.', <<<'HTML'
             <div data-pb-block="tabs" class="pb-tabs" x-data="{ tab: 'one' }" style="max-width:36rem;">
@@ -292,7 +313,10 @@ final class BlockVocabulary
                 <div class="pb-tabs__panel" role="tabpanel" x-show="tab === 'three'" x-cloak><p style="margin:0;">Content for the third tab.</p></div>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-default-tab', 'Default active tab', 'select', ['one' => 'Tab one', 'two' => 'Tab two', 'three' => 'Tab three'], 'Behaviour', 'one'),
+                new CS('data-pb-align', 'Tab alignment', 'select', ['start' => 'Start', 'center' => 'Center', 'end' => 'End', 'stretch' => 'Stretch'], 'Layout', 'start'),
+            ]),
 
             self::block('accordion', 'Accordion', 'Collapsible items — expand one at a time.', <<<'HTML'
             <div data-pb-block="accordion" class="pb-accordion" style="max-width:36rem;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
@@ -318,14 +342,20 @@ final class BlockVocabulary
                 <div class="pb-accordion__body" x-show="open" x-cloak style="padding:0 1.25rem 1rem;color:#475569;line-height:1.6;"><p style="margin:0;">Body content for the third item.</p></div>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-single-open', 'Only one open at a time', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-variant', 'Style', 'select', ['bordered' => 'Bordered', 'flush' => 'Flush'], 'Appearance', 'bordered'),
+            ]),
 
             self::block('tooltip', 'Tooltip', 'Hover/focus hint bubble above an element.', <<<'HTML'
             <div data-pb-block="tooltip" class="pb-tooltip" x-data="{ h: false }" style="display:inline-block;position:relative;">
               <button type="button" class="pb-tooltip__trigger" data-pb-hover="h" :aria-describedby="h ? 'pb-tooltip-bubble' : null" style="display:inline-block;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:default;">Hover me</button>
               <span class="pb-tooltip__bubble" id="pb-tooltip-bubble" role="tooltip" x-show="h" x-cloak x-transition.opacity style="position:absolute;bottom:calc(100% + 0.5rem);left:50%;transform:translateX(-50%);white-space:nowrap;padding:0.4rem 0.65rem;border-radius:0.375rem;background:#0f172a;color:#fff;font-size:0.8125rem;line-height:1.3;box-shadow:0 4px 12px rgba(15,23,42,0.25);z-index:10;">Helpful hint goes here</span>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-side', 'Bubble position', 'select', ['top' => 'Top', 'bottom' => 'Bottom', 'left' => 'Left', 'right' => 'Right'], 'Layout', 'top'),
+                new CS('data-pb-multiline', 'Allow wrapping', 'checkbox', [], 'Appearance', 'false'),
+            ]),
 
             self::block('dropdown_menu', 'Dropdown menu', 'Button that toggles a menu of actions.', <<<'HTML'
             <div data-pb-block="dropdown_menu" class="pb-dropdown" x-data="{ open: false }" data-pb-outside-close="open" data-pb-escape-close="open" style="display:inline-block;position:relative;">
@@ -339,7 +369,10 @@ final class BlockVocabulary
                 <a href="#" class="pb-dropdown__item" role="menuitem" data-pb-close="open" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#dc2626;text-decoration:none;">Delete</a>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-align', 'Menu alignment', 'select', ['start' => 'Left', 'end' => 'Right'], 'Layout', 'start'),
+                new CS('data-pb-direction', 'Open direction', 'select', ['down' => 'Down', 'up' => 'Up'], 'Layout', 'down'),
+            ]),
 
             self::block('video', 'Video', 'A self-hosted HTML5 video player.', <<<'HTML'
             <div data-pb-block="video" class="pb-video" style="max-width:100%;border-radius:var(--pb-radius,0.75rem);overflow:hidden;background:#000;">
@@ -798,8 +831,12 @@ final class BlockVocabulary
         return app(ComponentRegistry::class)->toArray();
     }
 
-    private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY): SectionBlock
+    /**
+     * @param  list<ComponentSetting>  $settings  Author-configurable settings rendered
+     *                                            as traits on the selected component.
+     */
+    private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY, array $settings = []): SectionBlock
     {
-        return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key));
+        return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key), $settings);
     }
 }
