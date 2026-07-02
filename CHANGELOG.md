@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### State & Watchers
 
+- **AI authors watchers directly** — the build-plan contract now teaches the
+  `watchers` section, so a generated app reacts to record/state changes via a
+  watcher targeting a reusable flow instead of embedding `trigger_config`
+  (legacy plans still work via materialization).
 - **Test-fire + Runs for watchers** — the watcher edit page has a **Test fire**
   action (runs the target once with a sample payload, conditions bypassed) and a
   **Runs** tab listing the flow runs it caused. Flow runs now carry a nullable

@@ -168,6 +168,35 @@ it('applies an explicit watchers section (export/import path)', function (): voi
         ->and(Watcher::query()->where('event', 'deleted')->where('target_key', 'on-lead')->exists())->toBeTrue();
 });
 
+it('applies a state watcher from a plan and it fires on a state change', function (): void {
+    $summary = app(BuildPlanApplier::class)->apply([
+        'flows' => [[
+            'slug' => 'on-status',
+            'name' => 'On status',
+            'trigger_type' => 'manual',
+            'definition' => ['start' => 't', 'nodes' => [
+                't' => ['type' => 'trigger', 'next' => ['r']],
+                'r' => ['type' => 'result', 'config' => ['actions' => [['type' => 'notify', 'message' => 'changed']]]],
+            ]],
+        ]],
+        'watchers' => [[
+            'name' => 'status changed → on-status',
+            'source_type' => 'state',
+            'source_key' => 'status',
+            'event' => 'changed',
+            'target_type' => 'flow',
+            'target_key' => 'on-status',
+        ]],
+    ]);
+
+    expect($summary['errors'])->toBe([])
+        ->and(Watcher::query()->where('source_type', 'state')->where('target_key', 'on-status')->exists())->toBeTrue();
+
+    // The materialized watcher fires when the global changes.
+    app(VariableStore::class)->set('status', 'won');
+    expect(FlowRun::query()->where('flow_slug_snapshot', 'on-status')->count())->toBe(1);
+});
+
 it('flags a structurally broken watcher', function (): void {
     $errors = app(BuildPlanValidator::class)->validate([
         'watchers' => [[
