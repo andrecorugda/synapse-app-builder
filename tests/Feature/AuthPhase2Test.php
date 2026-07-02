@@ -237,7 +237,12 @@ it('resets the password with a valid token and burns the token', function (): vo
         'email' => 'ada@example.com',
         'password' => 'brand-new-pass',
         'password_confirmation' => 'brand-new-pass',
-    ])->assertRedirect('/login')->assertSessionHas('status');
+    ])->assertRedirect('/login')
+        ->assertSessionHas('status')
+        // Regression: the success path must NOT also flash an "expired link"
+        // error bag (withErrors() flashes at construction time, so a pre-built
+        // invalid-link redirect used to leak its error onto the success page).
+        ->assertSessionHasNoErrors();
 
     // Token row is gone.
     expect(resetTable()->where('email', 'ada@example.com')->exists())->toBeFalse();
