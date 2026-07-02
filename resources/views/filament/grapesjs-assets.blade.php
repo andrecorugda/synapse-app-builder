@@ -990,8 +990,8 @@
                     const addAnimTraits = (cmp) => {
                         const names = cmp.getTraits().map((t) => t.get('name'));
                         if (! names.includes('data-pb-anim')) {
-                            cmp.addTrait({ type: 'select', name: 'data-pb-anim', label: 'Animation', options: PB_ANIMS.map(([id, name]) => ({ id, name })) });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-anim-delay', label: 'Anim delay (ms)', placeholder: '0' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-anim', category: 'Appearance', label: 'Animation', options: PB_ANIMS.map(([id, name]) => ({ id, name })) });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-anim-delay', category: 'Appearance', label: 'Anim delay (ms)', placeholder: '0' });
                         }
                         // Interaction: run a flow on a chosen DOM event (the
                         // published-page runtime reads data-pb-flow + the event and
@@ -1004,19 +1004,19 @@
                             const pageOptions = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbPages || []).map((p) => ({ id: p.slug, name: p.title + ' (' + p.slug + ')' }))
                             );
-                            cmp.addTrait({ type: 'select', name: 'data-pb-flow', label: 'Run flow', options: flowOptions });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-flow', category: 'Actions', label: 'Run flow', options: flowOptions });
                             cmp.addTrait({
                                 type: 'select',
-                                name: 'data-pb-flow-event',
+                                name: 'data-pb-flow-event', category: 'Actions',
                                 label: 'On event',
                                 options: PB_EVENTS.map(([id, name]) => ({ id, name })),
                             });
-                            cmp.addTrait({ type: 'select', name: 'data-pb-page', label: 'Link to page', options: pageOptions });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-page', category: 'Actions', label: 'Link to page', options: pageOptions });
                             // Log the end-user out on click (ends the pb session,
                             // returns to the login page) — works on any element.
                             cmp.addTrait({
                                 type: 'select',
-                                name: 'data-pb-logout',
+                                name: 'data-pb-logout', category: 'Actions',
                                 label: 'Log out on click',
                                 options: [{ id: '', name: 'No' }, { id: '1', name: 'Yes — sign out' }],
                             });
@@ -1030,9 +1030,9 @@
                             const stateOptions = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbStates || []).map((s) => ({ id: '$store.app.' + s.key, name: s.key + ' · ' + (s.type || 'string') }))
                             );
-                            cmp.addTrait({ type: 'select', name: 'x-text', label: 'Bind text → State', options: stateOptions });
-                            cmp.addTrait({ type: 'select', name: 'x-show', label: 'Show when (State)', options: stateOptions });
-                            cmp.addTrait({ type: 'select', name: 'x-model', label: 'Two-way input ↔ State', options: stateOptions });
+                            cmp.addTrait({ type: 'select', name: 'x-text', category: 'Data', label: 'Bind text → State', options: stateOptions });
+                            cmp.addTrait({ type: 'select', name: 'x-show', category: 'Data', label: 'Show when (State)', options: stateOptions });
+                            cmp.addTrait({ type: 'select', name: 'x-model', category: 'Data', label: 'Two-way input ↔ State', options: stateOptions });
                         }
 
                         // Form submit → create record. Populated from the
@@ -1044,7 +1044,7 @@
                             const collectionOptions = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
                             );
-                            cmp.addTrait({ type: 'select', name: 'data-pb-record', label: 'On submit → create record in', options: collectionOptions });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-record', category: 'Data', label: 'On submit → create record in', options: collectionOptions });
                         }
 
                         // Form controls — the standard field configuration that was
@@ -1057,12 +1057,12 @@
                         const pbTag = String(cmp.get('tagName') || '').toLowerCase();
                         if ((pbTag === 'input' || pbTag === 'textarea' || pbTag === 'select') && ! names.includes('required')) {
                             if (pbTag !== 'select') {
-                                cmp.addTrait({ type: 'text', name: 'placeholder', label: 'Placeholder' });
+                                cmp.addTrait({ type: 'text', name: 'placeholder', category: 'Content', label: 'Placeholder' });
                             }
-                            cmp.addTrait({ type: 'text', name: 'name', label: 'Field name' });
-                            cmp.addTrait({ type: 'checkbox', name: 'required', label: 'Required' });
+                            cmp.addTrait({ type: 'text', name: 'name', category: 'Content', label: 'Field name' });
+                            cmp.addTrait({ type: 'checkbox', name: 'required', category: 'Validation', label: 'Required' });
                             if (pbTag === 'input') {
-                                cmp.addTrait({ type: 'select', name: 'type', label: 'Input type', options: [
+                                cmp.addTrait({ type: 'select', name: 'type', category: 'Validation', label: 'Input type', options: [
                                     { id: 'text', name: 'Text' }, { id: 'email', name: 'Email' }, { id: 'number', name: 'Number' },
                                     { id: 'tel', name: 'Phone' }, { id: 'url', name: 'URL' }, { id: 'password', name: 'Password' },
                                     { id: 'date', name: 'Date' }, { id: 'time', name: 'Time' }, { id: 'search', name: 'Search' },
@@ -1083,7 +1083,7 @@
                             const xdata = cmp.getAttributes()['x-data'] || '';
                             const m = xdata.match(/pbTable\(\s*['"]([^'"]*)['"]\s*\)/);
                             cmp.set('pb-collection', m ? m[1] : '');
-                            cmp.addTrait({ type: 'select', name: 'pb-collection', label: 'Collection', changeProp: true, options: collectionOptions });
+                            cmp.addTrait({ type: 'select', name: 'pb-collection', category: 'Data', label: 'Collection', changeProp: true, options: collectionOptions });
                             cmp.on('change:pb-collection', () => {
                                 const key = cmp.get('pb-collection') || '';
                                 cmp.addAttributes({ 'x-data': "pbTable('" + key + "')" });
@@ -1104,7 +1104,7 @@
                             const cur = tplFor ? (tplFor.getAttributes()['x-for'] || '') : '';
                             const sm = cur.match(/\$store\.app\.([A-Za-z0-9_]+)/);
                             cmp.set('pb-list-source', sm ? sm[1] : '');
-                            cmp.addTrait({ type: 'select', name: 'pb-list-source', label: 'List source (State)', changeProp: true, options: stateArrayOptions });
+                            cmp.addTrait({ type: 'select', name: 'pb-list-source', category: 'Data', label: 'List source (State)', changeProp: true, options: stateArrayOptions });
                             cmp.on('change:pb-list-source', () => {
                                 const key = cmp.get('pb-list-source') || 'items';
                                 const tpl = cmp.find('template')[0];
@@ -1144,7 +1144,7 @@
                             const idx = traits.findIndex((t) => t.get('name') === traitName);
                             if (idx === -1) { return; }
                             component.removeTrait(traitName);
-                            component.addTrait({ type: 'select', name: traitName, label: label, options: options }, { at: idx });
+                            component.addTrait({ type: 'select', name: traitName, label: label, category: 'Data', options: options }, { at: idx });
                         };
 
                         // Chart / KPI — bind to a collection + aggregation. These are
@@ -1159,13 +1159,13 @@
                                 (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
                             );
                             const curCollection = cmp.getAttributes()['data-pb-collection'] || '';
-                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Collection', options: collectionOptions });
-                            cmp.addTrait({ type: 'select', name: 'data-pb-metric', label: 'Metric', options: ['count', 'sum', 'avg', 'min', 'max'].map((m) => ({ id: m, name: m })) });
-                            cmp.addTrait({ type: 'select', name: 'data-pb-field', label: 'Field (sum/avg/min/max)', options: pbFieldOptions(curCollection, 'column', { numericOnly: true }) });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', category: 'Data', label: 'Collection', options: collectionOptions });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-metric', category: 'Data', label: 'Metric', options: ['count', 'sum', 'avg', 'min', 'max'].map((m) => ({ id: m, name: m })) });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-field', category: 'Data', label: 'Field (sum/avg/min/max)', options: pbFieldOptions(curCollection, 'column', { numericOnly: true }) });
                             if (pbBlock === 'chart') {
-                                cmp.addTrait({ type: 'select', name: 'data-pb-group', label: 'Group by (field)', options: pbFieldOptions(curCollection, 'column') });
-                                cmp.addTrait({ type: 'select', name: 'data-pb-date-bucket', label: 'Date bucket', options: [{ id: '', name: '— none —' }, { id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }] });
-                                cmp.addTrait({ type: 'select', name: 'data-pb-chart-type', label: 'Chart type', options: ['bar', 'line', 'area', 'donut', 'pie'].map((t) => ({ id: t, name: t })) });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-group', category: 'Data', label: 'Group by (field)', options: pbFieldOptions(curCollection, 'column') });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-date-bucket', category: 'Data', label: 'Date bucket', options: [{ id: '', name: '— none —' }, { id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }] });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-chart-type', category: 'Data', label: 'Chart type', options: ['bar', 'line', 'area', 'donut', 'pie'].map((t) => ({ id: t, name: t })) });
                             }
                             // Re-populate the dependent field selects when the
                             // collection changes. data-pb-collection is a real
@@ -1191,7 +1191,7 @@
 
                         // Embed — the iframe URL (set as an attribute, not inlined).
                         if (pbBlock === 'embed' && ! names.includes('data-pb-embed-url')) {
-                            cmp.addTrait({ type: 'text', name: 'data-pb-embed-url', label: 'Embed URL (YouTube, Vimeo, Maps, any page)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-embed-url', category: 'Content', label: 'Embed URL (YouTube, Vimeo, Maps, any page)' });
                         }
 
                         // Autocomplete — bind the typeahead to a collection + label
@@ -1205,8 +1205,8 @@
                                 (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
                             );
                             const acCollection = cmp.getAttributes()['data-pb-collection'] || '';
-                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Collection', options: acCollections });
-                            cmp.addTrait({ type: 'select', name: 'data-pb-label-field', label: 'Label field', options: pbFieldOptions(acCollection, 'name', { emptyLabel: '— name (default) —' }) });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', category: 'Data', label: 'Collection', options: acCollections });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-label-field', category: 'Data', label: 'Label field', options: pbFieldOptions(acCollection, 'name', { emptyLabel: '— name (default) —' }) });
                             // Re-populate the label-field select when the collection
                             // changes (generic change:attributes + value guard — this
                             // GrapesJS build emits no per-key attribute event).
@@ -1225,23 +1225,23 @@
                         // is needed. Guard on data-pb-block=data_table AND on a
                         // sentinel trait name so they are added only once.
                         if (pbBlock === 'data_table' && ! names.includes('data-pb-columns')) {
-                            cmp.addTrait({ type: 'text', name: 'data-pb-columns', label: 'Columns (key or key:Header, comma-sep; blank = all)' });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-hide', label: 'Hide columns (comma-sep)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-columns', category: 'Data', label: 'Columns (key or key:Header, comma-sep; blank = all)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-hide', category: 'Data', label: 'Hide columns (comma-sep)' });
                             cmp.addTrait({
-                                type: 'select', name: 'data-pb-sortable', label: 'Sortable headers',
+                                type: 'select', name: 'data-pb-sortable', category: 'Data', label: 'Sortable headers',
                                 options: [{ id: '', name: 'Yes (default)' }, { id: 'false', name: 'No' }],
                             });
                             cmp.addTrait({
-                                type: 'select', name: 'data-pb-searchable', label: 'Search box',
+                                type: 'select', name: 'data-pb-searchable', category: 'Data', label: 'Search box',
                                 options: [{ id: '', name: 'No (default)' }, { id: 'true', name: 'Yes' }],
                             });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-filters', label: 'Filter fields (comma-sep)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-filters', category: 'Data', label: 'Filter fields (comma-sep)' });
                             cmp.addTrait({
-                                type: 'select', name: 'data-pb-selectable', label: 'Row select + bulk',
+                                type: 'select', name: 'data-pb-selectable', category: 'Data', label: 'Row select + bulk',
                                 options: [{ id: '', name: 'No (default)' }, { id: 'true', name: 'Yes' }],
                             });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-bulk', label: 'Bulk actions (action:Label, comma-sep)' });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-per-page', label: 'Rows per page', placeholder: '20' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-bulk', category: 'Data', label: 'Bulk actions (action:Label, comma-sep)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-per-page', category: 'Data', label: 'Rows per page', placeholder: '20' });
                         }
 
                         // ── select — bind options from a collection ───────────
@@ -1265,8 +1265,8 @@
                             const curLbl = pbSelInner.getAttributes()['data-pb-label-field'] || '';
                             cmp.set('pb-opt-collection', curCol);
                             cmp.set('pb-opt-label', curLbl);
-                            cmp.addTrait({ type: 'select', name: 'pb-opt-collection', label: 'Options from collection', changeProp: true, options: selCollections });
-                            cmp.addTrait({ type: 'select', name: 'pb-opt-label', label: 'Label field', changeProp: true, options: pbFieldOptions(curCol, 'name', { emptyLabel: '— name (default) —' }) });
+                            cmp.addTrait({ type: 'select', name: 'pb-opt-collection', category: 'Data', label: 'Options from collection', changeProp: true, options: selCollections });
+                            cmp.addTrait({ type: 'select', name: 'pb-opt-label', category: 'Data', label: 'Label field', changeProp: true, options: pbFieldOptions(curCol, 'name', { emptyLabel: '— name (default) —' }) });
                             cmp.on('change:pb-opt-collection', () => {
                                 const col = cmp.get('pb-opt-collection') || '';
                                 const s = (cmp.get('tagName') === 'select') ? cmp : cmp.find('select')[0];
@@ -1292,18 +1292,18 @@
                             const rpStateOptions = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbStates || []).map((s) => ({ id: s.key, name: s.key + ' · ' + (s.type || 'any') }))
                             );
-                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', label: 'Search collection', options: rpCollections });
-                            cmp.addTrait({ type: 'select', name: 'data-pb-target', label: 'Add picks to state', options: rpStateOptions });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-collection', category: 'Data', label: 'Search collection', options: rpCollections });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-target', category: 'Data', label: 'Add picks to state', options: rpStateOptions });
                             cmp.addTrait({
-                                type: 'select', name: 'data-pb-label-field', label: 'Label field',
+                                type: 'select', name: 'data-pb-label-field', category: 'Data', label: 'Label field',
                                 options: pbFieldOptions(rpCollection, 'name', { emptyLabel: '— name (default) —' }),
                             });
                             cmp.addTrait({
-                                type: 'select', name: 'data-pb-image-field', label: 'Image field (optional)',
+                                type: 'select', name: 'data-pb-image-field', category: 'Data', label: 'Image field (optional)',
                                 options: pbFieldOptions(rpCollection, 'name', { emptyLabel: '— none —' }),
                             });
                             cmp.addTrait({
-                                type: 'select', name: 'data-pb-extra-field', label: 'Extra field (optional)',
+                                type: 'select', name: 'data-pb-extra-field', category: 'Data', label: 'Extra field (optional)',
                                 options: pbFieldOptions(rpCollection, 'name', { emptyLabel: '— none —' }),
                             });
                             // Re-populate all three field selects when the collection
@@ -1325,10 +1325,10 @@
                             const stepStateOptions = [{ id: '', name: '— none —' }].concat(
                                 (window.__pbStates || []).map((s) => ({ id: s.key, name: s.key + ' · ' + (s.type || 'any') }))
                             );
-                            cmp.addTrait({ type: 'select', name: 'data-pb-state', label: 'State key', options: stepStateOptions });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-min', label: 'Min value', placeholder: '0' });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-max', label: 'Max value', placeholder: '' });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-step', label: 'Step', placeholder: '1' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-state', category: 'Data', label: 'State key', options: stepStateOptions });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-min', category: 'Data', label: 'Min value', placeholder: '0' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-max', category: 'Data', label: 'Max value', placeholder: '' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-step', category: 'Data', label: 'Step', placeholder: '1' });
                         }
 
                         // ── editable_grid — tabular editor bound to a state array ─
@@ -1339,13 +1339,13 @@
                                     .filter((s) => ! s.type || s.type === 'array' || s.type === 'json')
                                     .map((s) => ({ id: s.key, name: s.key + ' · ' + (s.type || 'array') }))
                             );
-                            cmp.addTrait({ type: 'select', name: 'data-pb-state', label: 'State array', options: egStateOptions });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-state', category: 'Data', label: 'State array', options: egStateOptions });
                             // Qty / price / max are field references or plain numbers;
                             // offered as text inputs (v1) — the runtime reads them as
                             // column keys or literal numeric strings.
-                            cmp.addTrait({ type: 'text', name: 'data-pb-qty', label: 'Qty field / key', placeholder: 'qty' });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-price', label: 'Price field / key', placeholder: 'price' });
-                            cmp.addTrait({ type: 'text', name: 'data-pb-max', label: 'Max rows', placeholder: '' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-qty', category: 'Data', label: 'Qty field / key', placeholder: 'qty' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-price', category: 'Data', label: 'Price field / key', placeholder: 'price' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-max', category: 'Data', label: 'Max rows', placeholder: '' });
                         }
 
                         // ── Auth visibility — shown on ANY component (general pass) ─
@@ -1354,11 +1354,11 @@
                         // Sentinel: 'data-pb-auth'.
                         if (! names.includes('data-pb-auth')) {
                             cmp.addTrait({
-                                type: 'select', name: 'data-pb-auth', label: 'Only when logged in',
+                                type: 'select', name: 'data-pb-auth', category: 'Access', label: 'Only when logged in',
                                 options: [{ id: '', name: 'No (show always)' }, { id: '1', name: 'Yes — authenticated only' }],
                             });
                             cmp.addTrait({
-                                type: 'pb-checkboxes', name: 'data-pb-roles', label: 'Visible to roles',
+                                type: 'pb-checkboxes', name: 'data-pb-roles', category: 'Access', label: 'Visible to roles',
                                 options: (window.__pbRoles || []).map((r) => ({ id: r.slug, name: r.name + ' (' + r.slug + ')' })),
                             });
                         }
