@@ -8,13 +8,11 @@ use Andre\AiPageBuilder\Filament\Forms\Components\FlowCanvasField;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource\Pages;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Models\Flow;
-use Andre\AiPageBuilder\Models\PbModel;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -87,7 +85,10 @@ class FlowResource extends Resource
                                 ->helperText('Public allows unauthenticated trigger.'),
                         ]),
 
-                        // Row 2 — rate limit · trigger type · (collection when applicable)
+                        // Row 2 — rate limit · trigger label. A flow is a reusable
+                        // graph: WHAT fires it lives elsewhere (Public/Private for
+                        // pages & the API endpoint, Watchers for collection/state
+                        // events, Schedules for cron) — trigger_type is advisory.
                         Schemas\Components\Grid::make(3)->schema([
                             Forms\Components\TextInput::make('rate_limit_per_minute')
                                 ->label('Rate limit / min')
@@ -97,8 +98,7 @@ class FlowResource extends Resource
                                 ->placeholder('Global default'),
 
                             Forms\Components\Select::make('trigger_type')
-                                ->required()
-                                ->live()
+                                ->label('Trigger label')
                                 ->options([
                                     'manual' => 'Manual',
                                     'component' => 'Component',
@@ -107,63 +107,12 @@ class FlowResource extends Resource
                                     'api' => 'API',
                                     'collection' => 'Collection event',
                                 ])
-                                ->default('manual'),
-
-                            Forms\Components\Select::make('trigger_config.collection')
-                                ->label('Collection')
-                                ->options(fn (): array => PbModel::query()->orderBy('name')->pluck('name', 'key')->all())
-                                ->searchable()
-                                ->live()
-                                ->required(fn (Get $get): bool => $get('trigger_type') === 'collection')
-                                ->helperText('Records this flow listens to.')
-                                ->visible(fn (Get $get): bool => $get('trigger_type') === 'collection'),
+                                ->default('manual')
+                                ->helperText('A label — any active flow can be triggered from pages or the API '
+                                    .'(governed by Public/Private). Bind collection/state events under Watchers '
+                                    .'and cron runs under Schedules. "Cron" also marks the flow for the legacy '
+                                    .'run-cron-flows command.'),
                         ]),
-
-                        // Collection-event details — events + criteria (as-is)
-                        Schemas\Components\Group::make([
-                            Forms\Components\CheckboxList::make('trigger_config.events')
-                                ->label('Events')
-                                ->options([
-                                    'created' => 'Created',
-                                    'updated' => 'Updated',
-                                    'deleted' => 'Deleted',
-                                ])
-                                ->columns(3)
-                                ->required(fn (Get $get): bool => $get('trigger_type') === 'collection'),
-
-                            Forms\Components\Repeater::make('trigger_config.criteria')
-                                ->label('Criteria (optional)')
-                                ->helperText('All rows must match for the flow to fire. Leave empty to fire on every event.')
-                                ->schema([
-                                    Forms\Components\Select::make('field')
-                                        ->searchable()
-                                        ->required()
-                                        ->options(function (Get $get): array {
-                                            $collectionKey = $get('../../collection');
-
-                                            if (! $collectionKey) {
-                                                return [];
-                                            }
-
-                                            return PbModel::where('key', $collectionKey)
-                                                ->first()?->fields->pluck('label', 'key')->all() ?? [];
-                                        }),
-                                    Forms\Components\Select::make('op')
-                                        ->options([
-                                            'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
-                                            'lt' => '<', 'lte' => '<=', 'like' => 'contains',
-                                            'in' => 'in', 'nin' => 'not in', 'null' => 'is null', 'nnull' => 'is not null',
-                                        ])
-                                        ->default('eq')
-                                        ->required(),
-                                    Forms\Components\TextInput::make('value'),
-                                ])
-                                ->columns(3)
-                                ->addActionLabel('Add criterion')
-                                ->default([]),
-                        ])
-                            ->columnSpanFull()
-                            ->visible(fn (Get $get): bool => $get('trigger_type') === 'collection'),
                     ]),
 
                 FlowCanvasField::make('definition')
@@ -251,66 +200,6 @@ class FlowResource extends Resource
                     Actions\DeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    /**
-     * Convert the criteria Repeater's row list (`[{field, op, value}]`) into the
-     * `{ field: { op: value } }` shape collection Watchers match against. No-op
-     * for non-collection triggers.
-     *
-     * @param  array<string,mixed>  $data
-     * @return array<string,mixed>
-     */
-    public static function normalizeTriggerConfig(array $data): array
-    {
-        if (($data['trigger_type'] ?? null) !== 'collection') {
-            return $data;
-        }
-
-        $rows = $data['trigger_config']['criteria'] ?? [];
-        $criteria = [];
-
-        foreach ((array) $rows as $row) {
-            $field = $row['field'] ?? null;
-            $op = $row['op'] ?? 'eq';
-
-            if ($field === null || $field === '') {
-                continue;
-            }
-
-            $criteria[$field][$op] = $row['value'] ?? null;
-        }
-
-        $data['trigger_config']['criteria'] = $criteria;
-
-        return $data;
-    }
-
-    /**
-     * Inverse of normalizeTriggerConfig: expand stored `{ field: { op: value } }`
-     * criteria back into Repeater rows for editing.
-     *
-     * @param  array<string,mixed>  $data
-     * @return array<string,mixed>
-     */
-    public static function denormalizeTriggerConfig(array $data): array
-    {
-        if (($data['trigger_type'] ?? null) !== 'collection') {
-            return $data;
-        }
-
-        $criteria = $data['trigger_config']['criteria'] ?? [];
-        $rows = [];
-
-        foreach ((array) $criteria as $field => $conditions) {
-            foreach ((array) $conditions as $op => $value) {
-                $rows[] = ['field' => $field, 'op' => $op, 'value' => $value];
-            }
-        }
-
-        $data['trigger_config']['criteria'] = $rows;
-
-        return $data;
     }
 
     public static function getRelations(): array
