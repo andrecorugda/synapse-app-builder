@@ -17,6 +17,7 @@ use Andre\AiPageBuilder\Models\PbSetting;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\RecordRevision;
 use Andre\AiPageBuilder\Models\Variable;
+use Andre\AiPageBuilder\Models\Watcher;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
 
@@ -74,6 +75,7 @@ return [
         'field' => PbField::class,
         'record_revision' => RecordRevision::class,
         'variable' => Variable::class,
+        'watcher' => Watcher::class,
         'setting' => PbSetting::class,
         'user' => PbUser::class,
         'role' => PbRole::class,
