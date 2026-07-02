@@ -118,6 +118,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_shape_to_page_builder_variables_table',
                 'create_page_builder_watchers_table',
                 'backfill_collection_flows_into_watchers',
+                'add_watcher_id_to_page_builder_flow_runs_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)

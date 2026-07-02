@@ -19,8 +19,9 @@ class FlowManager
     /**
      * @param  array<string,mixed>  $input
      * @param  array<string,mixed>  $stateOverlay  Per-run overlay for `states.*` (page/API triggers)
+     * @param  array<string,mixed>  $meta  Provenance for the recorded run (e.g. `watcher_id`) — never reaches the flow
      */
-    public function run(Flow $flow, array $input = [], array $stateOverlay = []): FlowContext
+    public function run(Flow $flow, array $input = [], array $stateOverlay = [], array $meta = []): FlowContext
     {
         $startedAt = microtime(true);
 
@@ -33,13 +34,13 @@ class FlowManager
             // The runner handles node failures in-band (retry / on-error branch /
             // graceful toast) and flags an unhandled failure on the context, so a
             // failed run still returns its actions (e.g. the error notify).
-            $this->record($flow, $input, $context, $context->failed ? 'error' : 'ok', $context->error, $startedAt);
+            $this->record($flow, $input, $context, $context->failed ? 'error' : 'ok', $context->error, $startedAt, $meta);
 
             return $context;
         } catch (\Throwable $e) {
             // Backstop for an unexpected error outside node handling.
             $context = new FlowContext($input);
-            $this->record($flow, $input, $context, 'error', $e->getMessage(), $startedAt);
+            $this->record($flow, $input, $context, 'error', $e->getMessage(), $startedAt, $meta);
 
             throw $e;
         }
@@ -47,8 +48,9 @@ class FlowManager
 
     /**
      * @param  array<string,mixed>  $input
+     * @param  array<string,mixed>  $meta
      */
-    private function record(Flow $flow, array $input, FlowContext $context, string $status, ?string $error, float $startedAt): void
+    private function record(Flow $flow, array $input, FlowContext $context, string $status, ?string $error, float $startedAt, array $meta = []): void
     {
         /** @var class-string<FlowRun> $model */
         $model = config('ai-page-builder.models.flow_run', FlowRun::class);
@@ -56,6 +58,7 @@ class FlowManager
         $model::create([
             'flow_id' => $flow->id,
             'flow_slug_snapshot' => $flow->slug,
+            'watcher_id' => $meta['watcher_id'] ?? null,
             'status' => $status,
             'trigger_type' => $flow->trigger_type,
             'input' => $input,

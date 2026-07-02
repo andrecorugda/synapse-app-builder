@@ -53,6 +53,17 @@ it('normalizes a state watcher: forces event=changed and strips empty conditions
         ->and($data['config'])->toBe(['path' => 'address.city', 'to' => 'LA']);
 });
 
+it('forces a flow target for browser-side watchers', function (): void {
+    $data = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'target_type' => 'function',
+        'config' => ['side' => 'client'],
+    ]);
+
+    expect($data['target_type'])->toBe('flow')
+        ->and($data['config'])->toBe(['side' => 'client']);
+});
+
 it('keeps side=client but strips the server default', function (): void {
     $client = WatcherResource::normalizeConfig([
         'source_type' => 'state',
