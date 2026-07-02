@@ -28,6 +28,8 @@ class Variable extends Model
 
     protected $casts = [
         'is_protected' => 'boolean',
+        // Nested typed schema for an Object state: [{name,type,fields?/ref?}, …].
+        'shape' => 'array',
     ];
 
     public function getConnectionName(): ?string

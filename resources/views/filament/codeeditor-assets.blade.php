@@ -7,8 +7,7 @@
     @php
         $aceBase = rtrim((string) config('ai-page-builder.editor.ace_base', 'https://cdn.jsdelivr.net/npm/ace-builds@1.36.5/src-min-noconflict'), '/');
         try {
-            $pbStates = (config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class))::query()
-                ->orderBy('key')->get()->map(fn ($v) => ['key' => $v->key, 'type' => $v->type])->values()->all();
+            $pbStates = app(\Andre\AiPageBuilder\Services\State\StateShapeService::class)->catalog();
         } catch (\Throwable $e) {
             $pbStates = [];
         }
@@ -167,21 +166,40 @@
                     },
 
                     /**
+                     * Flattened State picker options: each state's root plus every
+                     * Object shape path. The option value is a dotted ref
+                     * ("address" / "address.city") that insertState turns into the
+                     * field's accessor syntax.
+                     */
+                    stateInsertOptions() {
+                        var out = [];
+                        (window.__pbStates || []).forEach(function (s) {
+                            out.push({ value: s.key, label: s.key + ' · ' + (s.type || 'string') });
+                            (s.paths || []).forEach(function (p) { out.push({ value: s.key + '.' + p, label: '↳ ' + s.key + '.' + p }); });
+                        });
+                        return out;
+                    },
+
+                    /**
                      * Insert a State reference at the cursor, in the syntax of the
                      * field's runtime: php → $states['key'], expression
-                     * (javascript) → state('key'), else states['key'].
+                     * (javascript) → state('key'), else states['key']. A dotted ref
+                     * (address.city) chains bracket accessors onto the root.
                      */
-                    insertState(key) {
-                        if (! key || ! this.editor) { return; }
-                        var ref;
+                    insertState(ref) {
+                        if (! ref || ! this.editor) { return; }
+                        var parts = ref.split('.');
+                        var head = parts.shift();
+                        var out;
                         if (config.language === 'php') {
-                            ref = "$states['" + key + "']";
+                            out = "$states['" + head + "']";
                         } else if (config.language === 'javascript') {
-                            ref = "state('" + key + "')";
+                            out = "state('" + head + "')";
                         } else {
-                            ref = "states['" + key + "']";
+                            out = "states['" + head + "']";
                         }
-                        this.editor.insert(ref);
+                        parts.forEach(function (p) { out += "['" + p + "']"; });
+                        this.editor.insert(out);
                         this.editor.focus();
                     },
 

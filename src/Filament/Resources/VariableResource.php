@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Forms\Components\ObjectShapeField;
 use Andre\AiPageBuilder\Filament\Resources\VariableResource\Pages;
 use Andre\AiPageBuilder\Models\Variable;
 use Filament\Actions;
@@ -81,7 +82,9 @@ class VariableResource extends Resource
                                 'string' => 'String',
                                 'number' => 'Number',
                                 'boolean' => 'Boolean',
-                                'json' => 'JSON',
+                                // Stored as 'json' (see typedValue/castForStorage) but presented
+                                // as "Object": a typed, nestable shape rather than raw JSON.
+                                'json' => 'Object',
                             ])
                             ->default('string')
                             ->live(),
@@ -91,14 +94,20 @@ class VariableResource extends Resource
                             ->inline(false)
                             ->helperText('Guard against casual edit/delete.'),
 
+                        ObjectShapeField::make('shape')
+                            ->label('Shape')
+                            ->visible(fn (Get $get): bool => $get('type') === 'json')
+                            ->helperText('Define the object\'s fields and their types. Nest Objects freely, or reuse another state.')
+                            ->columnSpanFull(),
+
                         Forms\Components\Textarea::make('value')
-                            ->label(fn (Get $get): string => 'Value ('.Str::headline((string) $get('type')).')')
+                            ->label(fn (Get $get): string => 'Default value ('.($get('type') === 'json' ? 'Object' : Str::headline((string) $get('type'))).')')
                             ->rows(fn (Get $get): int => $get('type') === 'json' ? 6 : 2)
                             ->nullable()
                             ->helperText(fn (Get $get): ?string => match ($get('type')) {
                                 'number' => 'A numeric value, e.g. 0.2 or 42.',
                                 'boolean' => 'Use 1/0 or true/false.',
-                                'json' => 'Valid JSON, e.g. {"a":1} or [1,2,3].',
+                                'json' => 'Optional default data as JSON, e.g. {"city":"Paris"} — must match the shape above.',
                                 default => null,
                             })
                             ->columnSpanFull(),
