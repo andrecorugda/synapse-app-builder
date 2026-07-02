@@ -37,6 +37,10 @@ class BuildPlanValidator
     private const FALLBACK_NODE_TYPES = [
         'trigger', 'condition', 'function', 'http_request',
         'record', 'result', 'set_variable', 'ai_invoke', 'send_email',
+        // Control-flow + composition nodes the prompt teaches (and its own
+        // canonical example uses) — must validate even when the NodeRegistry
+        // isn't booted (offline tooling / the generation-quality harness).
+        'loop', 'transaction', 'call_flow',
     ];
 
     public function __construct(

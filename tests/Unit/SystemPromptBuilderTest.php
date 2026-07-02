@@ -81,6 +81,19 @@ it('lists the registered flow node types with config hints', function (): void {
         ->toContain('next_true');
 });
 
+it('teaches call_flow and does not offer setState as a result action', function (): void {
+    $prompt = (new SystemPromptBuilder)->build();
+
+    // call_flow (the prompt's own recommended reuse primitive) now has a real hint.
+    expect($prompt)->toContain('`call_flow`')
+        ->and($prompt)->toContain('Run another saved flow');
+
+    // The result node's hint no longer claims setState/setStates/setText — the
+    // ResultNode drops those; state writes go through Set Variable.
+    expect($prompt)->toContain('notify|alert|modal|redirect|logout|setHtml|addClass|removeClass')
+        ->and($prompt)->not->toContain('logout|setState|setStates|setHtml|setText');
+});
+
 it('states the hard rules including the no-executable-directive rule', function (): void {
     $prompt = (new SystemPromptBuilder)->build();
 
