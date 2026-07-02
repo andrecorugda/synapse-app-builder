@@ -134,12 +134,26 @@ class WatcherDispatcher
     }
 
     /**
-     * A state watcher may narrow to a transition (`from`/`to`) or an operator
-     * test on the new value (`op`/`value`). No condition = fire on any change.
+     * A state watcher may narrow to a sub-`path` of an Object state, a
+     * transition (`from`/`to`), and/or an operator test on the new value
+     * (`op`/`value`). No condition = fire on any change. When a path is given,
+     * conditions apply to the value at that path and the path value must have
+     * actually changed.
      */
     private function stateConditionMet(Watcher $watcher, mixed $old, mixed $new): bool
     {
         $config = (array) ($watcher->config ?? []);
+        $path = $config['path'] ?? null;
+
+        if (is_string($path) && $path !== '') {
+            $old = data_get($old, $path);
+            $new = data_get($new, $path);
+
+            // The whole state changed, but not this path — ignore.
+            if ($old == $new) {
+                return false;
+            }
+        }
 
         if (array_key_exists('from', $config) && $old != $config['from']) {
             return false;
