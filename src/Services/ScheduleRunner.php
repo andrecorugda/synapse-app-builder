@@ -67,15 +67,21 @@ class ScheduleRunner
      */
     private function isDue(Schedule $schedule, CarbonInterface $now): bool
     {
-        $tz = $schedule->timezone;
-        $reference = $tz !== null && $tz !== '' ? $now->copy()->setTimezone($tz) : $now;
-
         try {
+            // setTimezone() must live inside the guard: an invalid IANA name
+            // (e.g. a typo'd "Europe/Pariss") throws, and when this ran outside
+            // the try/catch that one bad schedule aborted the ENTIRE tick —
+            // every schedule after it silently never ran. A bad timezone is now
+            // logged and treated as not-due, same as a bad cron expression.
+            $tz = $schedule->timezone;
+            $reference = $tz !== null && $tz !== '' ? $now->copy()->setTimezone($tz) : $now;
+
             return (new CronExpression($schedule->cron_expression))->isDue($reference);
         } catch (\Throwable $e) {
-            Log::warning('[ai-page-builder] invalid cron expression on schedule', [
+            Log::warning('[ai-page-builder] invalid cron expression or timezone on schedule', [
                 'schedule' => $schedule->id,
                 'expression' => $schedule->cron_expression,
+                'timezone' => $schedule->timezone,
                 'error' => $e->getMessage(),
             ]);
 

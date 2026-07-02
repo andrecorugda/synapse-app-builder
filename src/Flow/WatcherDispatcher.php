@@ -193,11 +193,11 @@ class WatcherDispatcher
             }
         }
 
-        if (array_key_exists('from', $config) && $old != $config['from']) {
+        if (array_key_exists('from', $config) && ! $this->valuesEqual($old, $config['from'])) {
             return false;
         }
 
-        if (array_key_exists('to', $config) && $new != $config['to']) {
+        if (array_key_exists('to', $config) && ! $this->valuesEqual($new, $config['to'])) {
             return false;
         }
 
@@ -206,6 +206,37 @@ class WatcherDispatcher
         }
 
         return true;
+    }
+
+    /**
+     * Equality that survives the form → JSON boundary. A boolean state value is
+     * real JSON `true`/`false`, but the watcher's `from`/`to` come from a text
+     * form as the strings "true"/"false" (or "1"/"0"). PHP's loose `==` gets
+     * this wrong — `false == "false"` is FALSE because the non-empty string is
+     * truthy — so a "fires when the flag turns off" watcher never fired. When
+     * either side is a real boolean, compare on boolean meaning; otherwise fall
+     * back to normal loose equality.
+     */
+    private function valuesEqual(mixed $a, mixed $b): bool
+    {
+        if (is_bool($a) || is_bool($b)) {
+            return $this->toBool($a) === $this->toBool($b);
+        }
+
+        return $a == $b;
+    }
+
+    private function toBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return (bool) $value;
     }
 
     /**
