@@ -7,6 +7,17 @@
     <link rel="stylesheet" href="{{ config('ai-page-builder.flow.drawflow_css', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css') }}">
     <script src="{{ config('ai-page-builder.flow.drawflow_js', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js') }}"></script>
     @php
+        // The Result node's low-code actions builder reads its action catalog
+        // from window.__pbActionCatalog — the canonical ResultActionCatalog
+        // (partial picker, newTab, target help, and ONLY the action types the
+        // ResultNode actually applies). Without this it fell back to a stale
+        // inline list that offered discarded types (setState/setText) and hid
+        // the partial picker. Guarded like the others.
+        try {
+            $pbActionCatalog = \Andre\AiPageBuilder\Flow\ResultActionCatalog::types();
+        } catch (\Throwable $e) {
+            $pbActionCatalog = [];
+        }
         // Inject the available functions + collections so the node editors can
         // offer dropdowns instead of free-text slugs/keys. Guarded — the tables
         // may not exist yet during early boot / migration.
@@ -77,6 +88,7 @@
         }
     @endphp
     <script>
+        window.__pbActionCatalog = @js($pbActionCatalog);
         window.__pbFlowFunctions = @js($pbFlowFunctions);
         window.__pbFlows = @js($pbFlows);
         window.__pbCollections = @js($pbCollections);
@@ -603,9 +615,7 @@
                 alert:       { label: 'Alert dialog',   fields: [ { key: 'title', label: 'Title', type: 'string' }, { key: 'message', label: 'Message', type: 'text' } ] },
                 modal:       { label: 'Modal',          fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'action', label: 'Action', type: 'select', options: { open: 'open', close: 'close' } }, { key: 'html', label: 'HTML (on open)', type: 'text', showIf: { action: ['open'] } } ] },
                 redirect:    { label: 'Redirect',       fields: [ { key: 'url', label: 'URL', type: 'string' } ] },
-                setState:    { label: 'Set state',      fields: [ { key: 'key', label: 'State key', type: 'string' }, { key: 'value', label: 'Value (expression)', type: 'string' } ] },
                 setHtml:     { label: 'Set HTML',       fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'html', label: 'HTML', type: 'text' } ] },
-                setText:     { label: 'Set text',       fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'text', label: 'Text', type: 'text' } ] },
                 addClass:    { label: 'Add class',      fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'class', label: 'Class', type: 'string' } ] },
                 removeClass: { label: 'Remove class',   fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'class', label: 'Class', type: 'string' } ] },
                 logout:      { label: 'Log out',        fields: [ { key: 'url', label: 'Redirect URL (optional)', type: 'string' } ] }
