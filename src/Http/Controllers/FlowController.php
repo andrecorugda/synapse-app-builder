@@ -21,27 +21,22 @@ class FlowController
         /** @var class-string<Flow> $model */
         $model = config('ai-page-builder.models.flow', Flow::class);
 
-        // Runnable from this endpoint when the flow is either explicitly Public
-        // (unauthenticated webhook-style trigger) OR wired to a page component
-        // (trigger_type=component) — a component trigger IS the page invoking it,
-        // so requiring the separate "Public" toggle too was a silent 404 trap.
+        // Any active flow is runnable here — how a flow was authored to be
+        // triggered (manual/component/…) does not gate access; the Public flag does:
+        //   • Public  → callable from ANY origin (external / webhook / API).
+        //   • Private → callable only SAME-ORIGIN (the app's own pages).
+        // A cross-origin hit on a private flow is 404 (not 403) so the endpoint
+        // never leaks that the flow exists.
         /** @var Flow|null $flow */
         $flow = $model::query()
             ->active()
             ->where('slug', $slug)
-            ->where(function ($q): void {
-                $q->where('is_public', true)->orWhere('trigger_type', 'component');
-            })
             ->first();
 
         if ($flow === null) {
             abort(404);
         }
 
-        // A non-public (component-triggered) flow is runnable ONLY from the app's
-        // own pages — require same-origin so it can't be triggered cross-site. Be
-        // 404 (not 403) when the origin doesn't match, so the endpoint never leaks
-        // that a private flow exists. Public flows (webhook-style) skip this.
         if (! $flow->is_public && ! $this->isSameOrigin($request)) {
             abort(404);
         }
@@ -59,7 +54,11 @@ class FlowController
         $input = (array) $request->input('input', []);
 
         try {
-            $ctx = app(FlowManager::class)->run($flow, $input);
+            // This is the page/API trigger path: the request payload IS the page's
+            // live $store.app state, so overlay it onto `states.*` (so a node's
+            // {{ states.email }} resolves to what the visitor typed, not the empty
+            // persisted Variable). Non-page triggers (cron/collection/admin) pass none.
+            $ctx = app(FlowManager::class)->run($flow, $input, $input);
 
             return response()->json(['actions' => $ctx->actions]);
         } catch (\Throwable $e) {
