@@ -20,6 +20,20 @@ it('normalizes criteria rows into the { field: { op: value } } map', function ()
     ]);
 });
 
+it('keeps a non-empty changed-fields filter and drops an empty one', function (): void {
+    $kept = WatcherResource::normalizeConfig([
+        'source_type' => 'collection',
+        'config' => ['changed' => ['status', '', 'score']],
+    ]);
+    expect($kept['config']['changed'])->toBe(['status', 'score']);
+
+    $dropped = WatcherResource::normalizeConfig([
+        'source_type' => 'collection',
+        'config' => ['changed' => []],
+    ]);
+    expect($dropped['config'])->not->toHaveKey('changed');
+});
+
 it('drops empty criteria and skips rows without a field', function (): void {
     $data = WatcherResource::normalizeConfig([
         'config' => ['criteria' => [['field' => '', 'op' => 'eq', 'value' => 'x']]],

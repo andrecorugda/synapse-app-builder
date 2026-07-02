@@ -104,6 +104,7 @@ class WatcherResource extends Resource
                             ->label('On event')
                             ->required(fn (Get $get): bool => $get('source_type') === 'collection')
                             ->visible(fn (Get $get): bool => $get('source_type') === 'collection')
+                            ->live()
                             ->default('created')
                             ->options([
                                 'created' => 'Created',
@@ -148,6 +149,23 @@ class WatcherResource extends Resource
                         : 'Every rule must match the record for the watcher to fire. Leave empty to fire on every event.')
                     ->compact()
                     ->schema([
+                        // Collection updates: fire only when specific fields change.
+                        Forms\Components\Select::make('config.changed')
+                            ->label('Only when these fields changed')
+                            ->multiple()
+                            ->visible(fn (Get $get): bool => $get('source_type') === 'collection' && $get('event') === 'updated')
+                            ->options(function (Get $get): array {
+                                $collectionKey = $get('source_key');
+
+                                if (! is_string($collectionKey) || $collectionKey === '') {
+                                    return [];
+                                }
+
+                                return PbModel::query()->where('key', $collectionKey)
+                                    ->first()?->fields->pluck('label', 'key')->all() ?? [];
+                            })
+                            ->helperText('Leave empty to fire on any update. Otherwise the watcher fires only when at least one selected field actually changed.'),
+
                         // Collection watchers: match record fields.
                         Forms\Components\Repeater::make('config.criteria')
                             ->hiddenLabel()
@@ -366,6 +384,14 @@ class WatcherResource extends Resource
             unset($data['config']['criteria']);
         } else {
             $data['config']['criteria'] = $criteria;
+        }
+
+        // Drop an empty "changed fields" filter so it doesn't linger as [].
+        $changed = array_values(array_filter((array) ($data['config']['changed'] ?? [])));
+        if ($changed === []) {
+            unset($data['config']['changed']);
+        } else {
+            $data['config']['changed'] = $changed;
         }
 
         return $data;
