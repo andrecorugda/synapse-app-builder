@@ -255,8 +255,8 @@ class FlowResource extends Resource
 
     /**
      * Convert the criteria Repeater's row list (`[{field, op, value}]`) into the
-     * `{ field: { op: value } }` shape FlowDispatcher matches against. No-op for
-     * non-collection triggers.
+     * `{ field: { op: value } }` shape collection Watchers match against. No-op
+     * for non-collection triggers.
      *
      * @param  array<string,mixed>  $data
      * @return array<string,mixed>

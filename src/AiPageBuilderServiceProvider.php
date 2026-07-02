@@ -23,7 +23,6 @@ use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Console\SeedSystemPagesCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
-use Andre\AiPageBuilder\Flow\FlowDispatcher;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
 use Andre\AiPageBuilder\Flow\FlowRuntime;
@@ -43,6 +42,7 @@ use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TransactionNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
+use Andre\AiPageBuilder\Flow\WatcherDispatcher;
 use Andre\AiPageBuilder\Http\Controllers\AuthController;
 use Andre\AiPageBuilder\Http\Controllers\InviteController;
 use Andre\AiPageBuilder\Http\Controllers\PasswordResetController;
@@ -115,6 +115,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_display_field_to_page_builder_models_table',
                 'create_page_builder_record_revisions_table',
                 'add_shape_to_page_builder_variables_table',
+                'create_page_builder_watchers_table',
+                'backfill_collection_flows_into_watchers',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -177,7 +179,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         });
         $this->app->singleton(FlowRunner::class);
         $this->app->singleton(FlowManager::class);
-        $this->app->singleton(FlowDispatcher::class);
+        $this->app->singleton(WatcherDispatcher::class);
 
         // Data layer (user-defined models / collections).
         $this->app->singleton(SchemaSynchronizer::class);
@@ -295,9 +297,9 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     }
 
     /**
-     * Wire collection-event flow triggers: observe the dynamic Record model so
-     * every collection write fans out to matching `collection`-triggered flows
-     * via FlowDispatcher. All record writes go through Record::for(...), so a
+     * Wire collection-event triggers: observe the dynamic Record model so every
+     * collection write fans out to matching collection Watchers via
+     * WatcherDispatcher. All record writes go through Record::for(...), so a
      * single observer on the base class covers every collection.
      *
      * Registered here in packageBooted (which runs once per app boot) rather

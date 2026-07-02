@@ -9,8 +9,11 @@ use Andre\AiPageBuilder\Models\Record;
 /**
  * Eloquent observer on the dynamic Record model. Every collection write goes
  * through Record::for(...), so these hooks catch all of them and forward the
- * event to the FlowDispatcher. The dispatcher is resolved lazily (via app())
+ * event to the WatcherDispatcher. The dispatcher is resolved lazily (via app())
  * to avoid boot-order coupling at observer-registration time.
+ *
+ * The previous record state is forwarded as `old` (empty on create) so watcher
+ * flows can compare before/after via `{{ input.old.* }}`.
  */
 class RecordObserver
 {
@@ -35,10 +38,11 @@ class RecordObserver
             return;
         }
 
-        app(FlowDispatcher::class)->dispatchCollectionEvent(
+        app(WatcherDispatcher::class)->dispatchCollectionEvent(
             $record->pbModelKey,
             $event,
             $record->toArray(),
+            $event === 'created' ? [] : $record->getOriginal(),
         );
     }
 }
