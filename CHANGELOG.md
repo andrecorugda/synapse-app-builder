@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-02
+
 ### Flow editor & engine
 
 - Transaction and Loop node bodies are now edited as an ordered, sortable **step list** (Function / Flow / Loop / node) with per-step kebab menu for reorder and delete; compiles to/from the engine's `{start, nodes}` losslessly.
