@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Flows
+
+- **A flow can open the modal the author designed** — the Result `modal` action
+  now flips the designed modal's Alpine `open` state (falling back to
+  class/display for custom markup), so targeting a Modal block by `#id`
+  opens/closes it exactly like a click; content swaps go into the dialog body,
+  never the Alpine root. Modal (and Drawer) blocks gained an **ID** trait for
+  no-code targeting.
+- **Designed content in a flow's modal** — the Result `modal` action can pick a
+  **Partial** to show as the dialog body; the partial's (sanitized) html is
+  resolved and interpolated against the flow context. So "show a dialog with
+  something I designed" is now a no-code path (design a Partial → point the flow
+  at it).
+
 ### Editor
 
 - **Design inside dialog / disclosure blocks** — the editor canvas now reveals

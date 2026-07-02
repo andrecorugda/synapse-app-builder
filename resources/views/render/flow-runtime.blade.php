@@ -216,19 +216,32 @@
         }
 
         if (type === 'modal') {
-            var modals = document.querySelectorAll(action.target);
-            modals.forEach(function (el) {
-                if (action.action === 'close') {
-                    el.classList.remove('pb-modal--open');
-                    el.style.display = 'none';
+            if (! action.target) { return; }
+            var open = action.action !== 'close';
+            document.querySelectorAll(action.target).forEach(function (el) {
+                // Resolve the modal ROOT (the designed Modal block carries the
+                // Alpine x-data). The target may be the block, its overlay, or a
+                // child — walk up to the block wrapper.
+                var root = (el.closest && el.closest('[data-pb-block="modal"]')) || el;
+
+                // Optionally swap the dialog CONTENT — into the body/panel only,
+                // NEVER the Alpine root (that would destroy its x-data scope).
+                if (open && typeof action.html === 'string' && action.html !== '') {
+                    var slot = root.querySelector('.pb-modal__body') || root.querySelector('.pb-modal__panel');
+                    if (slot) { slot.innerHTML = action.html; }
+                }
+
+                // A Modal block designed in the editor is Alpine-controlled
+                // (x-data="{open}" + x-show). Flip that reactive state so it
+                // opens/closes exactly as a user click would.
+                var data = (window.Alpine && typeof window.Alpine.$data === 'function') ? window.Alpine.$data(root) : null;
+                if (data && typeof data === 'object' && 'open' in data) {
+                    data.open = open;
                     return;
                 }
-                // Default / 'open': optionally swap inner content, then reveal.
-                if (typeof action.html === 'string' && action.html !== '') {
-                    el.innerHTML = action.html;
-                }
-                el.classList.add('pb-modal--open');
-                el.style.display = '';
+                // Fallback for custom (non-Alpine) modal markup.
+                if (open) { root.classList.add('pb-modal--open'); root.style.display = ''; }
+                else { root.classList.remove('pb-modal--open'); root.style.display = 'none'; }
             });
             return;
         }
