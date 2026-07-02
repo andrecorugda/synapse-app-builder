@@ -191,3 +191,44 @@ it('reads and writes records from a flow node', function (): void {
     expect($ctx2->vars['rows'])->toHaveCount(1)
         ->and($next)->toBe(['done']);
 });
+
+// ── QA regressions: data-layer robustness ──────────────────────────────────
+
+it('rejects a duplicate unique value with a validation error, not a 500', function (): void {
+    $model = makeLeadsModel();
+    $q = app(RecordQuery::class);
+    $q->create($model, ['name' => 'A', 'email' => 'dup@x.com']);
+
+    // A second row with the same unique email must raise ValidationException
+    // (→ 422), never a raw QueryException (→ 500).
+    expect(fn () => $q->create($model, ['name' => 'B', 'email' => 'dup@x.com']))
+        ->toThrow(ValidationException::class);
+});
+
+it('lets a unique field keep its own value on update (ignore self)', function (): void {
+    $model = makeLeadsModel();
+    $q = app(RecordQuery::class);
+    $rec = $q->create($model, ['name' => 'A', 'email' => 'a@x.com']);
+
+    // Updating the same row without changing the unique value must not trip the
+    // unique rule against itself.
+    $updated = $q->update($model, $rec->getKey(), ['name' => 'A2', 'email' => 'a@x.com']);
+    expect($updated)->not->toBeNull()
+        ->and($updated->getAttribute('name'))->toBe('A2');
+});
+
+it('ignores a malformed between filter (one bound) instead of erroring', function (): void {
+    $model = makeLeadsModel();
+    $q = app(RecordQuery::class);
+    $q->create($model, ['name' => 'A', 'email' => 'a@x.com', 'score' => 5]);
+    $q->create($model, ['name' => 'B', 'email' => 'b@x.com', 'score' => 50]);
+
+    // A single-value between used to throw (bound-count mismatch, HTTP 500).
+    // Now it's ignored → the query runs and returns all rows.
+    $res = $q->list($model, ['filter' => ['score' => ['between' => '5']]]);
+    expect($res->total())->toBe(2);
+
+    // A valid two-value between still filters.
+    $res2 = $q->list($model, ['filter' => ['score' => ['between' => '0,10']]]);
+    expect($res2->total())->toBe(1);
+});
