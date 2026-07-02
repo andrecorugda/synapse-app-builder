@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### AI
+
+- **Prompt/validator accuracy.** The generator now gets a real `call_flow` node
+  hint (was generic); the Result-node hint no longer advertises `setState`/
+  `setStates`/`setText` (which the node drops — state writes go through Set
+  Variable); the offline validator's fallback node list now includes
+  `loop`/`transaction`/`call_flow` (its own canonical example uses them); and
+  the example email page uses `custom_css` (the real channel) not `css`.
+
 ### Fixed
 
 - **`context_menu` content is now editable in the editor** — it was missing from

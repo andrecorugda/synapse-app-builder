@@ -197,6 +197,24 @@ it('applies a state watcher from a plan and it fires on a state change', functio
     expect(FlowRun::query()->where('flow_slug_snapshot', 'on-status')->count())->toBe(1);
 });
 
+it('accepts loop / transaction / call_flow nodes (fallback node types include them)', function (): void {
+    $errors = app(BuildPlanValidator::class)->validate([
+        'flows' => [[
+            'slug' => 'composed',
+            'name' => 'Composed',
+            'trigger_type' => 'manual',
+            'definition' => ['start' => 't', 'nodes' => [
+                't' => ['type' => 'trigger', 'next' => ['loop1']],
+                'loop1' => ['type' => 'loop', 'next' => ['tx']],
+                'tx' => ['type' => 'transaction', 'next' => ['cf']],
+                'cf' => ['type' => 'call_flow', 'config' => ['flow' => 'other']],
+            ]],
+        ]],
+    ]);
+
+    expect(collect($errors)->filter(fn ($e) => str_contains($e, 'not a registered node type'))->all())->toBe([]);
+});
+
 it('flags a structurally broken watcher', function (): void {
     $errors = app(BuildPlanValidator::class)->validate([
         'watchers' => [[
