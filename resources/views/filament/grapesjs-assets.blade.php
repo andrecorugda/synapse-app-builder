@@ -1047,6 +1047,29 @@
                             cmp.addTrait({ type: 'select', name: 'data-pb-record', label: 'On submit → create record in', options: collectionOptions });
                         }
 
+                        // Form controls — the standard field configuration that was
+                        // missing (only generic traits showed before). A trait whose
+                        // `name` matches an HTML attribute is synced by GrapesJS
+                        // straight to that attribute on the selected input/textarea/
+                        // select. Placeholder is input/textarea only; Input type is
+                        // <input> only. Sanitizer keeps these attributes (defaults to
+                        // allow), so they persist to the published page.
+                        const pbTag = String(cmp.get('tagName') || '').toLowerCase();
+                        if ((pbTag === 'input' || pbTag === 'textarea' || pbTag === 'select') && ! names.includes('required')) {
+                            if (pbTag !== 'select') {
+                                cmp.addTrait({ type: 'text', name: 'placeholder', label: 'Placeholder' });
+                            }
+                            cmp.addTrait({ type: 'text', name: 'name', label: 'Field name' });
+                            cmp.addTrait({ type: 'checkbox', name: 'required', label: 'Required' });
+                            if (pbTag === 'input') {
+                                cmp.addTrait({ type: 'select', name: 'type', label: 'Input type', options: [
+                                    { id: 'text', name: 'Text' }, { id: 'email', name: 'Email' }, { id: 'number', name: 'Number' },
+                                    { id: 'tel', name: 'Phone' }, { id: 'url', name: 'URL' }, { id: 'password', name: 'Password' },
+                                    { id: 'date', name: 'Date' }, { id: 'time', name: 'Time' }, { id: 'search', name: 'Search' },
+                                ] });
+                            }
+                        }
+
                         // Data Table — "Collection" select (from __pbCollections).
                         // The table binds rows via x-data="pbTable('<key>')"; the
                         // trait isn't a real attribute (changeProp:true) — its
