@@ -46,6 +46,56 @@ class StateShapeService
     }
 
     /**
+     * Compose an Object state's default VALUE from its shape's per-field
+     * defaults: scalars use their (cast) default or null, Objects recurse,
+     * reused-state fields default to null (their own default seeds separately).
+     *
+     * @param  array<int,mixed>  $shape
+     * @return array<string,mixed>
+     */
+    public function composeDefault(array $shape, int $depth = 0): array
+    {
+        if ($depth >= self::MAX_DEPTH) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach ($shape as $field) {
+            if (! is_array($field)) {
+                continue;
+            }
+
+            $name = is_string($field['name'] ?? null) ? trim($field['name']) : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $type = is_string($field['type'] ?? null) ? $field['type'] : 'string';
+            $default = $field['default'] ?? null;
+            $hasDefault = is_scalar($default) && (string) $default !== '';
+
+            $out[$name] = match ($type) {
+                'object' => $this->composeDefault(is_array($field['fields'] ?? null) ? $field['fields'] : [], $depth + 1),
+                'number' => $hasDefault ? $this->castNumber((string) $default) : null,
+                'boolean' => $hasDefault ? filter_var($default, FILTER_VALIDATE_BOOLEAN) : null,
+                'state' => null,
+                default => $hasDefault ? (string) $default : null,
+            };
+        }
+
+        return $out;
+    }
+
+    /** Parse a numeric string to int or float, mirroring Variable::typedValue. */
+    private function castNumber(string $raw): int|float
+    {
+        return str_contains($raw, '.') || str_contains($raw, 'e') || str_contains($raw, 'E')
+            ? (float) $raw
+            : (int) $raw;
+    }
+
+    /**
      * Flattened dotted paths for a single state, resolving nested Objects and
      * reused state refs.
      *

@@ -10,4 +10,13 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateVariable extends CreateRecord
 {
     protected static string $resource = VariableResource::class;
+
+    /**
+     * @param  array<string,mixed>  $data
+     * @return array<string,mixed>
+     */
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        return VariableResource::composeValueFromShape($data);
+    }
 }
