@@ -100,6 +100,7 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
 
         $response = Http::withHeaders($headers)
             ->withoutRedirecting() // don't let a public host 302 into an internal one
+            ->timeout(max(1, (int) config('ai-page-builder.flow.http_timeout', 15))) // bound a slow host tying up a worker
             ->{$method}($url, $body);
 
         $context->set($output, $response->json() ?? $response->body());

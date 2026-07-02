@@ -158,6 +158,9 @@ return [
         'http_allowed_hosts' => array_values(array_filter(
             explode(',', (string) env('AI_PAGE_BUILDER_HTTP_ALLOWED_HOSTS', '')),
         )),
+        // Per-request timeout (seconds) for the HTTP Request node, so a slow or
+        // hung host can't tie up a worker indefinitely.
+        'http_timeout' => (int) env('AI_PAGE_BUILDER_HTTP_TIMEOUT', 15),
     ],
 
     /*

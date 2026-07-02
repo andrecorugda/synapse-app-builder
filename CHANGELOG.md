@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A handled transaction rollback records as `ok`, not `ok`-with-an-error.** A
+  transaction that rolled back and followed its `rolled_back` branch left the
+  run-level error populated, so telemetry showed a successful run carrying a
+  stray error message. The reason is still exposed to the branch as
+  `vars.error`; the run-level error is cleared. (A rollback with no
+  `rolled_back` branch still fails the run, with the original message.)
+- **HTTP Request node has a request timeout.** Added a configurable per-request
+  timeout (`flow.http_timeout`, default 15s) so a slow/hung host can't tie up a
+  worker indefinitely.
 - **Editing a collection field's type now ALTERs the column.** The synchronizer
   only ever *added* columns, so changing an existing field's type (e.g.
   string → number) in the admin left the physical column at its old type — the

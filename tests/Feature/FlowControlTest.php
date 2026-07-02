@@ -175,6 +175,13 @@ it('rolls back every write when the transaction body fails', function (): void {
     expect(widgetCount($this->widgets))->toBe(0)
         ->and($ran->contains('failed'))->toBeTrue()
         ->and($ran->contains('done'))->toBeFalse();
+
+    // A rollback that took its rolled_back branch is a SUCCESSFUL run: no
+    // run-level failure/error (telemetry reads `ok`), but the reason is still
+    // exposed to the branch as vars.error.
+    expect($ctx->failed)->toBeFalse()
+        ->and($ctx->error)->toBeNull()
+        ->and($ctx->get('vars.error'))->not->toBeNull();
 });
 
 it('discards UI actions emitted by a rolled-back body', function (): void {
