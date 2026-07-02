@@ -24,7 +24,13 @@ class FlowManager
         $startedAt = microtime(true);
 
         try {
-            $context = $this->runner->run((array) $flow->definition, $input);
+            // A component (page-button) trigger posts the page's live $store.app
+            // state as input; that IS the authoritative state at trigger time, so
+            // overlay it onto `states.*` — otherwise `{{ states.email }}` resolves
+            // to the (usually empty) persisted Variable and, e.g., an email has no
+            // recipient. Other trigger types (collection/manual/cron) don't overlay.
+            $stateOverlay = $flow->trigger_type === 'component' ? $input : [];
+            $context = $this->runner->run((array) $flow->definition, $input, $stateOverlay);
             // The runner handles node failures in-band (retry / on-error branch /
             // graceful toast) and flags an unhandled failure on the context, so a
             // failed run still returns its actions (e.g. the error notify).
