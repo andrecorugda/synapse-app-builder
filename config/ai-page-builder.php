@@ -131,9 +131,11 @@ return [
         'run_route_enabled' => env('AI_PAGE_BUILDER_FLOW_ROUTE', true),
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_FLOW_RATE', 30),
         // Global executed-node budget for a single flow run, shared across nested
-        // loop/transaction bodies — bounds runaway loops. Raise for flows that
-        // loop over large collections.
-        'max_steps' => (int) env('AI_PAGE_BUILDER_FLOW_MAX_STEPS', 1000),
+        // loop/transaction bodies — bounds runaway loops. The default comfortably
+        // covers a Loop at its 10k-iteration ceiling with a small body; a run that
+        // overruns this now fails loudly (a Transaction rolls back) rather than
+        // silently truncating. Raise for flows looping over very large collections.
+        'max_steps' => (int) env('AI_PAGE_BUILDER_FLOW_MAX_STEPS', 100000),
         // CDN by default (zero-config). To self-host, publish the bundled assets
         // and override these — see "Self-hosting front-end assets" at the bottom.
         'drawflow_js' => env('AI_PAGE_BUILDER_DRAWFLOW_JS', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js'),

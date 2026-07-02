@@ -25,10 +25,18 @@ class FlowRunner
      * @param  array<string,mixed>  $definition  { start, nodes: { id => node } }
      * @param  array<string,mixed>  $input
      * @param  array<string,mixed>  $stateOverlay  Per-run overlay for `states.*` (component triggers)
+     * @param  ?string  $rootSlug  Slug of the flow being run, seeded onto the call
+     *                             stack so a `call_flow` back to THIS flow (a direct
+     *                             self-call) is caught at the first level instead of
+     *                             running one extra full pass before the guard trips.
      */
-    public function run(array $definition, array $input = [], array $stateOverlay = []): FlowContext
+    public function run(array $definition, array $input = [], array $stateOverlay = [], ?string $rootSlug = null): FlowContext
     {
         $context = new FlowContext($input, $stateOverlay);
+
+        if (is_string($rootSlug) && $rootSlug !== '') {
+            $context->callStack[] = $rootSlug;
+        }
 
         $nodes = $this->nodesOf($definition);
         $start = (string) ($definition['start'] ?? '');
@@ -97,9 +105,18 @@ class FlowRunner
             $type = (string) ($node['type'] ?? '');
             $handler = $this->registry->get($type);
             if ($handler === null) {
-                $context->steps[] = ['node' => $id, 'type' => $type, 'status' => 'skipped:unknown-type'];
+                // An unknown node type is a broken definition, not a benign skip:
+                // its `next` never enqueues, so everything downstream is silently
+                // dropped. Failing the run (rather than continuing) means a
+                // truncated flow is reported as an error, and an enclosing
+                // loop/transaction rolls back instead of half-committing.
+                $context->steps[] = ['node' => $id, 'type' => $type, 'status' => 'error', 'error' => 'unknown node type'];
+                $context->error = "Unknown flow node type '{$type}' on node '{$id}'.";
+                $context->failedNode = $id;
+                $context->failed = true;
+                $this->notifyFailure($context, $notifyOnFailure);
 
-                continue;
+                return;
             }
 
             // Per-node error handling: retry up to `retry` attempts, then route to
@@ -142,15 +159,37 @@ class FlowRunner
             // Unhandled: mark failed. At top level surface a toast (configurable);
             // inside a body, stay silent so the enclosing node owns the failure.
             $context->failed = true;
-            if ($notifyOnFailure && config('ai-page-builder.flow.error_notify', true)) {
-                $context->addAction([
-                    'type' => 'notify',
-                    'level' => 'error',
-                    'message' => (string) config('ai-page-builder.flow.error_message', 'Something went wrong. Please try again.'),
-                ]);
-            }
+            $this->notifyFailure($context, $notifyOnFailure);
 
             return;
+        }
+
+        // Exited the walk with work still queued → the step budget was exhausted
+        // mid-flow. This is a FAILURE, never a silent success: otherwise a
+        // loop/transaction body that overran the cap would be reported committed
+        // while only partly executed (partial writes, wrong `count`). Marking it
+        // failed lets an enclosing Transaction roll back and a Loop re-throw.
+        if ($queue !== [] && $context->stepCount >= $maxSteps) {
+            $context->steps[] = ['node' => '', 'type' => '', 'status' => 'aborted:max-steps'];
+            $context->error ??= "Flow exceeded the maximum step budget of {$maxSteps} steps.";
+            $context->failed = true;
+            $this->notifyFailure($context, $notifyOnFailure);
+        }
+    }
+
+    /**
+     * Queue an error toast for an unhandled top-level failure. Body sub-runs
+     * pass $notifyOnFailure = false so the enclosing loop/transaction owns the
+     * failure and no toast leaks from a branch that will be handled.
+     */
+    private function notifyFailure(FlowContext $context, bool $notifyOnFailure): void
+    {
+        if ($notifyOnFailure && config('ai-page-builder.flow.error_notify', true)) {
+            $context->addAction([
+                'type' => 'notify',
+                'level' => 'error',
+                'message' => (string) config('ai-page-builder.flow.error_message', 'Something went wrong. Please try again.'),
+            ]);
         }
     }
 

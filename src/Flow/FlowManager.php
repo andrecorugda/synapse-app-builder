@@ -30,7 +30,7 @@ class FlowManager
             // state) shadows persisted States for `{{ states.* }}` resolution, so a
             // node reads what the visitor typed rather than the empty persisted
             // Variable. Non-page callers (cron/collection/admin Run) pass none.
-            $context = $this->runner->run((array) $flow->definition, $input, $stateOverlay);
+            $context = $this->runner->run((array) $flow->definition, $input, $stateOverlay, $flow->slug);
             // The runner handles node failures in-band (retry / on-error branch /
             // graceful toast) and flags an unhandled failure on the context, so a
             // failed run still returns its actions (e.g. the error notify).
