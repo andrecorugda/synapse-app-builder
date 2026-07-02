@@ -10,6 +10,7 @@ use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
+use Andre\AiPageBuilder\Models\Variable;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 
 /**
@@ -45,6 +46,15 @@ class SetVariableNode implements FlowNodeHandler, ProvidesNodeDefinition
         $value = $context->interpolateDeep($config['value'] ?? null);
         $type = isset($config['type']) ? (string) $config['type'] : null;
         $output = (string) ($config['output'] ?? '');
+
+        // Cast up-front so the persisted State, the live `setState` action pushed
+        // to the page store, and the downstream `output` var all carry the SAME
+        // typed value. Previously only the stored copy was cast (inside the
+        // store) while the action + output var kept the raw interpolated string —
+        // so a number/boolean State showed on screen and read downstream as text.
+        if ($type !== null && $type !== '') {
+            $value = Variable::toTyped($value, $type);
+        }
 
         if ($key !== '') {
             // Persist the app-wide State (server-side) …

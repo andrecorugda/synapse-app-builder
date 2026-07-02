@@ -67,6 +67,22 @@ class Variable extends Model
     }
 
     /**
+     * The native typed value for a raw input + type, matching exactly what a
+     * later read of the persisted variable returns (castForStorage → typedValue
+     * round-trip). Callers use this to cast BEFORE persisting so the in-memory
+     * copy they keep (a flow's setState action, an output var) carries the same
+     * type as the stored State — not the raw pre-cast string.
+     */
+    public static function toTyped(mixed $value, string $type): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return (new self(['type' => $type, 'value' => self::castForStorage($value, $type)]))->typedValue();
+    }
+
+    /**
      * Serialize a value for storage in the string `value` column per `type`.
      */
     public static function castForStorage(mixed $value, string $type): ?string

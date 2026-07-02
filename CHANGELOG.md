@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **HTTP Request node SSRF guard closes host-spelling bypasses.** The guard
+  resolved hosts with `dns_get_record()`, which ignores `/etc/hosts` and doesn't
+  understand every spelling cURL dials — so `localhost`, an IPv6 loopback
+  literal `[::1]`, and a decimal/dotless IPv4 (`2130706433` = `127.0.0.1`) all
+  slipped through to loopback. Hosts are now normalized (brackets stripped,
+  decimal IPs expanded), `localhost` is refused outright, name resolution also
+  goes through the libc resolver (`gethostbynamel`, matching cURL), and a name
+  that resolves to nothing is refused rather than dialed blind.
+
 ### Fixed
 
+- **Set Variable applies the chosen type everywhere.** Only the persisted State
+  was cast; the live `setState` action pushed to the page and the downstream
+  `output` var kept the raw interpolated string — so a `number`/`boolean` State
+  displayed and read downstream as text. The value is now cast once, up-front.
 - **A loop/transaction that overruns the step budget now fails, not silently
   half-commits.** When a Loop's cumulative steps crossed `flow.max_steps`
   mid-iteration the walk exited silently without flagging failure — the Loop

@@ -194,7 +194,13 @@ it('persists a value through SetVariableNode and reflects it in the store', func
     $handler = app(SetVariableNode::class);
     $next = $handler->run($node, $ctx);
 
+    // The chosen type applies consistently: the persisted State, the downstream
+    // output var, AND the setState action pushed to the page all carry the typed
+    // int 100 — not the raw string "100".
+    $setState = collect($ctx->actions)->firstWhere('type', 'setState');
+
     expect(app(VariableStore::class)->get('last_amount'))->toBe(100)
-        ->and($ctx->vars['saved'])->toBe('100')
+        ->and($ctx->vars['saved'])->toBe(100)
+        ->and($setState['value'])->toBe(100)
         ->and($next)->toBe(['n2']);
 });
