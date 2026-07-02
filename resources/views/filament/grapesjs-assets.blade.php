@@ -1112,6 +1112,12 @@
                             }
                         }
 
+                        // Dialog blocks get an ID trait so a flow's "modal" result
+                        // action can target this exact modal by #id (no-code).
+                        if ((cmp.getAttributes()['data-pb-block'] === 'modal' || cmp.getAttributes()['data-pb-block'] === 'drawer') && ! names.includes('id')) {
+                            cmp.addTrait({ type: 'text', name: 'id', category: 'Settings', label: 'ID', placeholder: 'e.g. promo', });
+                        }
+
                         // Author-declared component settings (extensible: a
                         // registered/premium block ships its own via SectionBlock
                         // settings). Each renders as a native trait writing a plain

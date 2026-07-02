@@ -11,6 +11,8 @@ use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\ResultActionCatalog;
+use Andre\AiPageBuilder\Models\Partial;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Appends result actions returned to the page runtime.
@@ -73,11 +75,32 @@ class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
             if (! in_array($type, self::ALLOWED, true)) {
                 continue;
             }
+
+            // A modal action may name a Partial to show as its (designed) body.
+            // Resolve the partial's already-sanitized html into `html` BEFORE
+            // interpolation, so the partial's own {{ }} tokens resolve against
+            // this flow's context. An explicit `html` wins if also set.
+            if ($type === 'modal' && ($action['html'] ?? '') === '' && ! empty($action['partial'])) {
+                $action['html'] = $this->partialHtml((string) $action['partial']);
+            }
+            unset($action['partial']);
+
             /** @var array<string,mixed> $resolved */
             $resolved = $context->interpolateDeep($action);
             $context->addAction($resolved);
         }
 
         return (array) ($node['next'] ?? []);
+    }
+
+    /**
+     * The (sanitized-at-save) html of a Partial by slug, or '' if not found.
+     */
+    private function partialHtml(string $slug): string
+    {
+        /** @var class-string<Model> $model */
+        $model = config('ai-page-builder.models.partial', Partial::class);
+
+        return (string) ($model::query()->where('slug', $slug)->value('html') ?? '');
     }
 }
