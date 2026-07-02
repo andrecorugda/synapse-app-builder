@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class WatcherResource extends Resource
 {
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-bolt';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-eye';
 
     public static function getModel(): string
     {

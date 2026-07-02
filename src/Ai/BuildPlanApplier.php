@@ -10,6 +10,7 @@ use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\Partial;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Models\Watcher;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
@@ -45,7 +46,7 @@ class BuildPlanApplier
 
     /**
      * @param  array<string,mixed>  $plan
-     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>,partials:list<string>,settings:list<string>},errors:list<string>}
+     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,watchers:list<string>,pages:list<string>,partials:list<string>,settings:list<string>},errors:list<string>}
      */
     public function apply(array $plan, bool $dryRun = false): array
     {
@@ -57,6 +58,7 @@ class BuildPlanApplier
                 'states' => [],
                 'functions' => [],
                 'flows' => [],
+                'watchers' => [],
                 'pages' => [],
                 'partials' => [],
                 'settings' => [],
@@ -95,6 +97,7 @@ class BuildPlanApplier
         $this->applyStates($build, $summary);
         $this->applyFunctions($build, $summary);
         $this->applyFlows($build, $summary);
+        $this->applyWatchers($build, $summary);
         $this->applyPages($build, $summary);
         $this->applyPartials($build, $summary);
         $this->applySettings($build, $summary);
@@ -329,8 +332,98 @@ class BuildPlanApplier
                     ],
                 );
                 $summary['created']['flows'][] = $slug;
+
+                // Collection dispatch runs off Watchers (one event → one target),
+                // not the flow row — materialize them so the generated automation
+                // actually fires. The plan contract stays unchanged.
+                if ($triggerType === 'collection') {
+                    $this->materializeCollectionWatchers($slug, (array) ($flow['trigger_config'] ?? []));
+                }
             } catch (Throwable $e) {
                 $summary['errors'][] = "flows[{$i}] ('{$slug}'): ".$e->getMessage();
+            }
+        }
+    }
+
+    /**
+     * One Watcher per (collection, event) → this flow, mirroring the legacy
+     * back-fill. Idempotent via the natural key, so re-applying a plan updates
+     * rather than duplicates.
+     *
+     * @param  array<string,mixed>  $triggerConfig
+     */
+    private function materializeCollectionWatchers(string $flowSlug, array $triggerConfig): void
+    {
+        $collection = $triggerConfig['collection'] ?? null;
+        $events = (array) ($triggerConfig['events'] ?? []);
+        $criteria = $triggerConfig['criteria'] ?? [];
+
+        if (! is_string($collection) || $collection === '' || $events === []) {
+            return;
+        }
+
+        foreach ($events as $event) {
+            if (! is_string($event) || $event === '') {
+                continue;
+            }
+
+            $this->upsertWithTrashed(Watcher::class,
+                [
+                    'source_type' => 'collection',
+                    'source_key' => $collection,
+                    'event' => $event,
+                    'target_key' => $flowSlug,
+                ],
+                [
+                    'name' => sprintf('%s · %s', $flowSlug, $event),
+                    'config' => $criteria === [] ? null : ['criteria' => $criteria],
+                    'target_type' => 'flow',
+                    'is_active' => true,
+                ],
+            );
+        }
+    }
+
+    /**
+     * Apply an explicit `watchers` section (exports carry one; AI plans usually
+     * don't). Upserted by the natural (source, event, target) key. Runs after
+     * applyFlows so flow targets referenced here already exist.
+     *
+     * @param  array{created:array<string,list<string>>,errors:list<string>}  $summary
+     */
+    private function applyWatchers(BuildPlan $build, array &$summary): void
+    {
+        foreach ($build->watchers() as $i => $watcher) {
+            $sourceKey = $watcher['source_key'] ?? null;
+            $targetKey = $watcher['target_key'] ?? null;
+
+            if (! is_string($sourceKey) || $sourceKey === '' || ! is_string($targetKey) || $targetKey === '') {
+                $summary['errors'][] = "watchers[{$i}]: missing source_key or target_key.";
+
+                continue;
+            }
+
+            try {
+                $sourceType = (string) ($watcher['source_type'] ?? 'collection');
+                $event = (string) ($watcher['event'] ?? ($sourceType === 'state' ? 'changed' : 'created'));
+
+                $this->upsertWithTrashed(Watcher::class,
+                    [
+                        'source_type' => $sourceType,
+                        'source_key' => $sourceKey,
+                        'event' => $event,
+                        'target_key' => $targetKey,
+                    ],
+                    [
+                        'name' => (string) ($watcher['name'] ?? sprintf('%s · %s', $targetKey, $event)),
+                        'config' => is_array($watcher['config'] ?? null) && $watcher['config'] !== [] ? $watcher['config'] : null,
+                        'target_type' => (string) ($watcher['target_type'] ?? 'flow'),
+                        'is_active' => (bool) ($watcher['is_active'] ?? true),
+                    ],
+                );
+                $summary['created']['watchers'][] = "{$sourceType}:{$sourceKey} {$event} → {$targetKey}";
+            } catch (Throwable $e) {
+                $summary['errors'][] = "watchers[{$i}]: ".$e->getMessage();
             }
         }
     }

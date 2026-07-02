@@ -23,7 +23,7 @@ class AppImporter
 
     /**
      * @param  array<string,mixed>  $plan
-     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>,settings:list<string>},errors:list<string>}
+     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,watchers:list<string>,pages:list<string>,settings:list<string>},errors:list<string>}
      */
     public function import(array $plan, bool $dryRun = false): array
     {
