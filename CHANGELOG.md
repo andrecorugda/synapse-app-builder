@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Editor
+
+- **Design inside dialog / disclosure blocks** — the editor canvas now reveals
+  the content of `modal`, `drawer`, `tabs`, `accordion`, `dropdown_menu` and
+  `tooltip` blocks (previously hidden by `x-cloak`/`x-show` because Alpine is off
+  in the canvas), so authors can actually edit and fill what's inside them. A
+  dashed marker shows they're open only for editing; the published page is
+  unchanged (closed by default, opens on interaction).
+
 ## [1.2.0] - 2026-07-02
 
 ### Editor
