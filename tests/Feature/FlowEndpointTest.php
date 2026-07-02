@@ -57,13 +57,42 @@ it('returns 200 and interpolated actions for a public active flow', function ():
 // (b) Non-public flow → 404 (existence must not leak)
 // ---------------------------------------------------------------------------
 
-it('returns 404 for a flow with is_public false', function (): void {
+it('returns 404 for a private flow that is not page-triggered (e.g. manual)', function (): void {
+    // Not public AND not a component (page) trigger → never runnable via this
+    // endpoint; 404 so its existence does not leak.
     makePublicFlow([
-        'slug' => 'private-flow',
+        'slug' => 'private-manual-flow',
         'is_public' => false,
+        'trigger_type' => 'manual',
     ]);
 
-    $this->postJson('/pb-flow/private-flow', ['input' => []])
+    $this->postJson('/pb-flow/private-manual-flow', ['input' => []])
+        ->assertNotFound();
+});
+
+it('runs a non-public component flow from a same-origin request', function (): void {
+    // A component (page-button) trigger IS the page invoking it; a same-origin
+    // request (the browser's fetch from the page) runs it without needing Public.
+    makePublicFlow([
+        'slug' => 'component-flow',
+        'is_public' => false,
+        'trigger_type' => 'component',
+    ]);
+
+    // Laravel's test client sends Origin = the app host → same-origin.
+    $this->postJson('/pb-flow/component-flow', ['input' => ['name' => 'Sam']])
+        ->assertOk()
+        ->assertJsonStructure(['actions']);
+});
+
+it('returns 404 for a non-public component flow from a cross-origin request', function (): void {
+    makePublicFlow([
+        'slug' => 'component-flow-xo',
+        'is_public' => false,
+        'trigger_type' => 'component',
+    ]);
+
+    $this->postJson('/pb-flow/component-flow-xo', ['input' => []], ['Origin' => 'https://evil.example'])
         ->assertNotFound();
 });
 

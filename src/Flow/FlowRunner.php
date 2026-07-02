@@ -24,10 +24,11 @@ class FlowRunner
     /**
      * @param  array<string,mixed>  $definition  { start, nodes: { id => node } }
      * @param  array<string,mixed>  $input
+     * @param  array<string,mixed>  $stateOverlay  Per-run overlay for `states.*` (component triggers)
      */
-    public function run(array $definition, array $input = []): FlowContext
+    public function run(array $definition, array $input = [], array $stateOverlay = []): FlowContext
     {
-        $context = new FlowContext($input);
+        $context = new FlowContext($input, $stateOverlay);
 
         $nodes = $this->nodesOf($definition);
         $start = (string) ($definition['start'] ?? '');
