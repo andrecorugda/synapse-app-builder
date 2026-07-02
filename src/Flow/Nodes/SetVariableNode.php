@@ -47,7 +47,12 @@ class SetVariableNode implements FlowNodeHandler, ProvidesNodeDefinition
         $output = (string) ($config['output'] ?? '');
 
         if ($key !== '') {
+            // Persist the app-wide State (server-side) …
             $this->store->set($key, $value, $type);
+            // … and emit a client action so a page that triggered this flow updates
+            // its live reactive store immediately (the runtime applies `setState` to
+            // $store.app.<key>) — without this the bound State never changes on screen.
+            $context->addAction(['type' => 'setState', 'key' => $key, 'value' => $value]);
         }
 
         if ($output !== '') {

@@ -54,45 +54,32 @@ it('returns 200 and interpolated actions for a public active flow', function ():
 });
 
 // ---------------------------------------------------------------------------
-// (b) Non-public flow → 404 (existence must not leak)
+// (b) Access model: Public = any origin; Private = same-origin only (cross-origin 404)
 // ---------------------------------------------------------------------------
 
-it('returns 404 for a private flow that is not page-triggered (e.g. manual)', function (): void {
-    // Not public AND not a component (page) trigger → never runnable via this
-    // endpoint; 404 so its existence does not leak.
+it('runs a private flow from a same-origin request (trigger type does not gate access)', function (): void {
+    // Access is gated by Public vs Private, NOT by trigger_type: a private flow is
+    // callable from the app's own pages (same-origin). Even a "manual" flow runs
+    // when the page fetches it same-origin. Laravel's test client sends Origin = host.
     makePublicFlow([
         'slug' => 'private-manual-flow',
         'is_public' => false,
         'trigger_type' => 'manual',
     ]);
 
-    $this->postJson('/pb-flow/private-manual-flow', ['input' => []])
-        ->assertNotFound();
-});
-
-it('runs a non-public component flow from a same-origin request', function (): void {
-    // A component (page-button) trigger IS the page invoking it; a same-origin
-    // request (the browser's fetch from the page) runs it without needing Public.
-    makePublicFlow([
-        'slug' => 'component-flow',
-        'is_public' => false,
-        'trigger_type' => 'component',
-    ]);
-
-    // Laravel's test client sends Origin = the app host → same-origin.
-    $this->postJson('/pb-flow/component-flow', ['input' => ['name' => 'Sam']])
+    $this->postJson('/pb-flow/private-manual-flow', ['input' => ['name' => 'Sam']])
         ->assertOk()
         ->assertJsonStructure(['actions']);
 });
 
-it('returns 404 for a non-public component flow from a cross-origin request', function (): void {
+it('returns 404 for a private flow from a cross-origin request (no existence leak)', function (): void {
     makePublicFlow([
-        'slug' => 'component-flow-xo',
+        'slug' => 'private-xo-flow',
         'is_public' => false,
-        'trigger_type' => 'component',
+        'trigger_type' => 'manual',
     ]);
 
-    $this->postJson('/pb-flow/component-flow-xo', ['input' => []], ['Origin' => 'https://evil.example'])
+    $this->postJson('/pb-flow/private-xo-flow', ['input' => []], ['Origin' => 'https://evil.example'])
         ->assertNotFound();
 });
 
@@ -131,4 +118,29 @@ it('returns 429 on the second request when rate_limit_per_minute is 1', function
     $this->postJson('/pb-flow/'.$slug, ['input' => ['name' => 'Sam']])
         ->assertStatus(429)
         ->assertJsonPath('error', 'Too many requests');
+});
+
+// ---------------------------------------------------------------------------
+// (d) set_variable emits a client setState action (page store updates live)
+// ---------------------------------------------------------------------------
+
+it('a set_variable node returns a setState action so a page updates its store live', function (): void {
+    Flow::create([
+        'slug' => 'set-state-flow',
+        'name' => 'Set State',
+        'trigger_type' => 'manual',
+        'is_active' => true,
+        'is_public' => true,
+        'definition' => [
+            'start' => 'n1',
+            'nodes' => [
+                'n1' => ['type' => 'trigger', 'next' => ['n2']],
+                'n2' => ['type' => 'set_variable', 'config' => ['key' => 'message', 'value' => 'hello', 'type' => 'string'], 'next' => []],
+            ],
+        ],
+    ]);
+
+    $this->postJson('/pb-flow/set-state-flow', ['input' => []])
+        ->assertOk()
+        ->assertJsonFragment(['type' => 'setState', 'key' => 'message', 'value' => 'hello']);
 });
