@@ -82,6 +82,49 @@ it('runs a due function schedule via the function runtime', function (): void {
         ->and($ran[0])->toBe(['x' => 1]);
 });
 
+it('a schedule with an invalid timezone is skipped without aborting the whole tick', function (): void {
+    Flow::create([
+        'slug' => 'nightly',
+        'name' => 'Nightly',
+        'trigger_type' => 'cron',
+        'is_active' => true,
+        'definition' => [
+            'start' => 'n1',
+            'nodes' => [
+                'n1' => ['type' => 'trigger', 'next' => ['n2']],
+                'n2' => ['type' => 'result', 'config' => ['actions' => []]],
+            ],
+        ],
+    ]);
+
+    // A schedule with a bad IANA name — its setTimezone() throws. Ordered first
+    // by id, so before the fix its exception aborted runDue() and the healthy
+    // schedule below never ran.
+    Schedule::create([
+        'name' => 'Bad tz job',
+        'cron_expression' => '* * * * *',
+        'timezone' => 'Europe/Pariss',
+        'target_type' => 'flow',
+        'target_key' => 'nightly',
+        'is_active' => true,
+    ]);
+
+    Schedule::create([
+        'name' => 'Healthy job',
+        'cron_expression' => '* * * * *',
+        'target_type' => 'flow',
+        'target_key' => 'nightly',
+        'is_active' => true,
+    ]);
+
+    $summary = app(ScheduleRunner::class)->runDue(Carbon::now());
+
+    // The bad one is silently skipped (not due); the healthy one still runs.
+    expect($summary)->toHaveCount(1)
+        ->and($summary[0]['status'])->toBe('ok');
+    expect(FlowRun::where('flow_slug_snapshot', 'nightly')->count())->toBe(1);
+});
+
 it('does not run an inactive schedule', function (): void {
     Flow::create([
         'slug' => 'idle',

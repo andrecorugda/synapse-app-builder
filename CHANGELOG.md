@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Boolean state watcher fires when a flag turns off.** A state watcher with
+  `to: false` (stored by the form as the string `"false"`) never fired: PHP's
+  loose `==` treats the non-empty string `"false"` as truthy, so `false ==
+  "false"` was false. `from`/`to` now compare on boolean meaning when the state
+  value is a real boolean.
+- **A bad schedule timezone no longer aborts the whole tick.** `setTimezone()`
+  ran outside the cron guard, so one schedule with a typo'd IANA name threw and
+  every schedule after it silently never ran. A bad timezone is now logged and
+  treated as not-due, exactly like a bad cron expression.
+- **Export/import carries partials.** `export-app` omitted the `partials`
+  section, so a re-imported site lost its shared chrome — the nav/header/footer
+  embedded via `data-pb-partial` vanished (a flow-opened modal showing a partial
+  went blank; every page's nav disappeared). Partials now round-trip.
 - **Duplicate `unique` value → a clean 422, not a 500.** A `unique` field was
   enforced only by the DB index, so a duplicate write threw a raw query
   exception (HTTP 500, leaking DB details under debug) instead of a field-level

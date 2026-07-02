@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Ai\BuildPlanApplier;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\Partial;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Variable;
@@ -46,6 +47,7 @@ class AppExporter
      *   functions:list<array{slug:string,name:string,runtime:string,body:?string}>,
      *   flows:list<array{slug:string,name:string,trigger_type:string,trigger_config:array<string,mixed>,definition:array<string,mixed>}>,
      *   watchers:list<array{name:string,source_type:string,source_key:string,event:?string,config:?array<string,mixed>,target_type:string,target_key:string,is_active:bool}>,
+     *   partials:list<array{slug:string,name:string,html:?string,custom_css:?string,custom_js:?string}>,
      *   pages:list<array{slug:string,title:string,kind:string,status:string,html:?string,css:?string,custom_css:?string,custom_js:?string,meta:?array<string,mixed>}>,
      *   settings:array{home_page:mixed,not_found_page:mixed,maintenance_page:mixed}
      * }
@@ -59,6 +61,7 @@ class AppExporter
             'functions' => $this->functions(),
             'flows' => $this->flows(),
             'watchers' => $this->watchers(),
+            'partials' => $this->partials(),
             'pages' => $this->pages(),
             'settings' => $this->appSettings(),
         ];
@@ -203,6 +206,36 @@ class AppExporter
                     'target_type' => (string) $watcher->target_type,
                     'target_key' => (string) $watcher->target_key,
                     'is_active' => (bool) $watcher->is_active,
+                ];
+            }
+
+            return $out;
+        });
+    }
+
+    /**
+     * Reusable chrome — nav / header / footer — embedded on pages via
+     * `<div data-pb-partial="<slug>"></div>`. These MUST travel with the app:
+     * without them a re-imported site loses its shared nav (the modal a flow
+     * opens goes blank, every page's header vanishes). The applier applies
+     * partials before pages so the embeds resolve on first render.
+     *
+     * @return list<array{slug:string,name:string,html:?string,custom_css:?string,custom_js:?string}>
+     */
+    private function partials(): array
+    {
+        return $this->guard(function (): array {
+            // Partial has no config override (the applier writes Partial::class
+            // directly), so read the concrete model here to match.
+            $out = [];
+            foreach (Partial::query()->orderBy('slug')->get() as $partial) {
+                /** @var Partial $partial */
+                $out[] = [
+                    'slug' => (string) $partial->slug,
+                    'name' => (string) $partial->name,
+                    'html' => $partial->html !== null ? (string) $partial->html : null,
+                    'custom_css' => $partial->custom_css !== null ? (string) $partial->custom_css : null,
+                    'custom_js' => $partial->custom_js !== null ? (string) $partial->custom_js : null,
                 ];
             }
 

@@ -296,6 +296,32 @@ it('fires a state watcher on a matching change (from → to)', function (): void
         ->and($run->input['new'])->toBe('won');
 });
 
+it('fires a boolean state watcher when the flag turns off (to = "false")', function (): void {
+    makeNotifyFlow('on-off');
+    Watcher::create([
+        'name' => 'flag turned off',
+        'source_type' => 'state',
+        'source_key' => 'enabled',
+        'event' => 'changed',
+        // The watcher form stores to/from as strings; the state value is a real
+        // JSON boolean. Loose == got this wrong (false == "false" is false).
+        'config' => ['to' => 'false'],
+        'target_type' => 'flow',
+        'target_key' => 'on-off',
+        'is_active' => true,
+    ]);
+
+    $dispatcher = app(WatcherDispatcher::class);
+
+    // Turning ON must NOT fire a "turned off" watcher…
+    $dispatcher->dispatchStateChange('enabled', false, true);
+    expect(FlowRun::where('flow_slug_snapshot', 'on-off')->count())->toBe(0);
+
+    // …turning OFF must fire it.
+    $dispatcher->dispatchStateChange('enabled', true, false);
+    expect(FlowRun::where('flow_slug_snapshot', 'on-off')->count())->toBe(1);
+});
+
 it('back-fills legacy collection flows into watchers', function (): void {
     $model = makeWatchedLeadsModel();
 
