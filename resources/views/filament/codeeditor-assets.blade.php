@@ -166,21 +166,6 @@
                     },
 
                     /**
-                     * Flattened State picker options: each state's root plus every
-                     * Object shape path. The option value is a dotted ref
-                     * ("address" / "address.city") that insertState turns into the
-                     * field's accessor syntax.
-                     */
-                    stateInsertOptions() {
-                        var out = [];
-                        (window.__pbStates || []).forEach(function (s) {
-                            out.push({ value: s.key, label: s.key + ' · ' + (s.type || 'string') });
-                            (s.paths || []).forEach(function (p) { out.push({ value: s.key + '.' + p, label: '↳ ' + s.key + '.' + p }); });
-                        });
-                        return out;
-                    },
-
-                    /**
                      * Insert a State reference at the cursor, in the syntax of the
                      * field's runtime: php → $states['key'], expression
                      * (javascript) → state('key'), else states['key']. A dotted ref

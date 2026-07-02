@@ -30,18 +30,36 @@
 
             <span class="ai-pb-palette-spacer"></span>
 
-            {{-- Insert a {{ states.key }} reference (or a nested Object path,
-                 {{ states.key.address.city }}) into the focused node field.
-                 The option value is exactly the dotted ref after "states." — since
-                 state keys can't contain dots, insertState needs no path handling. --}}
-            <select class="ai-pb-state-picker"
-                title="Insert a State reference into the focused field"
-                @change="insertState($event.target.value); $event.target.value = ''">
-                <option value="">⎘ Insert state…</option>
-                <template x-for="opt in stateInsertOptions()" :key="opt.value">
-                    <option :value="opt.value" x-text="opt.label"></option>
-                </template>
-            </select>
+            {{-- Two-step State insert. Pick a state; if it's an Object, a second
+                 select of its shape paths appears — choose a value (or the whole
+                 object) to insert {{ states.key }} / {{ states.key.address.city }}.
+                 The path option value is the full dotted ref after "states." (state
+                 keys can't contain dots), which insertState wraps verbatim. --}}
+            <span class="ai-pb-state-picker-wrap" x-data="{ sel: '', paths: [] }">
+                <select class="ai-pb-state-picker"
+                    title="Insert a State reference into the focused field"
+                    @change="
+                        sel = $event.target.value;
+                        var st = (window.__pbVariables || []).find(function (v) { return v.key === sel; });
+                        paths = (st && Array.isArray(st.paths)) ? st.paths : [];
+                        if (sel && paths.length === 0) { insertState(sel); sel = ''; }
+                        $event.target.value = '';
+                    ">
+                    <option value="">⎘ Insert state…</option>
+                    <template x-for="s in (window.__pbVariables || [])" :key="s.key">
+                        <option :value="s.key" x-text="s.key + ' · ' + (s.type || 'string')"></option>
+                    </template>
+                </select>
+                <select class="ai-pb-state-picker" x-show="sel && paths.length" style="display:none;"
+                    title="Pick a value inside the selected Object state"
+                    @change="if ($event.target.value) { insertState($event.target.value); } sel = ''; paths = []; $event.target.value = '';">
+                    <option value="">⎘ value…</option>
+                    <option :value="sel" x-text="sel + ' (whole object)'"></option>
+                    <template x-for="p in paths" :key="p">
+                        <option :value="sel + '.' + p" x-text="p"></option>
+                    </template>
+                </select>
+            </span>
 
             {{-- Zoom controls --}}
             <div class="ai-pb-zoom">
