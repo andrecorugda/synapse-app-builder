@@ -84,8 +84,8 @@
                     style="background:#0f172a;color:#5eead4;border:1px solid #2dd4bf66;border-radius:.3rem;font-size:.72rem;padding:.15rem .4rem;max-width:220px;"
                 >
                     <option value="">⎘ Insert state…</option>
-                    <template x-for="s in (window.__pbStates || [])" :key="s.key">
-                        <option :value="s.key" x-text="s.key + ' · ' + (s.type || 'string')"></option>
+                    <template x-for="opt in stateInsertOptions()" :key="opt.value">
+                        <option :value="opt.value" x-text="opt.label"></option>
                     </template>
                 </select>
             </div>

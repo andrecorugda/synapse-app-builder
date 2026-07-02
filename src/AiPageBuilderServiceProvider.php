@@ -114,6 +114,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_external_source_to_page_builder_models_table',
                 'add_display_field_to_page_builder_models_table',
                 'create_page_builder_record_revisions_table',
+                'add_shape_to_page_builder_variables_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)

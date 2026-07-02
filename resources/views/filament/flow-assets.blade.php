@@ -35,9 +35,12 @@
             $pbFlows = [];
         }
         try {
-            $varClass = config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class);
-            $pbVariables = $varClass::query()->orderBy('key')->get()
-                ->map(fn ($v) => ['key' => $v->key, 'name' => $v->key, 'type' => $v->type])->values()->all();
+            // `paths` = the Object state's shape flattened to dotted paths, so the
+            // State picker can insert {{ states.key.address.city }}, not just the root.
+            $pbVariables = array_map(
+                fn (array $s): array => ['key' => $s['key'], 'name' => $s['key'], 'type' => $s['type'], 'paths' => $s['paths']],
+                app(\Andre\AiPageBuilder\Services\State\StateShapeService::class)->catalog()
+            );
         } catch (\Throwable $e) {
             $pbVariables = [];
         }
@@ -1856,8 +1859,24 @@
                 },
 
                 /**
-                 * Insert a {{ states.<key> }} reference at the caret of the last
-                 * focused node field (or append if none focused yet).
+                 * Flattened State picker options: each state's root, plus every
+                 * Object shape path. The option value is the dotted ref that follows
+                 * "states." (e.g. "address" or "address.city"), which insertState
+                 * wraps verbatim — no separate path arg needed.
+                 */
+                stateInsertOptions() {
+                    const out = [];
+                    (window.__pbVariables || []).forEach((s) => {
+                        out.push({ value: s.key, label: s.key + ' · ' + (s.type || 'string') });
+                        (s.paths || []).forEach((p) => out.push({ value: s.key + '.' + p, label: '↳ ' + s.key + '.' + p }));
+                    });
+                    return out;
+                },
+
+                /**
+                 * Insert a {{ states.<ref> }} reference at the caret of the last
+                 * focused node field (or append if none focused yet). `ref` is a
+                 * state key or a dotted shape path (address.city).
                  */
                 insertState(key) {
                     if (! key) { return; }
