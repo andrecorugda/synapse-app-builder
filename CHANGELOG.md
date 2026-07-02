@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Duplicate `unique` value → a clean 422, not a 500.** A `unique` field was
+  enforced only by the DB index, so a duplicate write threw a raw query
+  exception (HTTP 500, leaking DB details under debug) instead of a field-level
+  "already taken" validation error. A `unique` rule is now added on validate
+  (ignoring the current row on update).
+- **Malformed `between` filter no longer 500s.** `filter[x][between]=5` (a
+  single bound) crashed with a bound-count mismatch; it's now ignored (a valid
+  two-value `between` still filters).
 - **Maintenance-mode admin bypass works.** An admin end-user could not preview
   the live site during maintenance — the bypass checked a non-existent
   `user.is_admin` attribute instead of the role flag (`isAdmin()`), so admins
