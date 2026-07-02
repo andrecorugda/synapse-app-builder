@@ -24,8 +24,9 @@
             $pbPages = [];
         }
         try {
-            $pbStates = (config('ai-page-builder.models.variable', \Andre\AiPageBuilder\Models\Variable::class))::query()
-                ->orderBy('key')->get()->map(fn ($v) => ['key' => $v->key, 'type' => $v->type])->values()->all();
+            // `paths` = each Object state's shape flattened to dotted paths, so a
+            // binding trait can target $store.app.address.city, not just the root.
+            $pbStates = app(\Andre\AiPageBuilder\Services\State\StateShapeService::class)->catalog();
         } catch (\Throwable $e) {
             $pbStates = [];
         }
@@ -1027,9 +1028,14 @@
                         // (x-text/x-show/x-model) referencing $store.app.<key> —
                         // no executable directives. Updated live by flows (setState).
                         if (! names.includes('x-text')) {
-                            const stateOptions = [{ id: '', name: '— none —' }].concat(
-                                (window.__pbStates || []).map((s) => ({ id: '$store.app.' + s.key, name: s.key + ' · ' + (s.type || 'string') }))
-                            );
+                            // Each state contributes its root plus — for Object states —
+                            // every flattened shape path (address.city), so a binding can
+                            // target a specific value, not just the whole object.
+                            const stateOptions = [{ id: '', name: '— none —' }];
+                            (window.__pbStates || []).forEach((s) => {
+                                stateOptions.push({ id: '$store.app.' + s.key, name: s.key + ' · ' + (s.type || 'string') });
+                                (s.paths || []).forEach((p) => stateOptions.push({ id: '$store.app.' + s.key + '.' + p, name: '↳ ' + s.key + '.' + p }));
+                            });
                             cmp.addTrait({ type: 'select', name: 'x-text', category: 'Data', label: 'Bind text → State', options: stateOptions });
                             cmp.addTrait({ type: 'select', name: 'x-show', category: 'Data', label: 'Show when (State)', options: stateOptions });
                             cmp.addTrait({ type: 'select', name: 'x-model', category: 'Data', label: 'Two-way input ↔ State', options: stateOptions });

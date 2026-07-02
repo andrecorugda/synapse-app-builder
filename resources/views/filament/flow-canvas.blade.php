@@ -30,14 +30,16 @@
 
             <span class="ai-pb-palette-spacer"></span>
 
-            {{-- Insert a {{ states.key }} reference into the focused node field;
-                 each option shows the State's data type. --}}
+            {{-- Insert a {{ states.key }} reference (or a nested Object path,
+                 {{ states.key.address.city }}) into the focused node field.
+                 The option value is exactly the dotted ref after "states." — since
+                 state keys can't contain dots, insertState needs no path handling. --}}
             <select class="ai-pb-state-picker"
                 title="Insert a State reference into the focused field"
                 @change="insertState($event.target.value); $event.target.value = ''">
                 <option value="">⎘ Insert state…</option>
-                <template x-for="s in (window.__pbVariables || [])" :key="s.key">
-                    <option :value="s.key" x-text="s.key + ' · ' + (s.type || 'string')"></option>
+                <template x-for="opt in stateInsertOptions()" :key="opt.value">
+                    <option :value="opt.value" x-text="opt.label"></option>
                 </template>
             </select>
 
