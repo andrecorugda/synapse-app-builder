@@ -19,24 +19,59 @@
     var API_BASE = '{{ $apiBase }}';
     var UPLOAD_BASE = '/pb-upload';   // gated public image upload (origin-relative)
 
-    /** Show a lightweight toast notification. */
-    function showToast(message) {
+    /** Per-level toast palette — background, foreground, accent bar, icon glyph. */
+    var TOAST_LEVELS = {
+        success: { bg: '#064e3b', fg: '#ecfdf5', bar: '#10b981', icon: '✓' },
+        error:   { bg: '#7f1d1d', fg: '#fef2f2', bar: '#f87171', icon: '✕' },
+        warning: { bg: '#78350f', fg: '#fffbeb', bar: '#f59e0b', icon: '!' },
+        info:    { bg: '#1e293b', fg: '#f8fafc', bar: '#38bdf8', icon: 'i' },
+    };
+
+    /** Show a lightweight toast notification, styled by level (default: info). */
+    function showToast(message, level) {
+        var p = TOAST_LEVELS[level] || TOAST_LEVELS.info;
         var toast = document.createElement('div');
         toast.style.cssText = [
             'position:fixed',
             'bottom:1.5rem',
             'right:1.5rem',
             'z-index:99999',
-            'background:#1e293b',
-            'color:#f8fafc',
+            'display:flex',
+            'align-items:center',
+            'gap:.6rem',
+            'max-width:22rem',
+            'background:' + p.bg,
+            'color:' + p.fg,
             'padding:.75rem 1.25rem',
             'border-radius:.5rem',
+            'border-left:4px solid ' + p.bar,
             'font-size:.875rem',
             'box-shadow:0 4px 12px rgba(0,0,0,.25)',
             'transition:opacity .3s',
             'opacity:1',
         ].join(';');
-        toast.textContent = String(message);
+
+        var badge = document.createElement('span');
+        badge.textContent = p.icon;
+        badge.style.cssText = [
+            'flex:0 0 auto',
+            'width:1.15rem',
+            'height:1.15rem',
+            'border-radius:9999px',
+            'display:inline-flex',
+            'align-items:center',
+            'justify-content:center',
+            'font-size:.72rem',
+            'font-weight:700',
+            'background:' + p.bar,
+            'color:' + p.bg,
+        ].join(';');
+
+        var text = document.createElement('span');
+        text.textContent = String(message);
+
+        toast.appendChild(badge);
+        toast.appendChild(text);
         document.body.appendChild(toast);
         setTimeout(function () {
             toast.style.opacity = '0';
@@ -141,7 +176,7 @@
         }
 
         if (type === 'notify') {
-            showToast(action.message || '');
+            showToast(action.message || '', action.level);
             return;
         }
 
@@ -169,7 +204,14 @@
         }
 
         if (type === 'redirect') {
-            if (action.url) { window.location.href = action.url; }
+            if (action.url) {
+                // newTab is truthy ('1') when the author picked "New tab".
+                if (action.newTab) {
+                    window.open(action.url, '_blank', 'noopener');
+                } else {
+                    window.location.href = action.url;
+                }
+            }
             return;
         }
 
