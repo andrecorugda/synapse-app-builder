@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\PbPermission;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Models\Watcher;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
@@ -172,7 +173,6 @@ class InventoryDemo
             [
                 'name' => 'On stock movement',
                 'trigger_type' => 'collection',
-                'trigger_config' => ['collection' => 'stock_movements', 'events' => ['created']],
                 'is_active' => true,
                 'definition' => [
                     'start' => 't',
@@ -205,6 +205,14 @@ class InventoryDemo
                     ],
                 ],
             ],
+        );
+
+        // Fire the flow whenever a stock movement is created. Watchers own the
+        // collection→flow binding (one event → one target), decoupled from the
+        // flow's own trigger_type.
+        Watcher::query()->updateOrCreate(
+            ['source_type' => 'collection', 'source_key' => 'stock_movements', 'event' => 'created', 'target_key' => 'on-stock-movement'],
+            ['name' => 'Stock movement created → on-stock-movement', 'target_type' => 'flow', 'is_active' => true],
         );
     }
 
