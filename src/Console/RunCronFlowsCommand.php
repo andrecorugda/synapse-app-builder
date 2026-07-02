@@ -13,7 +13,8 @@ class RunCronFlowsCommand extends Command
 {
     protected $signature = 'ai-page-builder:run-cron-flows';
 
-    protected $description = 'Run all active cron-triggered flows. Schedule this command at your desired interval.';
+    protected $description = 'Run all active cron-triggered flows. Schedule this command at your desired interval. '
+        .'(Legacy: prefer Schedules for per-flow cron cadence + function targets; existing trigger_type=cron flows are surfaced as inactive Schedules to review.)';
 
     public function handle(FlowManager $manager): int
     {

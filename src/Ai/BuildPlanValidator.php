@@ -56,6 +56,7 @@ class BuildPlanValidator
         $this->validateStates($build, $errors);
         $this->validateFunctions($build, $errors);
         $this->validateFlows($build, $errors);
+        $this->validateWatchers($build, $errors);
         $this->validatePages($build, $errors);
         $this->validatePartials($build, $errors);
         $this->validateSettings($build, $errors);
@@ -253,6 +254,39 @@ class BuildPlanValidator
                 $type = $node['type'] ?? null;
                 if (! is_string($type) || ! in_array($type, $nodeTypes, true)) {
                     $errors[] = "flows[{$i}].nodes['{$nodeId}']: type '".$this->display($type)."' is not a registered node type (".implode(', ', $nodeTypes).').';
+                }
+            }
+        }
+    }
+
+    /**
+     * Watchers usually arrive via export/import rather than AI plans. Block
+     * structural breakage only: bad enums or missing keys.
+     *
+     * @param  list<string>  $errors
+     */
+    private function validateWatchers(BuildPlan $build, array &$errors): void
+    {
+        foreach ($build->watchers() as $i => $watcher) {
+            $sourceType = $watcher['source_type'] ?? 'collection';
+            if (! in_array($sourceType, ['collection', 'state'], true)) {
+                $errors[] = "watchers[{$i}]: source_type '".$this->display($sourceType)."' must be collection or state.";
+            }
+
+            $targetType = $watcher['target_type'] ?? 'flow';
+            if (! in_array($targetType, ['flow', 'function'], true)) {
+                $errors[] = "watchers[{$i}]: target_type '".$this->display($targetType)."' must be flow or function.";
+            }
+
+            $event = $watcher['event'] ?? null;
+            if ($event !== null && ! in_array($event, ['created', 'updated', 'deleted', 'changed'], true)) {
+                $errors[] = "watchers[{$i}]: event '".$this->display($event)."' must be created, updated, deleted or changed.";
+            }
+
+            foreach (['source_key', 'target_key'] as $key) {
+                $value = $watcher[$key] ?? null;
+                if (! is_string($value) || $value === '') {
+                    $errors[] = "watchers[{$i}]: {$key} is required.";
                 }
             }
         }

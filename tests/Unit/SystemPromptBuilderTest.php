@@ -31,6 +31,16 @@ it('spells out the build-plan contract markers', function (): void {
         ->toContain('data-pb-block');
 });
 
+it('teaches the watchers section as the way to react to changes', function (): void {
+    $prompt = (new SystemPromptBuilder)->build();
+
+    expect($prompt)
+        ->toContain('watchers')
+        ->toContain('source_type')
+        ->toContain('WATCHER')
+        ->toContain('input.new');
+});
+
 it('lists known component keys from the vocabulary', function (): void {
     $prompt = (new SystemPromptBuilder)->build();
 

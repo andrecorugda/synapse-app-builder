@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources;
 
 use Andre\AiPageBuilder\Filament\Resources\WatcherResource\Pages;
+use Andre\AiPageBuilder\Filament\Resources\WatcherResource\RelationManagers;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Variable;
 use Andre\AiPageBuilder\Models\Watcher;
+use Andre\AiPageBuilder\Services\State\StateShapeService;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -30,7 +32,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class WatcherResource extends Resource
 {
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-bolt';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-eye';
 
     public static function getModel(): string
     {
@@ -55,12 +57,20 @@ class WatcherResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
+        // The form reads as a sentence: WATCH this source → only WHEN these
+        // conditions hold (optional) → THEN run that flow/function.
         return $schema
             ->components([
-                Schemas\Components\Section::make('Watcher')
+                Schemas\Components\Section::make('Watch')
+                    ->description('What this watcher listens to.')
                     ->compact()
-                    ->columns(2)
+                    ->columns(3)
                     ->schema([
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(160)
+                            ->columnSpanFull(),
+
                         Forms\Components\Select::make('source_type')
                             ->label('Watch')
                             ->required()
@@ -70,24 +80,23 @@ class WatcherResource extends Resource
                                 'collection' => 'Collection records',
                                 'state' => 'State (global variable)',
                             ])
-                            // Clear the now-mismatched source when the kind flips.
-                            ->afterStateUpdated(fn (Forms\Components\Select $component) => $component
-                                ->getContainer()
-                                ->getComponent('source_key')
-                                ?->state(null)),
-
-                        Forms\Components\TextInput::make('name')
-                            ->required()
-                            ->maxLength(160),
+                            // Clear now-mismatched dependents when the kind flips.
+                            ->afterStateUpdated(function (callable $set): void {
+                                $set('source_key', null);
+                                $set('config.path', null);
+                            }),
 
                         Forms\Components\Select::make('source_key')
                             ->key('source_key')
                             ->label(fn (Get $get): string => $get('source_type') === 'state' ? 'State' : 'Collection')
                             ->required()
                             ->searchable()
+                            ->live()
                             ->options(fn (Get $get): array => $get('source_type') === 'state'
                                 ? self::stateOptions()
                                 : PbModel::query()->orderBy('name')->pluck('name', 'key')->all())
+                            // A path picked for another state would be stale.
+                            ->afterStateUpdated(fn (callable $set) => $set('config.path', null))
                             ->helperText(fn (Get $get): string => $get('source_type') === 'state'
                                 ? 'The global variable whose value this watcher observes.'
                                 : 'The collection whose records this watcher listens to.'),
@@ -96,54 +105,86 @@ class WatcherResource extends Resource
                             ->label('On event')
                             ->required(fn (Get $get): bool => $get('source_type') === 'collection')
                             ->visible(fn (Get $get): bool => $get('source_type') === 'collection')
+                            ->live()
                             ->default('created')
                             ->options([
                                 'created' => 'Created',
                                 'updated' => 'Updated',
                                 'deleted' => 'Deleted',
                             ])
-                            ->helperText('One event per watcher — add separate watchers to run different flows for create / update / delete.'),
+                            ->helperText('One event per watcher — add separate watchers to run different flows per event.'),
 
-                        Forms\Components\Select::make('target_type')
-                            ->label('Run')
-                            ->required()
-                            ->options([
-                                'flow' => 'Flow',
-                                'function' => 'Function',
-                            ])
-                            ->default('flow')
+                        Forms\Components\Select::make('config.side')
+                            ->label('Watch where')
+                            ->visible(fn (Get $get): bool => $get('source_type') === 'state')
                             ->live()
-                            // Clear a now-mismatched target when the type flips.
-                            ->afterStateUpdated(fn (Forms\Components\Select $component) => $component
-                                ->getContainer()
-                                ->getComponent('target_key')
-                                ?->state(null)),
+                            ->default('server')
+                            ->selectablePlaceholder(false)
+                            ->options([
+                                'server' => 'Server — when the persisted state changes',
+                                'client' => 'Browser — live page state, as the visitor interacts',
+                            ])
+                            // The browser fires flows through /pb-flow, which only
+                            // runs flows — a function target would 404.
+                            ->afterStateUpdated(function (callable $set, Get $get): void {
+                                if ($get('config.side') === 'client') {
+                                    $set('target_type', 'flow');
+                                }
+                            })
+                            ->helperText('Server catches set_variable / API writes. Browser watches the live $store.app on rendered pages (typing, selections) — like a JS framework watcher.'),
 
-                        Forms\Components\Select::make('target_key')
-                            ->key('target_key')
-                            ->label('Target')
-                            ->required()
-                            ->searchable()
-                            ->options(fn (Get $get): array => self::targetOptions((string) $get('target_type')))
-                            ->helperText(fn (Get $get): string => $get('source_type') === 'state'
-                                ? 'The flow or function (by slug) to run on change. Payload: {{ input.key }}, {{ input.old }}, {{ input.new }}.'
-                                : 'The flow or function (by slug) to run when the event fires. Payload: {{ input.record }}, {{ input.old }}, {{ input.event }}.'),
+                        // Object states: pick the flattened value to watch instead
+                        // of typing a dotted path (mirrors the flow/page pickers).
+                        Forms\Components\Select::make('config.path')
+                            ->label('Watch value')
+                            ->placeholder('Whole state (any change)')
+                            ->options(fn (Get $get): array => self::statePathOptions((string) $get('source_key')))
+                            ->visible(fn (Get $get): bool => $get('source_type') === 'state'
+                                && self::statePathOptions((string) $get('source_key')) !== [])
+                            ->helperText('This Object state has a shape — pick the value to watch, or leave empty for the whole state.'),
+                    ]),
 
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active')
-                            ->inline(false)
-                            ->default(true),
+                Schemas\Components\Section::make('Only when (optional)')
+                    ->description(fn (Get $get): string => $get('source_type') === 'state'
+                        ? 'Narrow to a specific change. Leave everything empty to fire on any change.'
+                        : 'Every rule must match the record for the watcher to fire. Leave empty to fire on every event.')
+                    ->compact()
+                    ->schema([
+                        // Collection updates: fire only when specific fields change.
+                        Forms\Components\Select::make('config.changed')
+                            ->label('Only when these fields changed')
+                            ->multiple()
+                            ->visible(fn (Get $get): bool => $get('source_type') === 'collection' && $get('event') === 'updated')
+                            ->options(function (Get $get): array {
+                                $collectionKey = $get('source_key');
+
+                                if (! is_string($collectionKey) || $collectionKey === '') {
+                                    return [];
+                                }
+
+                                return PbModel::query()->where('key', $collectionKey)
+                                    ->first()?->fields->pluck('label', 'key')->all() ?? [];
+                            })
+                            ->helperText('Leave empty to fire on any update. Otherwise the watcher fires only when at least one selected field actually changed.'),
 
                         // Collection watchers: match record fields.
                         Forms\Components\Repeater::make('config.criteria')
-                            ->label('Criteria (optional)')
+                            ->hiddenLabel()
                             ->visible(fn (Get $get): bool => $get('source_type') === 'collection')
-                            ->helperText('All rows must match for the watcher to fire. Leave empty to fire on every event.')
                             ->schema([
-                                Forms\Components\TextInput::make('field')
+                                Forms\Components\Select::make('field')
+                                    ->searchable()
                                     ->required()
-                                    ->placeholder('field key')
-                                    ->helperText('A field key of the collection.'),
+                                    ->options(function (Get $get): array {
+                                        $collectionKey = $get('../../../source_key');
+
+                                        if (! is_string($collectionKey) || $collectionKey === '') {
+                                            return [];
+                                        }
+
+                                        return PbModel::query()->where('key', $collectionKey)
+                                            ->first()?->fields->pluck('label', 'key')->all() ?? [];
+                                    }),
                                 Forms\Components\Select::make('op')
                                     ->options([
                                         'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
@@ -155,43 +196,75 @@ class WatcherResource extends Resource
                                 Forms\Components\TextInput::make('value'),
                             ])
                             ->columns(3)
-                            ->addActionLabel('Add criterion')
-                            ->default([])
-                            ->columnSpanFull(),
+                            ->addActionLabel('Add rule')
+                            ->default([]),
 
-                        // State watchers: optionally narrow to a sub-path / transition.
-                        Schemas\Components\Group::make([
-                            Forms\Components\TextInput::make('config.path')
-                                ->label('Path (optional)')
-                                ->placeholder('e.g. address.city')
-                                ->helperText('For Object states: watch a dotted sub-path. Leave empty to watch the whole value.'),
-                            Schemas\Components\Grid::make(2)->schema([
-                                Forms\Components\TextInput::make('config.from')
-                                    ->label('From (optional)')
-                                    ->helperText('Only fire when the previous value equals this.'),
-                                Forms\Components\TextInput::make('config.to')
-                                    ->label('To (optional)')
-                                    ->helperText('Only fire when the new value equals this.'),
-                            ]),
-                            Schemas\Components\Grid::make(2)->schema([
-                                Forms\Components\Select::make('config.op')
-                                    ->label('Condition (optional)')
-                                    ->placeholder('any change')
-                                    // NB: no 'null'/'nnull' here — an option keyed
-                                    // "null" collides with the field's own empty
-                                    // (null) state and would auto-select "is null".
-                                    ->options([
-                                        'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
-                                        'lt' => '<', 'lte' => '<=', 'like' => 'contains',
-                                        'in' => 'in', 'nin' => 'not in',
-                                    ]),
-                                Forms\Components\TextInput::make('config.value')
-                                    ->label('Value')
-                                    ->helperText('Compared against the new value with the operator above.'),
-                            ]),
+                        // State watchers: transition and/or value test.
+                        Schemas\Components\Grid::make(2)->schema([
+                            Schemas\Components\Fieldset::make('Changed from → to')
+                                ->schema([
+                                    Forms\Components\TextInput::make('config.from')
+                                        ->label('From')
+                                        ->placeholder('any previous value'),
+                                    Forms\Components\TextInput::make('config.to')
+                                        ->label('To')
+                                        ->placeholder('any new value'),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
+
+                            Schemas\Components\Fieldset::make('New value matches')
+                                ->schema([
+                                    Forms\Components\Select::make('config.op')
+                                        ->label('Operator')
+                                        ->placeholder('any change')
+                                        // NB: no 'null'/'nnull' here — an option keyed
+                                        // "null" collides with the field's own empty
+                                        // (null) state and would auto-select "is null".
+                                        ->options([
+                                            'eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
+                                            'lt' => '<', 'lte' => '<=', 'like' => 'contains',
+                                            'in' => 'in', 'nin' => 'not in',
+                                        ]),
+                                    Forms\Components\TextInput::make('config.value')
+                                        ->label('Value'),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
                         ])
-                            ->columnSpanFull()
                             ->visible(fn (Get $get): bool => $get('source_type') === 'state'),
+                    ]),
+
+                Schemas\Components\Section::make('Then run')
+                    ->description(fn (Get $get): string => $get('source_type') === 'state'
+                        ? 'The flow or function to run. It receives {{ input.key }}, {{ input.old }}, {{ input.new }}.'
+                        : 'The flow or function to run. It receives {{ input.record }}, {{ input.old }}, {{ input.event }}.')
+                    ->compact()
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\Select::make('target_type')
+                            ->label('Run a')
+                            ->required()
+                            // Browser-side watchers fire through /pb-flow → flows only.
+                            ->options(fn (Get $get): array => ($get('source_type') === 'state' && $get('config.side') === 'client')
+                                ? ['flow' => 'Flow']
+                                : ['flow' => 'Flow', 'function' => 'Function'])
+                            ->default('flow')
+                            ->live()
+                            // Clear a now-mismatched target when the type flips.
+                            ->afterStateUpdated(fn (callable $set) => $set('target_key', null)),
+
+                        Forms\Components\Select::make('target_key')
+                            ->key('target_key')
+                            ->label('Target')
+                            ->required()
+                            ->searchable()
+                            ->options(fn (Get $get): array => self::targetOptions((string) $get('target_type'))),
+
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Active')
+                            ->inline(false)
+                            ->default(true),
                     ]),
             ])
             ->columns(1);
@@ -252,6 +325,13 @@ class WatcherResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\RunsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
@@ -278,10 +358,22 @@ class WatcherResource extends Resource
             $config = (array) ($data['config'] ?? []);
             unset($config['criteria']);
 
-            foreach (['path', 'from', 'to', 'op', 'value'] as $key) {
+            foreach (['path', 'from', 'to', 'op', 'value', 'side'] as $key) {
                 if (($config[$key] ?? null) === null || $config[$key] === '') {
                     unset($config[$key]);
                 }
+            }
+
+            // 'server' is the default — only a browser-side watcher needs the marker.
+            if (($config['side'] ?? null) === 'server') {
+                unset($config['side']);
+            }
+
+            // Browser watchers fire through /pb-flow, which only runs flows —
+            // enforce it here too so an import/API write can't persist an
+            // unrunnable function target.
+            if (($config['side'] ?? null) === 'client') {
+                $data['target_type'] = 'flow';
             }
 
             $data['config'] = $config === [] ? null : $config;
@@ -307,6 +399,14 @@ class WatcherResource extends Resource
             unset($data['config']['criteria']);
         } else {
             $data['config']['criteria'] = $criteria;
+        }
+
+        // Drop an empty "changed fields" filter so it doesn't linger as [].
+        $changed = array_values(array_filter((array) ($data['config']['changed'] ?? [])));
+        if ($changed === []) {
+            unset($data['config']['changed']);
+        } else {
+            $data['config']['changed'] = $changed;
         }
 
         return $data;
@@ -338,6 +438,28 @@ class WatcherResource extends Resource
         $data['config']['criteria'] = $rows;
 
         return $data;
+    }
+
+    /**
+     * The flattened dotted paths of an Object state's shape, as select options
+     * (path => path). Empty for scalar states or states without a shape — the
+     * caller hides the picker then.
+     *
+     * @return array<string,string>
+     */
+    private static function statePathOptions(string $stateKey): array
+    {
+        if ($stateKey === '') {
+            return [];
+        }
+
+        foreach (app(StateShapeService::class)->catalog() as $state) {
+            if ($state['key'] === $stateKey) {
+                return array_combine($state['paths'], $state['paths']);
+            }
+        }
+
+        return [];
     }
 
     /**

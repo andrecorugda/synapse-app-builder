@@ -20,6 +20,20 @@ it('normalizes criteria rows into the { field: { op: value } } map', function ()
     ]);
 });
 
+it('keeps a non-empty changed-fields filter and drops an empty one', function (): void {
+    $kept = WatcherResource::normalizeConfig([
+        'source_type' => 'collection',
+        'config' => ['changed' => ['status', '', 'score']],
+    ]);
+    expect($kept['config']['changed'])->toBe(['status', 'score']);
+
+    $dropped = WatcherResource::normalizeConfig([
+        'source_type' => 'collection',
+        'config' => ['changed' => []],
+    ]);
+    expect($dropped['config'])->not->toHaveKey('changed');
+});
+
 it('drops empty criteria and skips rows without a field', function (): void {
     $data = WatcherResource::normalizeConfig([
         'config' => ['criteria' => [['field' => '', 'op' => 'eq', 'value' => 'x']]],
@@ -37,6 +51,31 @@ it('normalizes a state watcher: forces event=changed and strips empty conditions
 
     expect($data['event'])->toBe('changed')
         ->and($data['config'])->toBe(['path' => 'address.city', 'to' => 'LA']);
+});
+
+it('forces a flow target for browser-side watchers', function (): void {
+    $data = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'target_type' => 'function',
+        'config' => ['side' => 'client'],
+    ]);
+
+    expect($data['target_type'])->toBe('flow')
+        ->and($data['config'])->toBe(['side' => 'client']);
+});
+
+it('keeps side=client but strips the server default', function (): void {
+    $client = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'config' => ['side' => 'client', 'path' => ''],
+    ]);
+    expect($client['config'])->toBe(['side' => 'client']);
+
+    $server = WatcherResource::normalizeConfig([
+        'source_type' => 'state',
+        'config' => ['side' => 'server', 'to' => 'won'],
+    ]);
+    expect($server['config'])->toBe(['to' => 'won']);
 });
 
 it('nulls a state watcher config when no conditions are set', function (): void {

@@ -77,9 +77,14 @@ class WatcherDispatcher
 
         try {
             foreach ($watchers as $watcher) {
-                $criteria = (array) (($watcher->config['criteria'] ?? []));
+                $config = (array) ($watcher->config ?? []);
 
+                $criteria = (array) ($config['criteria'] ?? []);
                 if ($criteria !== [] && ! $this->matchesCriteria($record, $criteria)) {
+                    continue;
+                }
+
+                if (! $this->changedFieldsTouched($config['changed'] ?? [], $record, $old)) {
                     continue;
                 }
 
@@ -88,6 +93,32 @@ class WatcherDispatcher
         } finally {
             self::$depth--;
         }
+    }
+
+    /**
+     * `config.changed` narrows an update watcher to fire only when at least one
+     * of the named fields actually changed (old ≠ new). No prior state (`$old`
+     * empty — i.e. a create) or an empty list means "don't filter": every field
+     * of a new record is a change, and deletes have no meaningful diff.
+     *
+     * @param  array<string,mixed>  $record
+     * @param  array<string,mixed>  $old
+     */
+    private function changedFieldsTouched(mixed $fields, array $record, array $old): bool
+    {
+        $fields = array_values(array_filter((array) $fields, static fn ($f): bool => is_string($f) && $f !== ''));
+
+        if ($fields === [] || $old === []) {
+            return true;
+        }
+
+        foreach ($fields as $field) {
+            if (($old[$field] ?? null) != ($record[$field] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -122,6 +153,13 @@ class WatcherDispatcher
 
         try {
             foreach ($watchers as $watcher) {
+                // Browser-side watchers observe the page's LIVE store and fire
+                // from flow-runtime.js — the server write path must skip them
+                // or a persisted change would run the target twice.
+                if ((($watcher->config['side'] ?? 'server')) === 'client') {
+                    continue;
+                }
+
                 if (! $this->stateConditionMet($watcher, $old, $new)) {
                     continue;
                 }
@@ -223,7 +261,35 @@ class WatcherDispatcher
             throw new \RuntimeException(sprintf('Flow "%s" not found.', $watcher->target_key));
         }
 
-        $this->flows->run($flow, $input);
+        // Tag the recorded run with its watcher so the watcher's Runs tab can
+        // find it (meta is provenance only — it never reaches the flow input).
+        $this->flows->run($flow, $input, [], ['watcher_id' => $watcher->id]);
+    }
+
+    /**
+     * Run a watcher's target ONCE with a representative payload, bypassing its
+     * conditions — a wiring test from the admin. Stamps telemetry like a real
+     * fire. Depth-guarded like the dispatch paths.
+     */
+    public function testFire(Watcher $watcher): void
+    {
+        if (self::$depth >= self::MAX_DEPTH) {
+            $this->warnDepth(['test' => $watcher->id]);
+
+            return;
+        }
+
+        $input = $watcher->source_type === 'state'
+            ? ['event' => 'changed', 'key' => (string) $watcher->source_key, 'old' => null, 'new' => 'test']
+            : ['event' => (string) ($watcher->event ?? 'created'), 'collection' => (string) $watcher->source_key, 'record' => [], 'old' => []];
+
+        self::$depth++;
+
+        try {
+            $this->runTarget($watcher, $input);
+        } finally {
+            self::$depth--;
+        }
     }
 
     /**

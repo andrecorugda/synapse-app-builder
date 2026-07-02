@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-02
+
+### Editor
+
+- **Extensible component settings** — a registered/premium block
+  (`SectionBlock`) can declare its own `settings` (`ComponentSetting[]`: text /
+  number / checkbox / select), mirroring the flow-node config-input pattern. The
+  editor renders each as a trait on the selected component, writing a plain
+  attribute the block's template / `custom_js` reads. Built-ins are unchanged
+  (empty settings by default).
+- **Input constraint traits** — `<input>` blocks expose `min` / `max` / `step` /
+  `pattern` / `maxlength` under Validation (native HTML attributes; persist to
+  the published page).
+
+### Automation
+
+- **Legacy cron flows surface as Schedules** — a back-fill migration creates an
+  **inactive** Schedule row (placeholder cadence, "(review cadence)" name) for
+  each `trigger_type='cron'` flow, so cron automations move to the first-class
+  Schedules model (per-flow cron + function targets) without silently changing
+  timing. The `run-cron-flows` command still works; its description notes the
+  deprecation.
+
+### State & Watchers
+
+- **AI authors watchers directly** — the build-plan contract now teaches the
+  `watchers` section, so a generated app reacts to record/state changes via a
+  watcher targeting a reusable flow instead of embedding `trigger_config`
+  (legacy plans still work via materialization).
+- **Test-fire + Runs for watchers** — the watcher edit page has a **Test fire**
+  action (runs the target once with a sample payload, conditions bypassed) and a
+  **Runs** tab listing the flow runs it caused. Flow runs now carry a nullable
+  `watcher_id` (new `flow_runs` column) so a run's provenance is queryable;
+  browser-side (client) state watchers are hard-locked to flow targets on save.
+- **"Only when these fields changed"** — a collection *update* watcher can list
+  fields (`config.changed`) and fire only when one of them actually changed
+  (old ≠ new); a no-op for created/deleted. Combines with criteria.
+- **Browser-side state watchers** — a state watcher can watch **live page state** (`$store.app`) as the visitor interacts, like a JS framework watcher: pick *Browser* under "Watch where". Rendered pages install debounced reactive effects that fire the target flow on change (with the same path / from→to / operator conditions, evaluated client-side) and apply the returned actions; a loop guard stops a flow that rewrites its own watched key from re-triggering itself. Server dispatch skips browser-side watchers so a persisted write never double-fires.
+- **Watcher form UX** — the form now reads as a sentence in three sections (*Watch* → *Only when (optional)* → *Then run*); for Object states the watched value is picked from the shape's **flattened dotted paths** (no more free-typed path), and collection criteria pick from the collection's fields.
+- **`trigger_type` is now an advisory label** — flows are reusable graphs; collection/state triggering is managed by Watchers and scheduling by Schedules. The Flow form drops the embedded collection trigger config. AI-generated collection flows keep working: applying a build plan materializes the equivalent watchers automatically.
+- **Watchers travel with the app** — app export/import round-trips watchers (the build-plan contract gained a `watchers` section); the AI sees existing watchers as app context. The Watchers menu icon is now an eye.
+
 ## [1.1.0] - 2026-07-02
 
 ### Flow editor & engine

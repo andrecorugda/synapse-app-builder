@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -59,6 +60,19 @@ class Watcher extends Model
     public function getTable(): string
     {
         return Schema::table('watchers');
+    }
+
+    /**
+     * Flow runs this watcher caused (tagged with `watcher_id`), latest first.
+     *
+     * @return HasMany<FlowRun, $this>
+     */
+    public function runs(): HasMany
+    {
+        /** @var class-string<FlowRun> $model */
+        $model = config('ai-page-builder.models.flow_run', FlowRun::class);
+
+        return $this->hasMany($model, 'watcher_id')->latest();
     }
 
     /**

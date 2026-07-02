@@ -7,9 +7,11 @@ use Andre\AiPageBuilder\Ai\BuildPlanValidator;
 use Andre\AiPageBuilder\Ai\HtmlSanitizer;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
+use Andre\AiPageBuilder\Models\FlowRun;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
+use Andre\AiPageBuilder\Models\Watcher;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\Settings;
 use Illuminate\Support\Facades\Schema;
@@ -121,6 +123,94 @@ it('is idempotent — re-applying the same plan does not duplicate metadata', fu
     // it per-item (best-effort) rather than aborting, so the table stays at 1.
     expect(Record::for(PbModel::query()->where('key', 'leads')->firstOrFail())->newQuery()->count())->toBe(1)
         ->and($second['errors'])->not->toBeEmpty();
+});
+
+it('materializes watchers for collection flows — and the automation fires', function (): void {
+    app(BuildPlanApplier::class)->apply(samplePlan());
+
+    // One watcher per (collection, event) → flow.
+    $watcher = Watcher::query()->where('target_key', 'on-lead')->first();
+    expect($watcher)->not->toBeNull()
+        ->and($watcher->source_type)->toBe('collection')
+        ->and($watcher->source_key)->toBe('leads')
+        ->and($watcher->event)->toBe('created')
+        ->and($watcher->is_active)->toBeTrue();
+
+    // Re-applying upserts, never duplicates.
+    app(BuildPlanApplier::class)->apply(samplePlan());
+    expect(Watcher::query()->where('target_key', 'on-lead')->count())->toBe(1);
+
+    // And a record write actually runs the generated flow (dispatch is
+    // watcher-driven now — this is the regression the materialization guards).
+    $model = PbModel::query()->where('key', 'leads')->firstOrFail();
+    Record::for($model)->newQuery()->create(['name' => 'Beta', 'email' => 'b@beta.com']);
+
+    expect(FlowRun::query()->where('flow_slug_snapshot', 'on-lead')->count())->toBe(1);
+});
+
+it('applies an explicit watchers section (export/import path)', function (): void {
+    app(BuildPlanApplier::class)->apply(samplePlan());
+
+    $summary = app(BuildPlanApplier::class)->apply([
+        'watchers' => [[
+            'name' => 'lead deleted → on-lead',
+            'source_type' => 'collection',
+            'source_key' => 'leads',
+            'event' => 'deleted',
+            'target_type' => 'flow',
+            'target_key' => 'on-lead',
+            'is_active' => true,
+        ]],
+    ]);
+
+    expect($summary['errors'])->toBe([])
+        ->and($summary['created']['watchers'])->toBe(['collection:leads deleted → on-lead'])
+        ->and(Watcher::query()->where('event', 'deleted')->where('target_key', 'on-lead')->exists())->toBeTrue();
+});
+
+it('applies a state watcher from a plan and it fires on a state change', function (): void {
+    $summary = app(BuildPlanApplier::class)->apply([
+        'flows' => [[
+            'slug' => 'on-status',
+            'name' => 'On status',
+            'trigger_type' => 'manual',
+            'definition' => ['start' => 't', 'nodes' => [
+                't' => ['type' => 'trigger', 'next' => ['r']],
+                'r' => ['type' => 'result', 'config' => ['actions' => [['type' => 'notify', 'message' => 'changed']]]],
+            ]],
+        ]],
+        'watchers' => [[
+            'name' => 'status changed → on-status',
+            'source_type' => 'state',
+            'source_key' => 'status',
+            'event' => 'changed',
+            'target_type' => 'flow',
+            'target_key' => 'on-status',
+        ]],
+    ]);
+
+    expect($summary['errors'])->toBe([])
+        ->and(Watcher::query()->where('source_type', 'state')->where('target_key', 'on-status')->exists())->toBeTrue();
+
+    // The materialized watcher fires when the global changes.
+    app(VariableStore::class)->set('status', 'won');
+    expect(FlowRun::query()->where('flow_slug_snapshot', 'on-status')->count())->toBe(1);
+});
+
+it('flags a structurally broken watcher', function (): void {
+    $errors = app(BuildPlanValidator::class)->validate([
+        'watchers' => [[
+            'source_type' => 'weird',
+            'event' => 'sometimes',
+            'target_type' => 'robot',
+        ]],
+    ]);
+
+    expect($errors)->toContain("watchers[0]: source_type 'weird' must be collection or state.")
+        ->and($errors)->toContain("watchers[0]: target_type 'robot' must be flow or function.")
+        ->and($errors)->toContain("watchers[0]: event 'sometimes' must be created, updated, deleted or changed.")
+        ->and($errors)->toContain('watchers[0]: source_key is required.')
+        ->and($errors)->toContain('watchers[0]: target_key is required.');
 });
 
 it('dry-run reports what would be created without writing', function (): void {

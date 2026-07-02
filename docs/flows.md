@@ -12,11 +12,11 @@ A **flow** is the automation engine — an n8n-style graph of nodes that runs in
 |---|---|---|
 | `slug` | string | Route key, `^[a-z0-9\-_]+$` |
 | `name` | string | |
-| `trigger_type` | string | `manual` \| `component` \| `collection` \| `cron` \| `api` (the Filament form also offers `form`) |
+| `trigger_type` | string | Advisory **label** only (`manual` \| `component` \| `form` \| `collection` \| `cron` \| `api`) — no longer gates execution; see [Triggers](#triggers) |
 | `is_active` | bool | Inactive flows never run |
 | `is_public` | bool | Required for the public run endpoint (unauthenticated trigger) |
 | `rate_limit_per_minute` | int\|null | Per-flow override of the global rate limit |
-| `trigger_config` | array (JSON) | Trigger-specific config (see below) |
+| `trigger_config` | array (JSON) | Legacy trigger config; collection/state binding now lives on [Watchers](watchers.md) |
 | `definition` | array (JSON) | The node graph |
 
 ### Definition graph shape
@@ -46,43 +46,40 @@ A **flow** is the automation engine — an n8n-style graph of nodes that runs in
 
 ## Triggers
 
-Set on the flow's `trigger_type` + `trigger_config`.
+A flow is a **reusable graph** — *what* fires it is configured separately, not
+baked into the flow. `trigger_type` on the flow row is now only an advisory
+**label**; it no longer gates execution.
 
-### Manual / component / form
+### From a page or the API
 
-Run synchronously — from the admin (manual) or from a page interaction. On a page, an element with `data-pb-flow="<slug>"` runs the flow on its `data-pb-flow-event` (default click/submit); the nearest `<form>`'s fields plus any `data-pb-flow-input` JSON become the flow `input`. The flow must be `is_active` **and** `is_public`. See [Pages → runtime attributes](pages-and-components.md#runtime-data-attributes).
+On a page, an element with `data-pb-flow="<slug>"` runs the flow on its
+`data-pb-flow-event` (default click/submit); the nearest `<form>`'s fields plus
+any `data-pb-flow-input` JSON, merged over the live `$store.app` state, become the
+flow `input`. External callers POST the same [public run endpoint](#the-public-run-endpoint).
+Both are governed by **Public/Private** (a private flow is same-origin only; a
+public flow is callable from anywhere). See [Pages → runtime attributes](pages-and-components.md#runtime-data-attributes).
 
-### Collection trigger
+You can also run any flow from the admin with the **Run now** button on its edit
+page.
 
-Fires when a collection record is written. `FlowDispatcher` observes every collection write (via `RecordObserver` on the dynamic `Record` model) and fans out to matching flows.
+### On collection or state changes → Watchers
 
-```json
-{
-  "collection": "signups",
-  "events": ["created", "updated", "deleted"],
-  "criteria": { "status": { "eq": "active" } }
-}
-```
+Reacting to a record write (created/updated/deleted) or a State change is the job
+of a [**Watcher**](watchers.md), which binds one event to one target flow —
+including a *different* flow per event, optional criteria/changed-field/transition
+conditions, and live browser-side state watching. See [Watchers](watchers.md).
 
-- `collection` — the collection key to watch.
-- `events` — any of `created`, `updated`, `deleted`.
-- `criteria` — optional; the changed record must satisfy **all** conditions (AND). Same operator set as `RecordQuery` filters (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`, `in`, `nin`, `null`, `nnull`); a bare scalar means `eq`.
+> Older flows (and AI plans) that still carry `trigger_type: collection` +
+> `trigger_config` keep working: applying such a plan **materializes the
+> equivalent watchers**. New work should create watchers directly.
 
-The flow receives `input = { "event": "...", "collection": "...", "record": { ...the row... } }`, so a node reads the changed field as `{{ input.record.<field> }}`. A re-entrancy guard (`MAX_DEPTH = 3`) prevents infinite loops when a flow writes to its own triggering collection; dispatch never throws (failures are logged) so the originating DB write always succeeds.
+### On a schedule → cron
 
-### Cron trigger
-
-Runs on a schedule you control. Schedule the command (see [Installation](installation.md#5-schedule-cron-flows-optional)):
-
-```bash
-php artisan ai-page-builder:run-cron-flows
-```
-
-It runs every active flow with `trigger_type = cron` (empty input), isolating per-flow failures.
-
-### API trigger
-
-Run over HTTP via the public endpoint below.
+`php artisan ai-page-builder:run-cron-flows` runs every active flow with
+`trigger_type = cron` (empty input), isolating per-flow failures — schedule it as
+in [Installation](installation.md#5-schedule-cron-flows-optional). For finer
+control (per-flow cron expressions, function targets), prefer **Schedules** (see
+[Configuration](configuration.md)).
 
 ## The public run endpoint
 

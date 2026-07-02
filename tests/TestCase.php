@@ -50,6 +50,8 @@ abstract class TestCase extends Orchestra
         (require __DIR__.'/../database/migrations/add_display_field_to_page_builder_models_table.php')->up();
         (require __DIR__.'/../database/migrations/create_page_builder_record_revisions_table.php')->up();
         (require __DIR__.'/../database/migrations/create_page_builder_watchers_table.php')->up();
+        (require __DIR__.'/../database/migrations/add_watcher_id_to_page_builder_flow_runs_table.php')->up();
+        (require __DIR__.'/../database/migrations/backfill_cron_flows_into_schedules.php')->up();
 
         // HTTP-level tests model same-origin browser requests: a real browser
         // attaches an Origin header to every state-changing fetch, which the

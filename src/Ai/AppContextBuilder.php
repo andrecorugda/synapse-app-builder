@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Variable;
+use Andre\AiPageBuilder\Models\Watcher;
 
 /**
  * Builds the per-request DYNAMIC app context for Synapse — App Builder.
@@ -34,6 +35,7 @@ final class AppContextBuilder
      *   pages: list<array{slug:string,title:string,status:string}>,
      *   functions: list<array{slug:string,name:string,runtime:string}>,
      *   flows: list<array{slug:string,name:string,trigger_type:string}>,
+     *   watchers: list<array{name:string,source:string,event:string,target:string}>,
      *   component_keys: list<string>
      * }
      */
@@ -45,6 +47,7 @@ final class AppContextBuilder
             'pages' => $this->pages(),
             'functions' => $this->functions(),
             'flows' => $this->flows(),
+            'watchers' => $this->watchers(),
             'component_keys' => BlockVocabulary::keys(),
         ];
     }
@@ -110,6 +113,14 @@ final class AppContextBuilder
         } else {
             foreach ($ctx['flows'] as $flow) {
                 $lines[] = "- `{$flow['slug']}` ({$flow['name']}, trigger: {$flow['trigger_type']})";
+            }
+        }
+
+        if ($ctx['watchers'] !== []) {
+            $lines[] = '';
+            $lines[] = '## Watchers (event → flow/function bindings)';
+            foreach ($ctx['watchers'] as $watcher) {
+                $lines[] = "- {$watcher['source']} {$watcher['event']} → `{$watcher['target']}` ({$watcher['name']})";
             }
         }
 
@@ -233,6 +244,30 @@ final class AppContextBuilder
                     'slug' => (string) $flow->slug,
                     'name' => (string) $flow->name,
                     'trigger_type' => (string) $flow->trigger_type,
+                ];
+            }
+
+            return $out;
+        });
+    }
+
+    /**
+     * @return list<array{name:string,source:string,event:string,target:string}>
+     */
+    private function watchers(): array
+    {
+        return $this->guard(function (): array {
+            /** @var class-string<Watcher> $watcherClass */
+            $watcherClass = config('ai-page-builder.models.watcher', Watcher::class);
+
+            $out = [];
+            foreach ($watcherClass::query()->orderBy('id')->get() as $watcher) {
+                /** @var Watcher $watcher */
+                $out[] = [
+                    'name' => (string) $watcher->name,
+                    'source' => $watcher->source_type.':'.$watcher->source_key,
+                    'event' => (string) ($watcher->event ?? 'changed'),
+                    'target' => $watcher->target_type.':'.$watcher->target_key,
                 ];
             }
 

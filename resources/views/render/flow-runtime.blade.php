@@ -8,6 +8,36 @@
     $flowBase = $pbPath('ai-page-builder.routes.flow_prefix', 'pb-flow');
     $renderBase = $pbPath('ai-page-builder.routes.render_prefix', 'p');
     $apiBase = $pbPath('ai-page-builder.data.api_prefix', 'api/pb');
+
+    // Browser-side state watchers: fire a flow when the page's live $store.app
+    // changes (server-side watchers cover persisted writes — see
+    // WatcherDispatcher). Condition keys are included only when set, so the JS
+    // can distinguish "no from/to filter" from "must equal null". Rendered pages
+    // are cached, so watcher saves flush the render cache (see provider).
+    $pbStateWatchers = [];
+    try {
+        $watcherClass = config('ai-page-builder.models.watcher', \Andre\AiPageBuilder\Models\Watcher::class);
+        $pbStateWatchers = $watcherClass::query()
+            ->where('is_active', true)
+            ->where('source_type', 'state')
+            ->get()
+            ->filter(fn ($w): bool => (($w->config['side'] ?? 'server') === 'client') && $w->target_type === 'flow')
+            ->map(function ($w): array {
+                $cfg = (array) ($w->config ?? []);
+                $out = ['key' => (string) $w->source_key, 'flow' => (string) $w->target_key];
+                foreach (['path', 'from', 'to', 'op', 'value'] as $k) {
+                    if (array_key_exists($k, $cfg)) {
+                        $out[$k] = $cfg[$k];
+                    }
+                }
+
+                return $out;
+            })
+            ->values()
+            ->all();
+    } catch (\Throwable) {
+        // Table absent (pre-migration) — render without watchers.
+    }
 @endphp
 <script>
 (function () {
@@ -248,14 +278,23 @@
         // on $store.app.*) re-render automatically.
         if (type === 'setState') {
             var store = pbStore();
-            if (store && action.key != null) { store[action.key] = action.value; }
+            if (store && action.key != null) { suppressWatch(action.key, action.value); store[action.key] = action.value; }
             return;
         }
 
         if (type === 'setStates' && action.values && typeof action.values === 'object') {
             var s = pbStore();
-            if (s) { Object.keys(action.values).forEach(function (k) { s[k] = action.values[k]; }); }
+            if (s) { Object.keys(action.values).forEach(function (k) { suppressWatch(k, action.values[k]); s[k] = action.values[k]; }); }
         }
+    }
+
+    /** Mark a store write as flow-made so state watchers don't re-fire on it
+     *  (a watcher's flow that setStates its own watched key would loop). */
+    var __pbSuppress = {};
+    function suppressWatch(key, value) {
+        var snap;
+        try { snap = JSON.stringify(value === undefined ? null : value); } catch (e) { return; }
+        __pbSuppress[key] = { v: snap, t: Date.now() };
     }
 
     /** The page's reactive Store (Alpine), or null if Alpine hasn't booted. */
@@ -481,6 +520,132 @@
             })(pageEls[j]);
         }
     }
+
+    // ------------------------------------------------------------------
+    // Browser-side state watchers — fire a flow when live $store.app state
+    // changes (like a JS framework watcher). Injected server-side; each entry:
+    // { key, flow, path?, from?, to?, op?, value? }.
+    // ------------------------------------------------------------------
+    var STATE_WATCHERS = @js($pbStateWatchers);
+
+    /** data_get for the watched sub-path ('customer.city'). */
+    function pbPathGet(value, path) {
+        if (!path) { return value; }
+        var parts = String(path).split('.');
+        var cur = value;
+        for (var i = 0; i < parts.length; i++) {
+            if (cur == null || typeof cur !== 'object') { return undefined; }
+            cur = cur[parts[i]];
+        }
+        return cur;
+    }
+
+    /** Mirror of the server dispatcher's operator semantics (loose compares). */
+    function pbOpMatches(op, actual, expected) {
+        var list = function () {
+            return Array.isArray(expected)
+                ? expected.map(String)
+                : String(expected == null ? '' : expected).split(',').map(function (s) { return s.trim(); });
+        };
+        switch (op) {
+            case 'eq': return actual == expected;
+            case 'neq': return actual != expected;
+            case 'gt': return Number(actual) > Number(expected);
+            case 'gte': return Number(actual) >= Number(expected);
+            case 'lt': return Number(actual) < Number(expected);
+            case 'lte': return Number(actual) <= Number(expected);
+            case 'like': return expected != null && String(actual).indexOf(String(expected)) !== -1;
+            case 'in': return list().indexOf(String(actual)) !== -1;
+            case 'nin': return list().indexOf(String(actual)) === -1;
+            default: return false;
+        }
+    }
+
+    /** POST the watcher's flow with the change payload (mirrors the server
+     *  dispatcher input shape) + the live store, and apply returned actions. */
+    function fireStateWatcher(w, oldVal, newVal) {
+        var storeState = {};
+        try {
+            var s = pbStore();
+            if (s && typeof s === 'object') { storeState = JSON.parse(JSON.stringify(s)); }
+        } catch (e) { /* ignore non-serialisable state */ }
+
+        var input = Object.assign({}, storeState, {
+            event: 'changed',
+            key: w.key,
+            path: w.path || null,
+            old: oldVal,
+            'new': newVal,
+        });
+
+        fetch(FLOW_BASE + '/' + w.flow, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ input: input }),
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (!data || !Array.isArray(data.actions)) { return; }
+            data.actions.forEach(applyAction);
+        })
+        .catch(function (err) { console.error('[pb-watch] request error', err); });
+    }
+
+    function installStateWatchers() {
+        if (window.__pbStateWatchersBound) { return; }
+        var store = pbStore();
+        if (!STATE_WATCHERS.length || !store || !window.Alpine || typeof window.Alpine.effect !== 'function') { return; }
+        window.__pbStateWatchersBound = true;
+
+        var lastSeen = {};   // idx -> JSON snapshot of the WATCHED value
+        var pending = {};    // idx -> { t: timer, old: burst-start value } (debounce)
+
+        STATE_WATCHERS.forEach(function (w, idx) {
+            window.Alpine.effect(function () {
+                var keyVal = store[w.key];   // reactive read — re-runs on change
+                var watched = pbPathGet(keyVal, w.path);
+                var snap;
+                try { snap = JSON.stringify(watched === undefined ? null : watched); } catch (e) { return; }
+
+                // First run only records the baseline — page load is not a change.
+                if (!(idx in lastSeen)) { lastSeen[idx] = snap; return; }
+                if (lastSeen[idx] === snap) { return; }
+
+                var oldSnap = lastSeen[idx];
+                lastSeen[idx] = snap;
+
+                // Skip changes the flow itself just made (loop guard).
+                var sup = __pbSuppress[w.key];
+                if (sup && (Date.now() - sup.t) < 500) {
+                    var keySnap;
+                    try { keySnap = JSON.stringify(store[w.key] === undefined ? null : store[w.key]); } catch (e) { keySnap = null; }
+                    if (sup.v === keySnap) { return; }
+                }
+
+                // Debounce bursts (typing in an x-model input): keep the value
+                // from BEFORE the burst as `old`, fire once it settles.
+                if (pending[idx]) { clearTimeout(pending[idx].t); } else { pending[idx] = { old: oldSnap }; }
+                pending[idx].t = setTimeout(function () {
+                    var entry = pending[idx];
+                    delete pending[idx];
+                    var oldVal = null, newVal = null;
+                    try { oldVal = JSON.parse(entry.old); } catch (e) { /* keep null */ }
+                    try { newVal = JSON.parse(lastSeen[idx]); } catch (e) { /* keep null */ }
+
+                    // Conditions evaluate on the settled change (server semantics).
+                    if ('from' in w && oldVal != w.from) { return; }
+                    if ('to' in w && newVal != w.to) { return; }
+                    if (w.op && !pbOpMatches(w.op, newVal, 'value' in w ? w.value : null)) { return; }
+
+                    fireStateWatcher(w, oldVal, newVal);
+                }, 300);
+            });
+        });
+    }
+
+    // Alpine seeds $store.app on alpine:init; effects need the started store.
+    document.addEventListener('alpine:initialized', installStateWatchers, false);
+    if (window.Alpine && typeof window.Alpine.store === 'function') { installStateWatchers(); }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bind, false);
