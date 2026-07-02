@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Services;
 
+use Andre\AiPageBuilder\Blocks\SectionBlock;
 use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
+use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
 use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\NodeRegistry;
@@ -23,6 +25,7 @@ class PageBuilderManager
         private readonly PageRenderer $renderer,
         private readonly NodeRegistry $nodes,
         private readonly HelperRegistry $helpers,
+        private readonly ComponentRegistry $components,
     ) {}
 
     /** Fully-rendered (cached) HTML for a published page. */
@@ -60,10 +63,36 @@ class PageBuilderManager
     }
 
     /**
-     * The merged capability catalogue — every registered flow node and function
-     * helper, each serialized via {@see CapabilityDefinition::toArray()}. This is
-     * the single MCP/AI-facing list: label, kind ('node'|'helper'), category,
-     * description, usage, and the typed input schema an agent needs to call it.
+     * Register a custom draggable block (component) — a {@see SectionBlock}.
+     * Call from a service provider's boot(); the block appears in the GrapesJS
+     * block manager, the AI system prompt vocabulary, and the capabilities()
+     * catalogue (kind 'component') — no core change. A later registration for
+     * an existing key overrides it in place. This is the seam premium/third-
+     * party component packages register through.
+     */
+    public function registerComponent(SectionBlock $block): void
+    {
+        $this->components->register($block);
+    }
+
+    /**
+     * Every registered block (built-in + third-party), serialized for the
+     * GrapesJS block manager — the same shape as BlockVocabulary::toArray().
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function components(): array
+    {
+        return $this->components->toArray();
+    }
+
+    /**
+     * The merged capability catalogue — every registered flow node, function
+     * helper, and draggable block (component). Nodes/helpers are serialized via
+     * {@see CapabilityDefinition::toArray()}; components are mapped to a
+     * catalogue entry {key,label,kind:'component',category,description,icon}.
+     * This is the single MCP/AI-facing list an agent reads to know what it can
+     * place and call.
      *
      * @return array<int,array<string,mixed>>
      */
@@ -74,9 +103,22 @@ class PageBuilderManager
             $this->helpers->definitions(),
         );
 
-        return array_map(
+        $catalogue = array_map(
             static fn (CapabilityDefinition $d): array => $d->toArray(),
             $definitions,
         );
+
+        foreach ($this->components->all() as $block) {
+            $catalogue[] = [
+                'key' => $block->key,
+                'label' => $block->label,
+                'kind' => 'component',
+                'category' => $block->category,
+                'description' => $block->description,
+                'icon' => $block->icon,
+            ];
+        }
+
+        return $catalogue;
     }
 }

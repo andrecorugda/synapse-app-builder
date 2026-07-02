@@ -18,13 +18,18 @@ class FlowManager
 
     /**
      * @param  array<string,mixed>  $input
+     * @param  array<string,mixed>  $stateOverlay  Per-run overlay for `states.*` (page/API triggers)
      */
-    public function run(Flow $flow, array $input = []): FlowContext
+    public function run(Flow $flow, array $input = [], array $stateOverlay = []): FlowContext
     {
         $startedAt = microtime(true);
 
         try {
-            $context = $this->runner->run((array) $flow->definition, $input);
+            // $stateOverlay (passed by the page/API endpoint = the live $store.app
+            // state) shadows persisted States for `{{ states.* }}` resolution, so a
+            // node reads what the visitor typed rather than the empty persisted
+            // Variable. Non-page callers (cron/collection/admin Run) pass none.
+            $context = $this->runner->run((array) $flow->definition, $input, $stateOverlay);
             // The runner handles node failures in-band (retry / on-error branch /
             // graceful toast) and flags an unhandled failure on the context, so a
             // failed run still returns its actions (e.g. the error notify).

@@ -58,7 +58,7 @@ Section blocks wrap their markup in `<section data-pb-block="{key}">` with stabl
 
 ### Components (category `Components`)
 
-`card`, `banner`, `modal`, `drawer`, `tabs`, `accordion`, `tooltip`, `dropdown_menu`. These are **owner-authored, trusted** interactive blocks — because the author wrote them (not the AI), they may carry *executable* Alpine directives (`x-data`, `@click`, `x-show`, `x-transition`, etc.) for local UI state. Overlay panels use `x-cloak` so they stay hidden in the editor canvas (where Alpine does not run).
+`card`, `banner`, `modal`, `drawer`, `tabs`, `accordion`, `tooltip`, `dropdown_menu`. These ship structured, styled markup with **declarative** local state (`x-data`, `x-show`, `x-cloak`, `x-transition`) — overlay panels use `x-cloak` so they stay hidden in the editor canvas (where Alpine does not run). Because page `html` is sanitized (see below), any **user-triggered** behaviour (open/close, switch tab) must be wired from `custom_js` using the [sanitizer-safe pattern](#writing-interactive-pages-the-sanitizer-safe-pattern) — inline `@click` handlers on the block markup are stripped on save.
 
 ### Forms (category `Forms`)
 
@@ -96,7 +96,39 @@ Route::get('/', [RenderPageController::class, 'home']);
 
 ## Per-page CSS / JS
 
-`custom_css` is injected into the page `<head>`; `custom_js` is injected at the **end** of `<body>`, after the DOM, the flow runtime and Alpine — so it can rely on `window.Alpine` and `$store.app` being present.
+`custom_css` is injected into the page `<head>`. `custom_js` is injected at the end of `<body>` **before** the (deferred) Alpine script — so any component factory it defines is registered before Alpine boots and evaluates the first `x-data`. `custom_css` and `custom_js` are the two **raw, un-sanitized** channels (the owner owns them); everything in `html` is sanitized (see below).
+
+### Writing interactive pages (the sanitizer-safe pattern)
+
+Because `html` is always sanitized, executable behaviour that you'd normally inline in the markup is stripped. Put the behaviour in `custom_js` instead, and follow the same conventions the framework's own components use:
+
+- **Define component factories in `custom_js`**, reference them declaratively in `html`:
+  ```js
+  // custom_js
+  window.inventoryApp = () => ({
+    rows: [], loading: true,
+    init() { this.load(); },          // Alpine calls init() automatically — no x-init needed
+    load() { fetch(this.api).then(r => r.json()).then(d => { this.rows = d.data; }); },
+  });
+  ```
+  ```html
+  <!-- html: x-data references the factory; x-init is not needed (and would be stripped) -->
+  <div x-data="inventoryApp()"> … </div>
+  ```
+- **Need the reactive store at startup?** Register on `alpine:init` (it fires when the deferred Alpine starts, after your `custom_js` has run): `document.addEventListener('alpine:init', () => { window.Alpine.store('app').foo = 1; })`.
+- **Handle clicks without `@click`** (which is stripped): tag buttons with a `data-*` attribute (kept by the sanitizer) and delegate inside `init()`:
+  ```html
+  <button data-act="openCreate">+ Add</button>
+  ```
+  ```js
+  init() {
+    this.$el.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (btn) this[btn.dataset.act]?.();
+    });
+  }
+  ```
+  The bundled Inventory demo (`ai-page-builder:install-demo`) is authored exactly this way — read `src/Demo/InventoryDemo.php` for a full working example.
 
 ## Declarative data binding (Alpine)
 
@@ -109,7 +141,7 @@ The rendered page loads Alpine and registers a global store named `app`, seeded 
 | `x-model="$store.app.search"` | Two-way bind an input |
 | `x-for="item in $store.app.items"` | Repeat over a state array |
 
-> **AI-authored pages are restricted to these declarative directives.** The [`HtmlSanitizer`](ai.md#safety) strips executable directives (`@click`, `x-on:*`, `x-init`, `x-effect`, `x-html`) and `<script>` from AI HTML, but keeps `x-data`, `x-show`, `x-text`, `x-model`, `x-for`, `x-bind:`/`:`, `x-cloak`, `x-transition*` and the `data-pb-*` attributes. Owner-authored Component blocks are trusted and bypass the sanitizer.
+> **Page `html` is always sanitized — it's the XSS surface served verbatim to visitors** — so this applies to hand-authored *and* AI-authored markup alike. The [`HtmlSanitizer`](ai.md#safety) strips executable directives (`@click`, `x-on:*`, `x-init`, `x-effect`, `x-html`) and `<script>` from `html`, but keeps the declarative ones (`x-data`, `x-show`, `x-text`, `x-model`, `x-for`, `x-bind:`/`:`, `x-cloak`, `x-transition*`) and the `data-*` / `data-pb-*` attributes. Executable behaviour belongs in the raw `custom_js` channel — see [the sanitizer-safe pattern above](#writing-interactive-pages-the-sanitizer-safe-pattern).
 
 The current end-user is fetched client-side from `GET /pb-auth/me` and placed at `$store.app.$user` — used to drive component visibility (see below).
 
@@ -132,11 +164,65 @@ Flow runs `POST` to `/{flow_prefix}/{slug}` with `{ "input": {...} }` and apply 
 
 ## Data tables with `pbTable`
 
-For a data-bound table, give the root `x-data="pbTable('<collection key>')"`. On init it fetches `GET {api_prefix}/{collection}` and exposes:
+For a data-bound table, give the root `x-data="pbTable('<collection key>')"`. On init it fetches `GET {api_prefix}/{collection}?expand=*` and exposes:
 
 - `rows` — the records (`response.data`)
 - `loading` / `error` — request state
 
 Then repeat with `<template x-for="row in rows" :key="row.id">` and bind cells with `x-text="row.<field>"`. The `data_table` block ships this scaffold plus sample rows (hidden with `x-show="false"`) so the editor canvas shows something while Alpine is inert.
+
+**Auto-render:** a bare `data_table` shell (no explicit column markup) renders columns directly from the fetched data — relation fields show the resolved `name` from the expanded relation, never the raw id. The table is never blank as long as the collection has rows. KPI and chart widgets render from a configured-but-empty wrapper without requiring manual column scaffolding.
+
+## Management pages
+
+A **management page** is a standard page pattern that pairs a create form with a live data table and per-row actions.
+
+### Structure
+
+1. **Add form** — a `<form data-pb-record="<collection>">` with one labelled input per field. Field types map to input types:
+   - Text/number fields → `<input type="text|number">`
+   - Select fields → `<select>` with `<option>` per choice
+   - Relation fields → `<select>` populated from a collection list (`x-data="pbTable('<related>')"`) so the dropdown shows related record names
+   - Image fields → file input (see [Image fields](#image-fields) below)
+
+2. **Data table** — a `data_table` block that auto-refreshes after a successful create (the `data-pb-record` runtime re-fetches the list on `201`). Uses `?expand=*` so relation columns show names.
+
+3. **Per-row Edit and Delete** — on each row:
+   - **Edit** — fills the Add form with the row's current values and switches the form's POST to a PUT to `{api}/{collection}/{id}`.
+   - **Delete** — sends a DELETE to `{api}/{collection}/{id}` and removes the row from the table.
+
+Both actions go through `RecordQuery`, so validation, column mapping and permission rules apply.
+
+### Image fields
+
+An image field in a form is a `<input type="file" accept="image/*">`. On file selection the runtime immediately uploads the file to `POST /pb-upload` (see [Public upload endpoint](#public-upload-endpoint)) and puts the returned URL into a hidden input. The form then submits the URL string as the field value — the collection stores a plain URL, no binary data.
+
+**Displaying images.** The stored URL renders as an image wherever the value flows:
+
+- **Auto data table** — a cell whose value looks like an image URL (`.png/.jpg/.jpeg/.gif/.webp/.svg/.avif`) renders as a small thumbnail `<img>` instead of raw URL text.
+- **Record picker** — set `data-pb-image-field` (default `image`) and `data-pb-price-field` (default `price`); each tile then shows the record's image thumbnail and price above the label, and every pick carries `{id, label, image, qty, price}` into the target cart state (so a cart/grid can show the image too). This is how a POS product picker shows each product's photo and price.
+- **Curated pages** — bind `<img :src="row.<field>">` in an `x-for` to place the image exactly where you want it.
+
+## Public upload endpoint
+
+`POST /pb-upload` — a gated endpoint for image uploads from generated forms.
+
+**Request:** `multipart/form-data` with a single `file` field (image only).
+
+**Behavior:**
+
+- **Authentication** — authenticated by default (requires the `pb` end-user session). Set `AI_PAGE_BUILDER_UPLOADS_ANON=true` to allow unauthenticated uploads (opt-in; off by default for safety).
+- **Image-only** — accepts `image/jpeg`, `image/jpg`, `image/png`, `image/gif`, `image/webp`. Any other MIME type returns `422`.
+- **Size cap** — rejects files over `uploads.max_kb` (default 5 120 KB = 5 MB). Returns `413` when exceeded.
+- **Rate-limited** — same rate-limit infrastructure as the flow run endpoint.
+- **Safe filenames** — the stored filename is a UUID + the original extension; the original filename is never used.
+- **Response** — `200 { "url": "https://..." }` on success; standard error codes on failure.
+
+Configuration (see [Configuration → `uploads`](configuration.md#uploads)):
+
+| Key | Env | Default | Meaning |
+|---|---|---|---|
+| `uploads.allow_anonymous` | `AI_PAGE_BUILDER_UPLOADS_ANON` | `false` | Allow unauthenticated uploads |
+| `uploads.max_kb` | `AI_PAGE_BUILDER_UPLOADS_MAX_KB` | `5120` | Max upload size in KB |
 
 Next: [Collections & data](collections-and-data.md).

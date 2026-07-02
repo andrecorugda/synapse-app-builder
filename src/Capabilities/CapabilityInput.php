@@ -15,8 +15,13 @@ final class CapabilityInput
 {
     /**
      * @param  string  $type  one of: string, text, number, boolean, select, json,
-     *                        expression, collection, keyvalue, code
-     * @param  array<int|string,mixed>  $options  for `select`: value => label map
+     *                        expression, collection, keyvalue, code, actions
+     * @param  array<int|string,mixed>  $options  for `select`: value => label map;
+     *                                            for `actions`: the action-type catalog
+     * @param  array<string,list<scalar>>  $showIf  conditional visibility: key => [allowed values].
+     *                                              The field is shown only when the sibling field
+     *                                              named `key` holds one of the listed scalar values.
+     *                                              Empty array means always shown.
      */
     public function __construct(
         public readonly string $key,
@@ -27,6 +32,7 @@ final class CapabilityInput
         public readonly string $help = '',
         public readonly array $options = [],
         public readonly bool $interpolated = true,
+        public readonly array $showIf = [],
     ) {}
 
     /** Convenience constructor for the common case. */
@@ -49,6 +55,7 @@ final class CapabilityInput
             'help' => $this->help,
             'options' => $this->options,
             'interpolated' => $this->interpolated,
+            'show_if' => $this->showIf,
         ];
     }
 }

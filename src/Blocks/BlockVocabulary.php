@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Blocks;
 
+use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
+
 /**
  * The source of truth for the editor's blocks.
  *
@@ -18,6 +20,9 @@ namespace Andre\AiPageBuilder\Blocks;
  */
 final class BlockVocabulary
 {
+    /** Category marking a top-level page section (the AI's page-generation vocabulary). */
+    public const SECTION_CATEGORY = 'Sections';
+
     /**
      * Section blocks — the AI vocabulary.
      *
@@ -198,13 +203,20 @@ final class BlockVocabulary
     /**
      * Interactive UI-kit components.
      *
-     * OWNER-authored (trusted) blocks. Published pages already load Alpine
-     * (window.Alpine + $store.app), so overlay/disclosure components carry
-     * local Alpine state via executable directives (x-data, @click, x-show…).
-     * Each block's root element carries data-pb-block="{key}" and uses inline
-     * styles + stable pb-{key}__* classes (no host Tailwind on the page).
-     * Overlay panels use x-cloak so they stay hidden in the editor canvas,
-     * where Alpine does not run.
+     * OWNER-authored blocks that nonetheless survive the AI {@see HtmlSanitizer}
+     * unchanged: the sanitizer STRIPS executable Alpine (@click / @keydown /
+     *
+     * @mouseenter / x-on: / x-init), so these blocks carry NO inline handlers.
+     * Local reactive state stays in DECLARATIVE Alpine (x-data / x-show / x-bind
+     * / x-transition), and every action is DELEGATED through data-pb-* hooks
+     * (data-pb-open / data-pb-close / data-pb-toggle / data-pb-set / data-pb-hover
+     * / data-pb-dismiss / data-pb-outside-close / data-pb-escape-close). The
+     * published-page runtime (page.blade.php) binds one delegated listener that
+     * resolves the owning component via Alpine.$data(el) and mutates the named
+     * x-data prop — nothing the sanitizer removes ever appears in saved markup.
+     * Each block's root carries data-pb-block="{key}" and uses inline styles +
+     * stable pb-{key}__* classes (no host Tailwind on the page). Overlay panels
+     * use x-cloak so they stay hidden in the editor canvas, where Alpine is off.
      *
      * @return array<int,SectionBlock>
      */
@@ -225,7 +237,7 @@ final class BlockVocabulary
             <div data-pb-block="banner" class="pb-banner" x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;border:1px solid #bfdbfe;border-radius:0.5rem;background:#eff6ff;color:#1e3a8a;">
               <svg class="pb-banner__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               <span class="pb-banner__message" style="flex:1;line-height:1.5;">Heads up — this is an informational message.</span>
-              <button type="button" class="pb-banner__dismiss" @click="show = false" aria-label="Dismiss" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:1.75rem;height:1.75rem;padding:0;border:0;border-radius:0.375rem;background:transparent;color:inherit;cursor:pointer;line-height:0;">
+              <button type="button" class="pb-banner__dismiss" data-pb-dismiss aria-label="Dismiss" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:1.75rem;height:1.75rem;padding:0;border:0;border-radius:0.375rem;background:transparent;color:inherit;cursor:pointer;line-height:0;">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
@@ -233,16 +245,16 @@ final class BlockVocabulary
 
             self::block('modal', 'Modal', 'Trigger button with a centered overlay dialog.', <<<'HTML'
             <div data-pb-block="modal" class="pb-modal" x-data="{ open: false }">
-              <button type="button" class="pb-modal__trigger" @click="open = true" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open modal</button>
-              <div class="pb-modal__overlay" x-show="open" x-cloak x-transition.opacity @keydown.escape.window="open = false" @click.self="open = false" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,0.55);z-index:1000;">
+              <button type="button" class="pb-modal__trigger" data-pb-open="open" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open modal</button>
+              <div class="pb-modal__overlay" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-close-self data-pb-escape-close="open" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,0.55);z-index:1000;">
                 <div class="pb-modal__panel" role="dialog" aria-modal="true" x-transition style="width:100%;max-width:28rem;background:#fff;border-radius:0.75rem;box-shadow:0 20px 50px rgba(15,23,42,0.25);overflow:hidden;">
                   <div class="pb-modal__body" style="padding:1.75rem;">
                     <h3 class="pb-modal__title" style="margin:0 0 0.75rem;font-size:1.25rem;color:#0f172a;">Modal title</h3>
                     <p class="pb-modal__text" style="margin:0;color:#475569;line-height:1.6;">Put your dialog content here. Press Escape, click the backdrop, or use the buttons to close.</p>
                   </div>
                   <div class="pb-modal__actions" style="display:flex;justify-content:flex-end;gap:0.75rem;padding:1rem 1.75rem;border-top:1px solid #e2e8f0;background:#f8fafc;">
-                    <button type="button" class="pb-modal__close" @click="open = false" style="padding:0.55rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:pointer;">Close</button>
-                    <button type="button" class="pb-modal__confirm" @click="open = false" style="padding:0.55rem 1.1rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Confirm</button>
+                    <button type="button" class="pb-modal__close" data-pb-close="open" style="padding:0.55rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:pointer;">Close</button>
+                    <button type="button" class="pb-modal__confirm" data-pb-close="open" style="padding:0.55rem 1.1rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Confirm</button>
                   </div>
                 </div>
               </div>
@@ -251,12 +263,12 @@ final class BlockVocabulary
 
             self::block('drawer', 'Drawer', 'Trigger button with a right-edge slide-over panel.', <<<'HTML'
             <div data-pb-block="drawer" class="pb-drawer" x-data="{ open: false }">
-              <button type="button" class="pb-drawer__trigger" @click="open = true" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open drawer</button>
-              <div class="pb-drawer__backdrop" x-show="open" x-cloak x-transition.opacity @click="open = false" @keydown.escape.window="open = false" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:1000;"></div>
+              <button type="button" class="pb-drawer__trigger" data-pb-open="open" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open drawer</button>
+              <div class="pb-drawer__backdrop" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-escape-close="open" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:1000;"></div>
               <aside class="pb-drawer__panel" role="dialog" aria-modal="true" x-show="open" x-cloak x-transition:enter="pb-drawer-enter" x-transition:enter-start="pb-drawer-enter-start" x-transition:enter-end="pb-drawer-enter-end" x-transition:leave="pb-drawer-leave" x-transition:leave-start="pb-drawer-enter-end" x-transition:leave-end="pb-drawer-enter-start" style="position:fixed;top:0;right:0;height:100%;width:360px;max-width:90vw;background:#fff;box-shadow:-12px 0 40px rgba(15,23,42,0.18);z-index:1001;display:flex;flex-direction:column;">
                 <div class="pb-drawer__header" style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid #e2e8f0;">
                   <h3 class="pb-drawer__title" style="margin:0;font-size:1.15rem;color:#0f172a;">Drawer</h3>
-                  <button type="button" class="pb-drawer__close" @click="open = false" aria-label="Close" style="display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;padding:0;border:0;border-radius:0.375rem;background:transparent;color:#475569;cursor:pointer;line-height:0;">
+                  <button type="button" class="pb-drawer__close" data-pb-close="open" aria-label="Close" style="display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;padding:0;border:0;border-radius:0.375rem;background:transparent;color:#475569;cursor:pointer;line-height:0;">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
@@ -270,9 +282,9 @@ final class BlockVocabulary
             self::block('tabs', 'Tabs', 'Tabbed panels — switch content without navigating.', <<<'HTML'
             <div data-pb-block="tabs" class="pb-tabs" x-data="{ tab: 'one' }" style="max-width:36rem;">
               <div class="pb-tabs__list" role="tablist" style="display:flex;gap:0.25rem;border-bottom:1px solid #e2e8f0;">
-                <button type="button" class="pb-tabs__tab" role="tab" @click="tab = 'one'" :aria-selected="tab === 'one'" :style="tab === 'one' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab one</button>
-                <button type="button" class="pb-tabs__tab" role="tab" @click="tab = 'two'" :aria-selected="tab === 'two'" :style="tab === 'two' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab two</button>
-                <button type="button" class="pb-tabs__tab" role="tab" @click="tab = 'three'" :aria-selected="tab === 'three'" :style="tab === 'three' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab three</button>
+                <button type="button" class="pb-tabs__tab" role="tab" data-pb-set="tab:'one'" :aria-selected="tab === 'one'" :style="tab === 'one' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab one</button>
+                <button type="button" class="pb-tabs__tab" role="tab" data-pb-set="tab:'two'" :aria-selected="tab === 'two'" :style="tab === 'two' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab two</button>
+                <button type="button" class="pb-tabs__tab" role="tab" data-pb-set="tab:'three'" :aria-selected="tab === 'three'" :style="tab === 'three' ? 'color:#4f46e5;border-bottom-color:#4f46e5' : 'color:#64748b;border-bottom-color:transparent'" style="padding:0.7rem 1rem;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;cursor:pointer;">Tab three</button>
               </div>
               <div class="pb-tabs__panels" style="padding:1.25rem 0;color:#475569;line-height:1.6;">
                 <div class="pb-tabs__panel" role="tabpanel" x-show="tab === 'one'"><p style="margin:0;">Content for the first tab.</p></div>
@@ -285,21 +297,21 @@ final class BlockVocabulary
             self::block('accordion', 'Accordion', 'Collapsible items — expand one at a time.', <<<'HTML'
             <div data-pb-block="accordion" class="pb-accordion" style="max-width:36rem;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
               <div class="pb-accordion__item" x-data="{ open: true }" style="border-bottom:1px solid #e2e8f0;">
-                <button type="button" class="pb-accordion__header" @click="open = !open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
+                <button type="button" class="pb-accordion__header" data-pb-toggle="open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
                   <span>First item</span>
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div class="pb-accordion__body" x-show="open" x-cloak style="padding:0 1.25rem 1rem;color:#475569;line-height:1.6;"><p style="margin:0;">Body content for the first item.</p></div>
               </div>
               <div class="pb-accordion__item" x-data="{ open: false }" style="border-bottom:1px solid #e2e8f0;">
-                <button type="button" class="pb-accordion__header" @click="open = !open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
+                <button type="button" class="pb-accordion__header" data-pb-toggle="open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
                   <span>Second item</span>
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div class="pb-accordion__body" x-show="open" x-cloak style="padding:0 1.25rem 1rem;color:#475569;line-height:1.6;"><p style="margin:0;">Body content for the second item.</p></div>
               </div>
               <div class="pb-accordion__item" x-data="{ open: false }">
-                <button type="button" class="pb-accordion__header" @click="open = !open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
+                <button type="button" class="pb-accordion__header" data-pb-toggle="open" :aria-expanded="open" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:1rem 1.25rem;border:0;background:#fff;font-weight:600;color:#0f172a;text-align:left;cursor:pointer;">
                   <span>Third item</span>
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
@@ -310,21 +322,21 @@ final class BlockVocabulary
 
             self::block('tooltip', 'Tooltip', 'Hover/focus hint bubble above an element.', <<<'HTML'
             <div data-pb-block="tooltip" class="pb-tooltip" x-data="{ h: false }" style="display:inline-block;position:relative;">
-              <button type="button" class="pb-tooltip__trigger" @mouseenter="h = true" @mouseleave="h = false" @focus="h = true" @blur="h = false" :aria-describedby="h ? 'pb-tooltip-bubble' : null" style="display:inline-block;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:default;">Hover me</button>
+              <button type="button" class="pb-tooltip__trigger" data-pb-hover="h" :aria-describedby="h ? 'pb-tooltip-bubble' : null" style="display:inline-block;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:default;">Hover me</button>
               <span class="pb-tooltip__bubble" id="pb-tooltip-bubble" role="tooltip" x-show="h" x-cloak x-transition.opacity style="position:absolute;bottom:calc(100% + 0.5rem);left:50%;transform:translateX(-50%);white-space:nowrap;padding:0.4rem 0.65rem;border-radius:0.375rem;background:#0f172a;color:#fff;font-size:0.8125rem;line-height:1.3;box-shadow:0 4px 12px rgba(15,23,42,0.25);z-index:10;">Helpful hint goes here</span>
             </div>
             HTML, 'Components'),
 
             self::block('dropdown_menu', 'Dropdown menu', 'Button that toggles a menu of actions.', <<<'HTML'
-            <div data-pb-block="dropdown_menu" class="pb-dropdown" x-data="{ open: false }" style="display:inline-block;position:relative;">
-              <button type="button" class="pb-dropdown__trigger" @click="open = !open" :aria-expanded="open" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:pointer;">
+            <div data-pb-block="dropdown_menu" class="pb-dropdown" x-data="{ open: false }" data-pb-outside-close="open" data-pb-escape-close="open" style="display:inline-block;position:relative;">
+              <button type="button" class="pb-dropdown__trigger" data-pb-toggle="open" :aria-expanded="open" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:pointer;">
                 <span>Options</span>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg)' : ''" style="transition:transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <div class="pb-dropdown__menu" role="menu" x-show="open" x-cloak x-transition.opacity @click.outside="open = false" @keydown.escape.window="open = false" style="position:absolute;top:calc(100% + 0.35rem);left:0;min-width:11rem;padding:0.35rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px rgba(15,23,42,0.16);z-index:20;">
-                <a href="#" class="pb-dropdown__item" role="menuitem" @click="open = false" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#334155;text-decoration:none;">Edit</a>
-                <a href="#" class="pb-dropdown__item" role="menuitem" @click="open = false" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#334155;text-decoration:none;">Duplicate</a>
-                <a href="#" class="pb-dropdown__item" role="menuitem" @click="open = false" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#dc2626;text-decoration:none;">Delete</a>
+              <div class="pb-dropdown__menu" role="menu" x-show="open" x-cloak x-transition.opacity style="position:absolute;top:calc(100% + 0.35rem);left:0;min-width:11rem;padding:0.35rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px rgba(15,23,42,0.16);z-index:20;">
+                <a href="#" class="pb-dropdown__item" role="menuitem" data-pb-close="open" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#334155;text-decoration:none;">Edit</a>
+                <a href="#" class="pb-dropdown__item" role="menuitem" data-pb-close="open" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#334155;text-decoration:none;">Duplicate</a>
+                <a href="#" class="pb-dropdown__item" role="menuitem" data-pb-close="open" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#dc2626;text-decoration:none;">Delete</a>
               </div>
             </div>
             HTML, 'Components'),
@@ -501,47 +513,22 @@ final class BlockVocabulary
     public static function data(): array
     {
         return [
+            // Config-driven data table. All config is via data-pb-* attributes;
+            // the runtime fetches the schema + rows and renders TYPE-DRIVEN cells.
+            // Set data-pb-collection to point at a collection. Optional attrs:
+            //   data-pb-columns="k,k:Header" — explicit columns + rename
+            //   data-pb-hide="k,k"           — hide columns
+            //   data-pb-sortable="true"       — column sort (default true)
+            //   data-pb-searchable="true"     — search box
+            //   data-pb-filters="k,k"        — filter controls
+            //   data-pb-selectable="true"     — row checkboxes
+            //   data-pb-bulk="delete:Delete,…"— bulk action buttons
+            //   data-pb-per-page="20"         — rows per page
+            //   data-pb-state="key"           — display $store.app[key] instead of collection
             self::block('data_table', 'Data Table', 'A table that lists rows from a collection.', <<<'HTML'
-            <table data-pb-block="data_table" class="pb-data-table" x-data="pbTable('leads')" style="width:100%;border-collapse:collapse;font-family:inherit;font-size:0.9375rem;color:#0f172a;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
-              <thead class="pb-data-table__head" style="background:#f8fafc;text-align:left;">
-                <tr>
-                  <th class="pb-data-table__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Name</th>
-                  <th class="pb-data-table__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Email</th>
-                </tr>
-              </thead>
-              <tbody class="pb-data-table__body">
-                <tr class="pb-data-table__loading" x-show="loading" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#64748b;">Loading…</td></tr>
-                <tr class="pb-data-table__error" x-show="error" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#dc2626;">Couldn’t load records.</td></tr>
-                <tr class="pb-data-table__empty" x-show="!loading && !error && rows.length === 0" x-cloak><td colspan="2" style="padding:0.75rem 1rem;color:#64748b;">No records</td></tr>
-                <template x-for="row in rows" :key="row.id">
-                  <tr class="pb-data-table__row" style="border-top:1px solid #e2e8f0;">
-                    <td class="pb-data-table__td" x-text="row.name" style="padding:0.75rem 1rem;"></td>
-                    <td class="pb-data-table__td" x-text="row.email" style="padding:0.75rem 1rem;"></td>
-                  </tr>
-                </template>
-                <tr class="pb-data-table__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">Acme Corp</td>
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">hello@acme.com</td>
-                </tr>
-                <tr class="pb-data-table__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">Globex</td>
-                  <td class="pb-data-table__td" style="padding:0.75rem 1rem;">contact@globex.com</td>
-                </tr>
-              </tbody>
-              <tfoot class="pb-data-table__foot" x-show="lastPage > 1" x-cloak>
-                <tr>
-                  <td colspan="2" style="padding:0.6rem 1rem;border-top:1px solid #e2e8f0;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#64748b;font-size:0.85rem;">
-                      <span>Page <span x-text="page"></span> of <span x-text="lastPage"></span> · <span x-text="total"></span> records</span>
-                      <span style="display:flex;gap:0.5rem;">
-                        <button type="button" @click="prev()" :disabled="page<=1" style="padding:0.35rem 0.7rem;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;cursor:pointer;">Prev</button>
-                        <button type="button" @click="next()" :disabled="page>=lastPage" style="padding:0.35rem 0.7rem;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;cursor:pointer;">Next</button>
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+            <div data-pb-block="data_table" class="pb-data-table" data-pb-collection="" data-pb-per-page="20" x-data="pbTable('')" style="font-family:inherit;font-size:0.9375rem;color:#0f172a;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;background:#fff;">
+              <p class="pb-data-table__placeholder" x-show="false" style="padding:1rem;color:#94a3b8;font-size:0.85rem;">Set a collection in the Settings panel — the table renders on the published page.</p>
+            </div>
             HTML, 'Data'),
 
             self::block('list', 'List', 'A list that repeats over a State array.', <<<'HTML'
@@ -586,12 +573,12 @@ final class BlockVocabulary
             // A typeahead bound to a collection (Forms category). Fetches matches
             // from the REST API via the pbAutocomplete Alpine component.
             self::block('autocomplete', 'Autocomplete', 'A typeahead input that searches a collection and fills a value.', <<<'HTML'
-            <div data-pb-block="autocomplete" class="pb-autocomplete" data-pb-collection="" data-pb-label-field="name" x-data="pbAutocomplete($el)" style="position:relative;font-family:inherit;max-width:24rem;">
-              <input type="text" class="pb-autocomplete__input" name="autocomplete" x-model="q" @input="search()" @focus="open=true" placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;">
+            <div data-pb-block="autocomplete" class="pb-autocomplete" data-pb-collection="" data-pb-label-field="name" x-data="pbAutocomplete($el)" data-pb-outside-close="open" style="position:relative;font-family:inherit;max-width:24rem;">
+              <input type="text" class="pb-autocomplete__input" name="autocomplete" x-model="q" data-pb-ac-search placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;">
               <input type="hidden" class="pb-autocomplete__value" :value="selectedId">
-              <ul class="pb-autocomplete__menu" x-show="open && results.length" x-cloak @click.outside="open=false" style="position:absolute;z-index:30;left:0;right:0;margin:0.25rem 0 0;padding:0.25rem;list-style:none;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px -12px rgba(2,6,23,0.35);max-height:14rem;overflow:auto;">
+              <ul class="pb-autocomplete__menu" x-show="open && results.length" x-cloak style="position:absolute;z-index:30;left:0;right:0;margin:0.25rem 0 0;padding:0.25rem;list-style:none;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px -12px rgba(2,6,23,0.35);max-height:14rem;overflow:auto;">
                 <template x-for="r in results" :key="r.id">
-                  <li class="pb-autocomplete__option" x-text="r.label" @click="pick(r)" style="padding:0.5rem 0.6rem;border-radius:0.375rem;cursor:pointer;"></li>
+                  <li class="pb-autocomplete__option" x-text="r.label" :data-pb-ac-pick="r.id" style="padding:0.5rem 0.6rem;border-radius:0.375rem;cursor:pointer;"></li>
                 </template>
               </ul>
             </div>
@@ -600,48 +587,218 @@ final class BlockVocabulary
     }
 
     /**
-     * Every block (sections + basics + shapes + components + forms + data) for
-     * the GrapesJS block manager.
+     * Interactive, data-driven components — the reusable toolkit behind
+     * line-item apps (POS carts, invoices, order entry).
+     *
+     * OWNER-authored (trusted) blocks, but deliberately written to survive the
+     * AI {@see HtmlSanitizer} unchanged: the sanitizer STRIPS executable Alpine
+     * (@click / x-on: / x-init) and inline on*= handlers, so these components
+     * carry NO inline click handlers. Reactivity is declarative Alpine
+     * (x-data / x-for / x-model / x-show / :bind) and every user action is
+     * delegated: the element carries a data-pb-* hook (data-pb-repeater-add,
+     * data-pb-step, data-pb-pick, …) and the published-page runtime
+     * (page.blade.php) binds a single delegated click/change listener that
+     * reaches the owning Alpine component via Alpine.$data(el) and calls its
+     * method. Nothing that the sanitizer removes ever appears in the saved
+     * markup, so these blocks round-trip through Page::saving() intact.
+     *
+     * State lives in Alpine's $store.app: each block's x-data component reads
+     * data-pb-state (the store array key) and proxies its rows to
+     * $store.app[key], so flows (setState) and other components see the same
+     * cart array. Live math (subtotal = qty*price, grand total) is just Alpine
+     * expressions in x-text.
+     *
+     * Editor-vs-published <template> handling mirrors the Data blocks: static
+     * sample rows carry x-show="false" so Alpine drops them on the published
+     * page, leaving the editor canvas something to show.
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function interactive(): array
+    {
+        return [
+            self::block('repeater', 'Repeater', 'Repeats an inner template per item in a bound State array, with add / remove.', <<<'HTML'
+            <div data-pb-block="repeater" class="pb-repeater" data-pb-state="items" data-pb-min="0" data-pb-max="0" x-data="pbRepeater($el)" style="font-family:inherit;color:#0f172a;display:flex;flex-direction:column;gap:0.6rem;max-width:32rem;">
+              <template x-for="(item, index) in rows" :key="index">
+                <div class="pb-repeater__item" style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">
+                  <input type="text" class="pb-repeater__field" x-model="item.label" placeholder="Item" style="flex:1;padding:0.5rem 0.65rem;border:1px solid #cbd5e1;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;">
+                  <button type="button" class="pb-repeater__remove" data-pb-repeater-remove aria-label="Remove item" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#dc2626;cursor:pointer;line-height:0;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </div>
+              </template>
+              <div class="pb-repeater__sample" x-show="false" style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">
+                <input type="text" class="pb-repeater__field" value="Sample item" style="flex:1;padding:0.5rem 0.65rem;border:1px solid #cbd5e1;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;">
+                <span style="flex-shrink:0;width:2rem;height:2rem;"></span>
+              </div>
+              <button type="button" class="pb-repeater__add" data-pb-repeater-add style="align-self:flex-start;display:inline-flex;align-items:center;gap:0.4rem;padding:0.5rem 0.9rem;border:1px dashed #6366f1;border-radius:0.5rem;background:#eef2ff;color:#4f46e5;font-weight:600;cursor:pointer;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Add item</span>
+              </button>
+            </div>
+            HTML, 'Interactive'),
+
+            self::block('editable_grid', 'Editable grid', 'A cart-style table with inline-editable cells, add / delete row and computed totals.', <<<'HTML'
+            <table data-pb-block="editable_grid" class="pb-grid" data-pb-state="cart" data-pb-qty="qty" data-pb-price="price" data-pb-max="0" x-data="pbGrid($el)" style="width:100%;border-collapse:collapse;font-family:inherit;font-size:0.9375rem;color:#0f172a;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
+              <thead class="pb-grid__head" style="background:#f8fafc;text-align:left;">
+                <tr>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;">Item</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;width:6rem;">Qty</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;width:8rem;">Price</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;font-weight:600;color:#334155;width:8rem;text-align:right;">Subtotal</th>
+                  <th class="pb-grid__th" style="padding:0.75rem 1rem;border-bottom:1px solid #e2e8f0;width:3rem;"></th>
+                </tr>
+              </thead>
+              <tbody class="pb-grid__body">
+                <tr class="pb-grid__empty" x-show="rows.length === 0" x-cloak><td colspan="5" style="padding:0.75rem 1rem;color:#64748b;">No rows yet — add one below.</td></tr>
+                <template x-for="(row, index) in rows" :key="index">
+                  <tr class="pb-grid__row" style="border-top:1px solid #e2e8f0;">
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="text" class="pb-grid__field" x-model="row.label" placeholder="Item" style="width:100%;padding:0.4rem 0.55rem;border:1px solid transparent;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;background:transparent;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="1" class="pb-grid__field" x-model.number="row.qty" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="0.01" class="pb-grid__field" x-model.number="row.price" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td pb-grid__subtotal" x-text="money((Number(row.qty)||0) * (Number(row.price)||0))" style="padding:0.5rem 1rem;text-align:right;font-variant-numeric:tabular-nums;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;text-align:center;"><button type="button" class="pb-grid__remove" data-pb-grid-remove aria-label="Delete row" style="display:inline-flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#dc2626;cursor:pointer;line-height:0;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>
+                  </tr>
+                </template>
+                <tr class="pb-grid__sample" x-show="false" style="border-top:1px solid #e2e8f0;">
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;">Widget</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;">2</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;">9.50</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;text-align:right;">19.00</td>
+                  <td class="pb-grid__td" style="padding:0.5rem 1rem;"></td>
+                </tr>
+              </tbody>
+              <tfoot class="pb-grid__foot" style="background:#f8fafc;">
+                <tr>
+                  <td colspan="5" style="padding:0.5rem 1rem;border-top:1px solid #e2e8f0;">
+                    <button type="button" class="pb-grid__add" data-pb-grid-add style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 0.85rem;border:1px dashed #6366f1;border-radius:0.5rem;background:#eef2ff;color:#4f46e5;font-weight:600;cursor:pointer;font:inherit;">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      <span>Add row</span>
+                    </button>
+                  </td>
+                </tr>
+                <tr class="pb-grid__total-row" style="border-top:2px solid #e2e8f0;">
+                  <td colspan="3" style="padding:0.75rem 1rem;font-weight:600;color:#334155;">Total (<span x-text="rows.length"></span> items)</td>
+                  <td class="pb-grid__grand-total" x-text="money(total)" style="padding:0.75rem 1rem;text-align:right;font-weight:700;font-size:1.05rem;color:#0f172a;font-variant-numeric:tabular-nums;"></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+            HTML, 'Interactive'),
+
+            self::block('stepper', 'Quantity stepper', 'A −/+ stepper around a number input, bound to State.', <<<'HTML'
+            <div data-pb-block="stepper" class="pb-stepper" data-pb-state="quantity" data-pb-min="0" data-pb-max="0" data-pb-step="1" x-data="pbStepper($el)" style="display:inline-flex;align-items:stretch;font-family:inherit;border:1px solid #cbd5e1;border-radius:0.5rem;overflow:hidden;background:#fff;">
+              <button type="button" class="pb-stepper__dec" data-pb-step="-1" aria-label="Decrease" style="display:inline-flex;align-items:center;justify-content:center;width:2.4rem;border:0;border-right:1px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:1.1rem;cursor:pointer;line-height:0;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <input type="number" class="pb-stepper__input" x-model.number="value" :min="min" :max="max === 0 ? null : max" :step="step" style="width:3.5rem;padding:0.5rem;border:0;text-align:center;font:inherit;color:#0f172a;box-sizing:border-box;-moz-appearance:textfield;">
+              <button type="button" class="pb-stepper__inc" data-pb-step="1" aria-label="Increase" style="display:inline-flex;align-items:center;justify-content:center;width:2.4rem;border:0;border-left:1px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:1.1rem;cursor:pointer;line-height:0;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+            HTML, 'Interactive'),
+
+            self::block('context_menu', 'Context menu', 'A kebab (⋮) / right-click menu of actions — fire a flow or mutate State.', <<<'HTML'
+            <div data-pb-block="context_menu" class="pb-context" data-pb-contextmenu x-data="pbContextMenu($el)" style="display:inline-block;position:relative;font-family:inherit;">
+              <button type="button" class="pb-context__trigger" data-pb-context-toggle aria-label="Open menu" :aria-expanded="open" style="display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#334155;cursor:pointer;line-height:0;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+              <div class="pb-context__menu" role="menu" x-show="open" x-cloak x-transition.opacity :style="pos" style="position:absolute;top:calc(100% + 0.35rem);left:0;min-width:11rem;padding:0.35rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px rgba(15,23,42,0.16);z-index:40;">
+                <button type="button" class="pb-context__item" role="menuitem" data-pb-context-close data-pb-flow="" data-pb-flow-input="" style="display:block;width:100%;text-align:left;padding:0.5rem 0.65rem;border:0;border-radius:0.375rem;background:transparent;color:#334155;font:inherit;cursor:pointer;">Edit</button>
+                <button type="button" class="pb-context__item" role="menuitem" data-pb-context-close data-pb-context-remove style="display:block;width:100%;text-align:left;padding:0.5rem 0.65rem;border:0;border-radius:0.375rem;background:transparent;color:#dc2626;font:inherit;cursor:pointer;">Remove</button>
+              </div>
+            </div>
+            HTML, 'Interactive'),
+
+            // Bare picker: only data-pb-label-field and data-pb-target are set.
+            // data-pb-image-field and data-pb-extra-field are OPT-IN (no defaults).
+            // A tile shows only the label; add the other attrs in the builder to
+            // opt-in to image thumbnails or an extra info line.
+            self::block('record_picker', 'Record picker', 'A searchable tile grid from a collection — click a tile to add it to a State array.', <<<'HTML'
+            <div data-pb-block="record_picker" class="pb-picker" data-pb-collection="" data-pb-label-field="" data-pb-target="" x-data="pbRecordPicker($el)" style="font-family:inherit;color:#0f172a;max-width:40rem;">
+              <input type="text" class="pb-picker__search" x-model="q" data-pb-picker-search placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;color:#0f172a;box-sizing:border-box;margin-bottom:0.75rem;">
+              <p class="pb-picker__loading" x-show="loading" x-cloak style="color:#64748b;margin:0.25rem 0;">Loading…</p>
+              <p class="pb-picker__empty" x-show="!loading && results.length === 0" x-cloak style="color:#64748b;margin:0.25rem 0;">No matches.</p>
+              <div class="pb-picker__grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:0.6rem;">
+                <template x-for="r in results" :key="r.id">
+                  <button type="button" class="pb-picker__tile" data-pb-pick :data-pb-pick-id="r.id" style="display:flex;flex-direction:column;gap:0.4rem;text-align:left;padding:0.6rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s;">
+                    <img :src="r.image" x-show="r.image != null" x-cloak alt="" style="width:100%;height:5rem;object-fit:cover;border-radius:0.35rem;background:#f1f5f9;">
+                    <span class="pb-picker__tile-label" x-text="r.label" style="font-weight:600;font-size:0.85rem;"></span>
+                    <span class="pb-picker__tile-extra" x-show="r.extra != null && r.extra !== ''" x-text="r.extra" style="color:#475569;font-size:0.8rem;"></span>
+                  </button>
+                </template>
+                <button type="button" class="pb-picker__sample" x-show="false" style="text-align:left;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;color:#0f172a;font:inherit;cursor:pointer;">Sample item</button>
+              </div>
+            </div>
+            HTML, 'Interactive'),
+        ];
+    }
+
+    /**
+     * The raw built-in blocks (sections + basics + shapes + components + forms
+     * + data + interactive). This is the seed for {@see ComponentRegistry} — the public
+     * accessors below delegate back to that registry, so building it from the
+     * public all() would recurse. Consumers should read all()/keys()/find()/
+     * toArray() (which include registered third-party blocks); only the
+     * registry seeding reads builtins().
+     *
+     * @return array<int,SectionBlock>
+     */
+    public static function builtins(): array
+    {
+        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms(), ...self::data(), ...self::interactive()];
+    }
+
+    /**
+     * Every block for the GrapesJS block manager — built-ins plus any blocks
+     * registered through {@see ComponentRegistry} (third-party / premium).
+     * Delegates to the registry so registered components are visible here.
      *
      * @return array<int,SectionBlock>
      */
     public static function all(): array
     {
-        return [...self::sections(), ...self::basics(), ...self::shapes(), ...self::components(), ...self::forms(), ...self::data()];
+        return app(ComponentRegistry::class)->all();
     }
 
     /**
-     * Section keys only — the vocabulary the AI is allowed to emit.
+     * The SECTION-level vocabulary the AI is allowed to emit for page generation —
+     * the top-level page sections (hero, features, pricing, …), NOT every granular
+     * block. Sourced from the registry and scoped to the "Sections" category, so a
+     * registered third-party / premium component that declares that category joins
+     * the AI section vocabulary while finer-grained blocks stay drag-only (this
+     * preserves the pre-registry behaviour — see all() for the full block list).
      *
      * @return array<int,string>
      */
     public static function keys(): array
     {
-        return array_map(static fn (SectionBlock $b): string => $b->key, self::sections());
+        return array_values(array_map(
+            static fn (SectionBlock $b): string => $b->key,
+            array_filter(
+                app(ComponentRegistry::class)->all(),
+                static fn (SectionBlock $b): bool => $b->category === self::SECTION_CATEGORY,
+            ),
+        ));
     }
 
     public static function find(string $key): ?SectionBlock
     {
-        foreach (self::all() as $block) {
-            if ($block->key === $key) {
-                return $block;
-            }
-        }
-
-        return null;
+        return app(ComponentRegistry::class)->find($key);
     }
 
     /**
-     * Serializable form for the GrapesJS block manager (JS side).
+     * Serializable form for the GrapesJS block manager (JS side) — built-ins
+     * plus registered blocks. Delegates to the registry.
      *
-     * @return array<int,array{key:string,label:string,category:string,template:string,description:string}>
+     * @return array<int,array{key:string,label:string,category:string,template:string,description:string,icon:string}>
      */
     public static function toArray(): array
     {
-        return array_map(static fn (SectionBlock $b): array => $b->toArray(), self::all());
+        return app(ComponentRegistry::class)->toArray();
     }
 
-    private static function block(string $key, string $label, string $description, string $template, string $category = 'Sections'): SectionBlock
+    private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY): SectionBlock
     {
         return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key));
     }

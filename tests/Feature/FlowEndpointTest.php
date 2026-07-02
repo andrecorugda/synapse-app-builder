@@ -54,16 +54,32 @@ it('returns 200 and interpolated actions for a public active flow', function ():
 });
 
 // ---------------------------------------------------------------------------
-// (b) Non-public flow → 404 (existence must not leak)
+// (b) Access model: Public = any origin; Private = same-origin only (cross-origin 404)
 // ---------------------------------------------------------------------------
 
-it('returns 404 for a flow with is_public false', function (): void {
+it('runs a private flow from a same-origin request (trigger type does not gate access)', function (): void {
+    // Access is gated by Public vs Private, NOT by trigger_type: a private flow is
+    // callable from the app's own pages (same-origin). Even a "manual" flow runs
+    // when the page fetches it same-origin. Laravel's test client sends Origin = host.
     makePublicFlow([
-        'slug' => 'private-flow',
+        'slug' => 'private-manual-flow',
         'is_public' => false,
+        'trigger_type' => 'manual',
     ]);
 
-    $this->postJson('/pb-flow/private-flow', ['input' => []])
+    $this->postJson('/pb-flow/private-manual-flow', ['input' => ['name' => 'Sam']])
+        ->assertOk()
+        ->assertJsonStructure(['actions']);
+});
+
+it('returns 404 for a private flow from a cross-origin request (no existence leak)', function (): void {
+    makePublicFlow([
+        'slug' => 'private-xo-flow',
+        'is_public' => false,
+        'trigger_type' => 'manual',
+    ]);
+
+    $this->postJson('/pb-flow/private-xo-flow', ['input' => []], ['Origin' => 'https://evil.example'])
         ->assertNotFound();
 });
 
@@ -102,4 +118,29 @@ it('returns 429 on the second request when rate_limit_per_minute is 1', function
     $this->postJson('/pb-flow/'.$slug, ['input' => ['name' => 'Sam']])
         ->assertStatus(429)
         ->assertJsonPath('error', 'Too many requests');
+});
+
+// ---------------------------------------------------------------------------
+// (d) set_variable emits a client setState action (page store updates live)
+// ---------------------------------------------------------------------------
+
+it('a set_variable node returns a setState action so a page updates its store live', function (): void {
+    Flow::create([
+        'slug' => 'set-state-flow',
+        'name' => 'Set State',
+        'trigger_type' => 'manual',
+        'is_active' => true,
+        'is_public' => true,
+        'definition' => [
+            'start' => 'n1',
+            'nodes' => [
+                'n1' => ['type' => 'trigger', 'next' => ['n2']],
+                'n2' => ['type' => 'set_variable', 'config' => ['key' => 'message', 'value' => 'hello', 'type' => 'string'], 'next' => []],
+            ],
+        ],
+    ]);
+
+    $this->postJson('/pb-flow/set-state-flow', ['input' => []])
+        ->assertOk()
+        ->assertJsonFragment(['type' => 'setState', 'key' => 'message', 'value' => 'hello']);
 });

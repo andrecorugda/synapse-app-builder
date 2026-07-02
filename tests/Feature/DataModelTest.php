@@ -66,6 +66,27 @@ it('drops the physical table on dropTable', function (): void {
     expect(Schema::hasTable('pb_leads'))->toBeFalse();
 });
 
+it('drops the physical column on dropColumnFor (explicit field delete)', function (): void {
+    $model = makeLeadsModel();
+    expect(Schema::hasColumn('pb_leads', 'score'))->toBeTrue();
+
+    // Explicit removal drops the column regardless of allow_destructive_sync
+    // (which defaults false) — this is the admin "delete field" path.
+    config()->set('ai-page-builder.data.allow_destructive_sync', false);
+    app(SchemaSynchronizer::class)->dropColumnFor($model, 'score');
+
+    expect(Schema::hasColumn('pb_leads', 'score'))->toBeFalse();
+});
+
+it('dropColumnFor never drops system columns and no-ops on a missing column', function (): void {
+    $model = makeLeadsModel();
+    app(SchemaSynchronizer::class)->dropColumnFor($model, 'id');
+    app(SchemaSynchronizer::class)->dropColumnFor($model, 'created_at');
+    app(SchemaSynchronizer::class)->dropColumnFor($model, 'does_not_exist');
+
+    expect(Schema::hasColumns('pb_leads', ['id', 'created_at']))->toBeTrue();
+});
+
 // ---------------------------------------------------------------------------
 // Record + RecordQuery
 // ---------------------------------------------------------------------------

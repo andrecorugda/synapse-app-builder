@@ -7,12 +7,15 @@ namespace Andre\AiPageBuilder\Ai;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\Partial;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\Settings;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Throwable;
 
 /**
@@ -42,7 +45,7 @@ class BuildPlanApplier
 
     /**
      * @param  array<string,mixed>  $plan
-     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>,settings:list<string>},errors:list<string>}
+     * @return array{created:array{collections:list<string>,states:list<string>,functions:list<string>,flows:list<string>,pages:list<string>,partials:list<string>,settings:list<string>},errors:list<string>}
      */
     public function apply(array $plan, bool $dryRun = false): array
     {
@@ -55,6 +58,7 @@ class BuildPlanApplier
                 'functions' => [],
                 'flows' => [],
                 'pages' => [],
+                'partials' => [],
                 'settings' => [],
             ],
             'errors' => [],
@@ -92,6 +96,7 @@ class BuildPlanApplier
         $this->applyFunctions($build, $summary);
         $this->applyFlows($build, $summary);
         $this->applyPages($build, $summary);
+        $this->applyPartials($build, $summary);
         $this->applySettings($build, $summary);
 
         return $summary;
@@ -129,6 +134,11 @@ class BuildPlanApplier
                 $summary['created']['pages'][] = $p['slug'];
             }
         }
+        foreach ($build->partials() as $p) {
+            if (is_string($p['slug'] ?? null)) {
+                $summary['created']['partials'][] = $p['slug'];
+            }
+        }
         $home = $build->settings()['home_page'] ?? null;
         if (is_string($home) && $home !== '') {
             $summary['created']['settings'][] = "home_page={$home}";
@@ -150,7 +160,7 @@ class BuildPlanApplier
 
             try {
                 /** @var PbModel $model */
-                $model = PbModel::query()->updateOrCreate(
+                $model = $this->upsertWithTrashed(PbModel::class,
                     ['key' => $key],
                     [
                         'name' => (string) ($collection['name'] ?? $key),
@@ -269,7 +279,7 @@ class BuildPlanApplier
             }
 
             try {
-                FlowFunction::query()->updateOrCreate(
+                $this->upsertWithTrashed(FlowFunction::class,
                     ['slug' => $slug],
                     [
                         'name' => (string) ($fn['name'] ?? $slug),
@@ -299,14 +309,23 @@ class BuildPlanApplier
             }
 
             try {
-                Flow::query()->updateOrCreate(
+                $triggerType = (string) ($flow['trigger_type'] ?? 'manual');
+                // UI/route-triggered flows (a page button/form via data-pb-flow, or an
+                // external api caller) MUST be public or the /pb-flow route 404s them.
+                // Default those to public; manual/collection/cron stay private.
+                $isPublic = array_key_exists('is_public', $flow)
+                    ? (bool) $flow['is_public']
+                    : in_array($triggerType, ['component', 'form', 'api'], true);
+
+                $this->upsertWithTrashed(Flow::class,
                     ['slug' => $slug],
                     [
                         'name' => (string) ($flow['name'] ?? $slug),
-                        'trigger_type' => (string) ($flow['trigger_type'] ?? 'manual'),
+                        'trigger_type' => $triggerType,
                         'trigger_config' => is_array($flow['trigger_config'] ?? null) ? $flow['trigger_config'] : [],
                         'definition' => is_array($flow['definition'] ?? null) ? $flow['definition'] : [],
                         'is_active' => (bool) ($flow['is_active'] ?? true),
+                        'is_public' => $isPublic,
                     ],
                 );
                 $summary['created']['flows'][] = $slug;
@@ -319,6 +338,37 @@ class BuildPlanApplier
     /**
      * @param  array{created:array<string,list<string>>,errors:list<string>}  $summary
      */
+    /**
+     * Upsert by a unique key INCLUDING soft-deleted rows, un-deleting a trashed
+     * match. A plain updateOrCreate skips trashed rows, but the unique index still
+     * counts them — so re-applying a slug/key that was ever deleted would INSERT
+     * and hit a duplicate-key error (which made "edit an existing page/flow/
+     * function/collection" impossible once a same-slug row had been trashed). This
+     * finds the row trashed-or-not, fills it, un-deletes it, and saves.
+     *
+     * @param  class-string<Model>  $modelClass
+     * @param  array<string,mixed>  $match
+     * @param  array<string,mixed>  $values
+     */
+    private function upsertWithTrashed(string $modelClass, array $match, array $values): Model
+    {
+        $softDeletes = in_array(SoftDeletes::class, class_uses_recursive($modelClass), true);
+        // withTrashed()/getDeletedAtColumn() are SoftDeletes-trait methods, guarded
+        // here by $softDeletes — phpstan only sees the base Model, so ignore.
+        /** @phpstan-ignore-next-line staticMethod.notFound */
+        $query = $softDeletes ? $modelClass::withTrashed() : $modelClass::query();
+        /** @var Model $model */
+        $model = $query->firstOrNew($match);
+        $model->fill($values);
+        if ($softDeletes && $model->exists && method_exists($model, 'trashed') && $model->trashed()) {
+            /** @phpstan-ignore-next-line method.notFound */
+            $model->{$model->getDeletedAtColumn()} = null;
+        }
+        $model->save();
+
+        return $model;
+    }
+
     private function applyPages(BuildPlan $build, array &$summary): void
     {
         foreach ($build->pages() as $i => $page) {
@@ -352,7 +402,7 @@ class BuildPlanApplier
                     $kind = 'email';
                 }
 
-                Page::query()->updateOrCreate(
+                $this->upsertWithTrashed(Page::class,
                     ['slug' => $slug],
                     [
                         'title' => (string) ($page['title'] ?? $slug),
@@ -367,6 +417,51 @@ class BuildPlanApplier
                 $summary['created']['pages'][] = $slug;
             } catch (Throwable $e) {
                 $summary['errors'][] = "pages[{$i}] ('{$slug}'): ".$e->getMessage();
+            }
+        }
+    }
+
+    /**
+     * Apply the plan's `partials` list — reusable chrome (nav / header / footer)
+     * embedded on pages via `<div data-pb-partial="<slug>"></div>`. Mirrors
+     * applyPages(): upsert by slug, sanitize `html` (AI output is untrusted),
+     * keep custom_css/custom_js raw (owner-owned styling/behaviour channels).
+     *
+     * @param  array{created:array<string,list<string>>,errors:list<string>}  $summary
+     */
+    private function applyPartials(BuildPlan $build, array &$summary): void
+    {
+        foreach ($build->partials() as $i => $partial) {
+            $slug = $partial['slug'] ?? null;
+            if (! is_string($slug) || $slug === '') {
+                $summary['errors'][] = "partials[{$i}]: missing slug.";
+
+                continue;
+            }
+
+            try {
+                $html = is_string($partial['html'] ?? null) ? $partial['html'] : '';
+
+                // Same channel discipline as pages: lift any inlined <style> into
+                // custom_css and drop inline <script> before sanitizing the html.
+                $customCss = is_string($partial['custom_css'] ?? null) ? $partial['custom_css'] : '';
+                $customJs = is_string($partial['custom_js'] ?? null) ? $partial['custom_js'] : '';
+                [$html, $liftedCss] = $this->liftInlineAssets($html);
+                $customCss = trim($customCss."\n".$liftedCss);
+
+                Partial::query()->updateOrCreate(
+                    ['slug' => $slug],
+                    [
+                        'name' => (string) ($partial['name'] ?? $slug),
+                        'html' => $this->sanitizer->sanitize($html),
+                        'css' => is_string($partial['css'] ?? null) ? $partial['css'] : null,
+                        'custom_css' => $customCss !== '' ? $customCss : null,
+                        'custom_js' => $customJs !== '' ? $customJs : null,
+                    ],
+                );
+                $summary['created']['partials'][] = $slug;
+            } catch (Throwable $e) {
+                $summary['errors'][] = "partials[{$i}] ('{$slug}'): ".$e->getMessage();
             }
         }
     }

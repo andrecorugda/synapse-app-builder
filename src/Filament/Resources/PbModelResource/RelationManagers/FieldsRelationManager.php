@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManager
 
 use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource;
+use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Filament\Actions;
@@ -16,6 +17,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
 
 /**
  * Manages a collection's fields as a compact table on the collection edit page.
@@ -125,13 +127,16 @@ class FieldsRelationManager extends RelationManager
             ->recordActions([
                 Actions\EditAction::make()
                     ->after(fn (): mixed => $this->syncSchema()),
+                // Deleting a field must also drop its physical column — otherwise the
+                // field disappears from the admin but the DB column lingers (orphaned).
+                // The record is still hydrated in ->after, so read its column name there.
                 Actions\DeleteAction::make()
-                    ->after(fn (): mixed => $this->syncSchema()),
+                    ->after(fn (PbField $record): mixed => $this->dropFieldColumn($record)),
             ])
             ->toolbarActions([
                 Actions\BulkActionGroup::make([
                     Actions\DeleteBulkAction::make()
-                        ->after(fn (): mixed => $this->syncSchema()),
+                        ->after(fn (Collection $records): mixed => $this->dropFieldColumns($records)),
                 ]),
             ]);
     }
@@ -146,5 +151,32 @@ class FieldsRelationManager extends RelationManager
         $owner = $this->getOwnerRecord();
 
         app(SchemaSynchronizer::class)->sync($owner);
+    }
+
+    /**
+     * Explicit user delete of a single field → drop its physical column too, then
+     * re-sync. dropColumnFor is a deliberate removal so it runs regardless of the
+     * cautious auto-sync flag (system columns / external tables stay protected).
+     */
+    private function dropFieldColumn(PbField $field): void
+    {
+        /** @var PbModel $owner */
+        $owner = $this->getOwnerRecord();
+        app(SchemaSynchronizer::class)->dropColumnFor($owner, $field->columnName());
+        $this->syncSchema();
+    }
+
+    /**
+     * @param  Collection<int,PbField>  $fields
+     */
+    private function dropFieldColumns(Collection $fields): void
+    {
+        /** @var PbModel $owner */
+        $owner = $this->getOwnerRecord();
+        $sync = app(SchemaSynchronizer::class);
+        foreach ($fields as $field) {
+            $sync->dropColumnFor($owner, $field->columnName());
+        }
+        $this->syncSchema();
     }
 }

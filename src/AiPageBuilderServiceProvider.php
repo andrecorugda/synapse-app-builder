@@ -6,6 +6,8 @@ namespace Andre\AiPageBuilder;
 
 use Andre\AiPageBuilder\Ai\AppBuilderService;
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Blocks\BlockVocabulary;
+use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
 use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Andre\AiPageBuilder\Capabilities\Helpers\AuthHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\DbHelpers;
@@ -21,7 +23,6 @@ use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Console\SeedSystemPagesCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
-use Andre\AiPageBuilder\Flow\FlowDispatcher;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
 use Andre\AiPageBuilder\Flow\FlowRuntime;
@@ -29,6 +30,7 @@ use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Flow\GatewayAiInvoker;
 use Andre\AiPageBuilder\Flow\NodeRegistry;
 use Andre\AiPageBuilder\Flow\Nodes\AiInvokeNode;
+use Andre\AiPageBuilder\Flow\Nodes\CallFlowNode;
 use Andre\AiPageBuilder\Flow\Nodes\ConditionNode;
 use Andre\AiPageBuilder\Flow\Nodes\FunctionNode;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
@@ -40,6 +42,7 @@ use Andre\AiPageBuilder\Flow\Nodes\SetVariableNode;
 use Andre\AiPageBuilder\Flow\Nodes\TransactionNode;
 use Andre\AiPageBuilder\Flow\Nodes\TriggerNode;
 use Andre\AiPageBuilder\Flow\RecordObserver;
+use Andre\AiPageBuilder\Flow\WatcherDispatcher;
 use Andre\AiPageBuilder\Http\Controllers\AuthController;
 use Andre\AiPageBuilder\Http\Controllers\InviteController;
 use Andre\AiPageBuilder\Http\Controllers\PasswordResetController;
@@ -109,6 +112,11 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'create_page_builder_user_invites_table',
                 'add_two_factor_fields_to_page_builder_users_table',
                 'add_external_source_to_page_builder_models_table',
+                'add_display_field_to_page_builder_models_table',
+                'create_page_builder_record_revisions_table',
+                'add_shape_to_page_builder_variables_table',
+                'create_page_builder_watchers_table',
+                'backfill_collection_flows_into_watchers',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -126,6 +134,19 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->app->singleton(PageRenderer::class);
         $this->app->singleton(PageBuilderManager::class);
         $this->app->singleton(MediaLibrary::class);
+
+        // Draggable blocks (components). Seeded with the built-ins; third-party
+        // / premium packages add their own via PageBuilder::registerComponent()
+        // from a service provider's boot(). The BlockVocabulary accessors read
+        // through this registry, so registered blocks appear everywhere.
+        $this->app->singleton(ComponentRegistry::class, function (): ComponentRegistry {
+            $registry = new ComponentRegistry;
+            foreach (BlockVocabulary::builtins() as $block) {
+                $registry->register($block);
+            }
+
+            return $registry;
+        });
 
         // Flow engine.
         $this->app->bind(AiInvoker::class, GatewayAiInvoker::class);
@@ -152,12 +173,13 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             $registry->register($app->make(SendEmailNode::class));
             $registry->register(new LoopNode);
             $registry->register(new TransactionNode);
+            $registry->register(new CallFlowNode);
 
             return $registry;
         });
         $this->app->singleton(FlowRunner::class);
         $this->app->singleton(FlowManager::class);
-        $this->app->singleton(FlowDispatcher::class);
+        $this->app->singleton(WatcherDispatcher::class);
 
         // Data layer (user-defined models / collections).
         $this->app->singleton(SchemaSynchronizer::class);
@@ -181,6 +203,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerAuthRoutes();
         $this->registerRenderRoutes();
         $this->registerPanelRoutes();
+        $this->registerPublicUploadRoute();
         $this->registerFlowRoutes();
         $this->registerDataApiRoutes();
         $this->registerFilamentAssets();
@@ -189,6 +212,24 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerPublishableAssets();
         $this->registerScheduledCommands();
         $this->ensureSystemPages();
+        $this->raiseLivewireNestingDepth();
+    }
+
+    /**
+     * The visual editor syncs GrapesJS project_data (a nested component tree) to
+     * Livewire state. A rich page — sections > rows > columns > cards > … —
+     * legitimately nests deeper than Livewire's default payload.max_nesting_depth
+     * of 10, which then throws MaxNestingDepthExceededException on save. Raise the
+     * limit for the host app to a builder-appropriate floor (config-overridable);
+     * never lower an already-higher host setting.
+     */
+    private function raiseLivewireNestingDepth(): void
+    {
+        $floor = (int) config('ai-page-builder.editor.livewire_max_nesting_depth', 50);
+        $current = (int) config('livewire.payload.max_nesting_depth', 10);
+        if ($floor > $current) {
+            config(['livewire.payload.max_nesting_depth' => $floor]);
+        }
     }
 
     /**
@@ -256,9 +297,9 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     }
 
     /**
-     * Wire collection-event flow triggers: observe the dynamic Record model so
-     * every collection write fans out to matching `collection`-triggered flows
-     * via FlowDispatcher. All record writes go through Record::for(...), so a
+     * Wire collection-event triggers: observe the dynamic Record model so every
+     * collection write fans out to matching collection Watchers via
+     * WatcherDispatcher. All record writes go through Record::for(...), so a
      * single observer on the base class covers every collection.
      *
      * Registered here in packageBooted (which runs once per app boot) rather
@@ -324,6 +365,21 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             'middleware' => (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/panel.php');
+        });
+    }
+
+    /**
+     * Public image-upload endpoint used by [data-pb-record] forms on rendered
+     * pages. Uses the `web` middleware group so the session and CSRF cookie are
+     * available for same-origin fetch calls. Auth gating and rate limiting are
+     * applied by the controller / route (throttle:30,1).
+     */
+    private function registerPublicUploadRoute(): void
+    {
+        Route::group([
+            'middleware' => (array) config('ai-page-builder.routes.render_middleware', ['web']),
+        ], function (): void {
+            $this->loadRoutesFrom(__DIR__.'/../routes/public.php');
         });
     }
 

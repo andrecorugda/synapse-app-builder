@@ -129,9 +129,13 @@ class AuthController
 
     public function logout(Request $request): RedirectResponse
     {
+        // Sign out ONLY the pb (app-user) guard. Rotate the session id to guard
+        // against fixation, but do NOT invalidate() the whole session — that
+        // wipes every guard sharing this browser session, so a developer signed
+        // into the Filament admin (web guard) in the same browser would be
+        // logged out too. regenerate() keeps other guards' state intact.
         Auth::guard($this->guard())->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $request->session()->regenerate();
 
         return redirect('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/'));
     }

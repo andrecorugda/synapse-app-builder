@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\PbPermission;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Models\Watcher;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
@@ -172,7 +173,6 @@ class InventoryDemo
             [
                 'name' => 'On stock movement',
                 'trigger_type' => 'collection',
-                'trigger_config' => ['collection' => 'stock_movements', 'events' => ['created']],
                 'is_active' => true,
                 'definition' => [
                     'start' => 't',
@@ -206,6 +206,14 @@ class InventoryDemo
                 ],
             ],
         );
+
+        // Fire the flow whenever a stock movement is created. Watchers own the
+        // collection→flow binding (one event → one target), decoupled from the
+        // flow's own trigger_type.
+        Watcher::query()->updateOrCreate(
+            ['source_type' => 'collection', 'source_key' => 'stock_movements', 'event' => 'created', 'target_key' => 'on-stock-movement'],
+            ['name' => 'Stock movement created → on-stock-movement', 'target_type' => 'flow', 'is_active' => true],
+        );
     }
 
     private function dashboardPage(): void
@@ -219,6 +227,7 @@ class InventoryDemo
                 'requires_auth' => true,
                 'html' => $this->dashboardHtml(),
                 'css' => $this->dashboardCss(),
+                'custom_js' => $this->dashboardJs(),
             ],
         );
     }
@@ -226,7 +235,7 @@ class InventoryDemo
     private function dashboardHtml(): string
     {
         return <<<'HTML'
-        <div class="inv" x-data="inventoryApp()" x-init="load()">
+        <div class="inv" x-data="inventoryApp()">
           <header class="inv-top">
             <div class="inv-brand"><span class="inv-logo">◆</span> Nimbus <span class="inv-brand-sub">Inventory</span></div>
             <div class="inv-top-actions">
@@ -243,7 +252,7 @@ class InventoryDemo
                 <h1>Stock overview</h1>
                 <p class="inv-muted" x-text="'Last activity — ' + ($store.app.last_activity || '—')"></p>
               </div>
-              <button class="inv-btn inv-btn-primary" @click="openCreate()">+ Add product</button>
+              <button class="inv-btn inv-btn-primary" data-act="openCreate">+ Add product</button>
             </div>
 
             <section class="inv-stats">
@@ -296,10 +305,10 @@ class InventoryDemo
           </main>
 
           <!-- Add product modal -->
-          <div class="inv-modal" x-show="modal" x-cloak x-transition.opacity @keydown.escape.window="modal=false">
-            <div class="inv-modal-backdrop" @click="modal=false"></div>
+          <div class="inv-modal" x-show="modal" x-cloak x-transition.opacity>
+            <div class="inv-modal-backdrop" data-act="closeModal"></div>
             <div class="inv-modal-card" x-transition>
-              <div class="inv-modal-head"><h2>Add product</h2><button class="inv-x" @click="modal=false">✕</button></div>
+              <div class="inv-modal-head"><h2>Add product</h2><button class="inv-x" data-act="closeModal">✕</button></div>
               <div class="inv-form">
                 <label>Name<input class="inv-input" x-model="form.name" placeholder="Aurora Desk Lamp"></label>
                 <div class="inv-form-row">
@@ -314,52 +323,77 @@ class InventoryDemo
                 <p class="inv-error" x-show="error" x-text="error" x-cloak></p>
               </div>
               <div class="inv-modal-foot">
-                <button class="inv-btn inv-btn-ghost" @click="modal=false">Cancel</button>
-                <button class="inv-btn inv-btn-primary" :disabled="saving" @click="save()" x-text="saving ? 'Saving…' : 'Save product'"></button>
+                <button class="inv-btn inv-btn-ghost" data-act="closeModal">Cancel</button>
+                <button class="inv-btn inv-btn-primary" :disabled="saving" data-act="save" x-text="saving ? 'Saving…' : 'Save product'"></button>
               </div>
             </div>
           </div>
         </div>
-
-        <script>
-          window.inventoryApp = function () {
-            return {
-              rows: [], loading: true, search: '', cat: '',
-              modal: false, saving: false, error: '',
-              form: { name:'', sku:'', category:'', price:'', quantity:'', reorder_level:'' },
-              api: (window.__pbApiBase || '/api/pb') + '/products',
-              load() {
-                this.loading = true;
-                fetch(this.api, { headers: { Accept:'application/json' }, credentials:'same-origin' })
-                  .then(r => r.json()).then(d => { this.rows = d.data || []; })
-                  .catch(() => {}).finally(() => { this.loading = false; });
-              },
-              get categories() { return [...new Set(this.rows.map(r => r.category).filter(Boolean))].sort(); },
-              get filtered() {
-                const q = this.search.toLowerCase();
-                return this.rows.filter(r =>
-                  (!this.cat || r.category === this.cat) &&
-                  (!q || (r.name||'').toLowerCase().includes(q) || (r.sku||'').toLowerCase().includes(q)));
-              },
-              get lowCount() { return this.rows.filter(r => this.status(r) !== 'in').length; },
-              get totalValue() { return this.rows.reduce((s, r) => s + (Number(r.price)||0) * (Number(r.quantity)||0), 0); },
-              status(r) { const q = Number(r.quantity)||0; if (q <= 0) return 'out'; if (q <= (Number(r.reorder_level)||0)) return 'low'; return 'in'; },
-              statusLabel(r) { return { out:'Out of stock', low:'Low', in:'In stock' }[this.status(r)]; },
-              money(n) { return '$' + (Number(n)||0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
-              openCreate() { this.error=''; this.form = { name:'', sku:'', category:'', price:'', quantity:'', reorder_level:'' }; this.modal = true; },
-              save() {
-                if (!this.form.name || !this.form.sku) { this.error = 'Name and SKU are required.'; return; }
-                this.saving = true; this.error = '';
-                fetch(this.api, { method:'POST', headers:{ 'Content-Type':'application/json', Accept:'application/json' }, credentials:'same-origin', body: JSON.stringify(this.form) })
-                  .then(async r => { if (!r.ok) throw new Error((await r.json()).message || 'Could not save'); return r.json(); })
-                  .then(() => { this.modal = false; this.load(); })
-                  .catch(e => { this.error = e.message; })
-                  .finally(() => { this.saving = false; });
-              },
-            };
-          };
-        </script>
         HTML;
+    }
+
+    /**
+     * The dashboard's Alpine component. Lives in the page's `custom_js` channel
+     * (emitted raw to visitors) — NOT inline in the HTML, where the sanitizer
+     * would strip the <script>. This is the same split the AI builder makes when
+     * it lifts a model-authored <script> into custom_js.
+     */
+    private function dashboardJs(): string
+    {
+        return <<<'JS'
+        window.inventoryApp = function () {
+          return {
+            rows: [], loading: true, search: '', cat: '',
+            modal: false, saving: false, error: '',
+            form: { name:'', sku:'', category:'', price:'', quantity:'', reorder_level:'' },
+            api: (window.__pbApiBase || '/api/pb') + '/products',
+            // Alpine calls init() automatically — no x-init needed (the sanitizer
+            // strips x-init/@click from page HTML, so behaviour is wired here in
+            // custom_js instead: load data, then delegate clicks from [data-act]
+            // buttons to component methods, and close the modal on Escape).
+            init() {
+              this.load();
+              this.$el.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-act]');
+                if (btn && this.$el.contains(btn)) {
+                  const fn = this[btn.dataset.act];
+                  if (typeof fn === 'function') { fn.call(this); }
+                }
+              });
+              window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { this.modal = false; } });
+            },
+            closeModal() { this.modal = false; },
+            load() {
+              this.loading = true;
+              fetch(this.api, { headers: { Accept:'application/json' }, credentials:'same-origin' })
+                .then(r => r.json()).then(d => { this.rows = d.data || []; })
+                .catch(() => {}).finally(() => { this.loading = false; });
+            },
+            get categories() { return [...new Set(this.rows.map(r => r.category).filter(Boolean))].sort(); },
+            get filtered() {
+              const q = this.search.toLowerCase();
+              return this.rows.filter(r =>
+                (!this.cat || r.category === this.cat) &&
+                (!q || (r.name||'').toLowerCase().includes(q) || (r.sku||'').toLowerCase().includes(q)));
+            },
+            get lowCount() { return this.rows.filter(r => this.status(r) !== 'in').length; },
+            get totalValue() { return this.rows.reduce((s, r) => s + (Number(r.price)||0) * (Number(r.quantity)||0), 0); },
+            status(r) { const q = Number(r.quantity)||0; if (q <= 0) return 'out'; if (q <= (Number(r.reorder_level)||0)) return 'low'; return 'in'; },
+            statusLabel(r) { return { out:'Out of stock', low:'Low', in:'In stock' }[this.status(r)]; },
+            money(n) { return '$' + (Number(n)||0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+            openCreate() { this.error=''; this.form = { name:'', sku:'', category:'', price:'', quantity:'', reorder_level:'' }; this.modal = true; },
+            save() {
+              if (!this.form.name || !this.form.sku) { this.error = 'Name and SKU are required.'; return; }
+              this.saving = true; this.error = '';
+              fetch(this.api, { method:'POST', headers:{ 'Content-Type':'application/json', Accept:'application/json' }, credentials:'same-origin', body: JSON.stringify(this.form) })
+                .then(async r => { if (!r.ok) throw new Error((await r.json()).message || 'Could not save'); return r.json(); })
+                .then(() => { this.modal = false; this.load(); })
+                .catch(e => { this.error = e.message; })
+                .finally(() => { this.saving = false; });
+            },
+          };
+        };
+        JS;
     }
 
     private function dashboardCss(): string

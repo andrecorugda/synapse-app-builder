@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static void forget(string $slug)
  * @method static void registerNode(\Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler $handler)
  * @method static void registerHelper(\Andre\AiPageBuilder\Capabilities\CapabilityDefinition $definition, callable $fn)
+ * @method static void registerComponent(\Andre\AiPageBuilder\Blocks\SectionBlock $block)
+ * @method static array<int,array<string,mixed>> components()
  * @method static array<int,array<string,mixed>> capabilities()
  *
  * @see PageBuilderManager
