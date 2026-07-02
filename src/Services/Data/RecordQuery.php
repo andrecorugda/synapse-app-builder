@@ -8,11 +8,15 @@ use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
+use Andre\AiPageBuilder\Models\RecordRevision;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -144,6 +148,15 @@ class RecordQuery
         $fields = $model->fields()->get();
         $relationFields = $fields->filter(fn ($f) => $f->fieldType() === FieldType::Relation)->keyBy('key');
 
+        // `expand=*` — expand every belongs-to relation (used by the auto data table
+        // so a list shows the related NAME, not a raw foreign-key id).
+        if (in_array('*', $expand, true)) {
+            $expand = array_values(array_unique(array_merge(
+                array_values(array_diff($expand, ['*'])),
+                $relationFields->keys()->all(),
+            )));
+        }
+
         /** @var class-string<PbModel> $pbModelClass */
         $pbModelClass = config('ai-page-builder.models.model', PbModel::class);
 
@@ -176,7 +189,16 @@ class RecordQuery
                     $related = $ids === []
                         ? collect()
                         : $this->scopedRelatedQuery($relatedKey, $scope['rule'])->whereIn('id', $ids)->get();
-                } catch (\Throwable) {
+                } catch (\Throwable $e) {
+                    // Drop this expand but don't fail the list — log so a broken
+                    // relation (missing table, bad rule) is visible, not silent.
+                    Log::warning('ai-page-builder: dropped belongs-to expand', [
+                        'model' => $model->key,
+                        'expand' => $name,
+                        'related' => $relatedKey,
+                        'error' => $e->getMessage(),
+                    ]);
+
                     continue;
                 }
 
@@ -184,9 +206,14 @@ class RecordQuery
                     ->map(fn (Model $row) => $this->projectRelated($row, $scope['fields']))
                     ->keyBy('id');
 
+                // When the relation field is keyed `<x>_id` its key IS the fk column,
+                // which carries an integer cast that would coerce the related array
+                // back to an int. Attach the expanded row under the stripped key
+                // (`<x>`) so it survives, leaving the id on `<x>_id`.
+                $attachKey = ($name === $column && str_ends_with($name, '_id')) ? substr($name, 0, -3) : $name;
                 foreach ($records as $record) {
                     $fk = $record->getAttribute($column);
-                    $record->setAttribute($name, $fk !== null ? $relatedById->get($fk) : null);
+                    $record->setAttribute($attachKey, $fk !== null ? $relatedById->get($fk) : null);
                 }
 
                 continue;
@@ -224,7 +251,16 @@ class RecordQuery
                 // applyFilters so it passes the model's column whitelist.
                 $this->applyFilters($childModel, $childQuery, $scope['rule']);
                 $childrenByParent = $childQuery->get()->groupBy($column);
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                // Drop this reverse expand but don't fail the list — log so the
+                // dropped has-many is visible rather than silently missing.
+                Log::warning('ai-page-builder: dropped has-many expand', [
+                    'model' => $model->key,
+                    'expand' => $name,
+                    'child' => $childModel->key,
+                    'error' => $e->getMessage(),
+                ]);
+
                 continue;
             }
 
@@ -439,6 +475,8 @@ class RecordQuery
         $record = Record::for($model);
         $record->fill($clean)->save();
 
+        $this->recordRevision($model, RecordRevision::OP_CREATED, $record->getKey(), null, $record->toArray());
+
         return $record;
     }
 
@@ -455,8 +493,12 @@ class RecordQuery
             return null;
         }
 
+        $before = $record->toArray();
+
         $clean = $this->validate($model, $data, partial: true);
         $record->fill($clean)->save();
+
+        $this->recordRevision($model, RecordRevision::OP_UPDATED, $record->getKey(), $before, $record->toArray());
 
         return $record;
     }
@@ -469,7 +511,15 @@ class RecordQuery
             return false;
         }
 
-        return (bool) $record->delete();
+        $before = $record->toArray();
+
+        $deleted = (bool) $record->delete();
+
+        if ($deleted) {
+            $this->recordRevision($model, RecordRevision::OP_DELETED, $id, $before, null);
+        }
+
+        return $deleted;
     }
 
     /**
@@ -674,5 +724,79 @@ class RecordQuery
         $perPage = $requested === null ? $default : (int) $requested;
 
         return max(1, min($perPage, $max));
+    }
+
+    /**
+     * Snapshot a collection write into the record_revisions table. Gated by the
+     * `data.record_history` flag and skipped for external / read-only
+     * collections (the package doesn't own their writes). The acting pb-guard
+     * end-user stamps `changed_by` when present. Resilient by design: a
+     * revision-write failure is logged and swallowed so it can never break the
+     * actual record write.
+     *
+     * @param  array<string,mixed>|null  $before
+     * @param  array<string,mixed>|null  $after
+     */
+    private function recordRevision(
+        PbModel $model,
+        string $operation,
+        int|string|null $recordId,
+        ?array $before,
+        ?array $after,
+    ): void {
+        if (! (bool) config('ai-page-builder.data.record_history', true)) {
+            return;
+        }
+
+        // Only managed, writable collections are snapshotted.
+        if ($model->isExternal() || $model->isReadOnly()) {
+            return;
+        }
+
+        if ($recordId === null) {
+            return;
+        }
+
+        try {
+            /** @var class-string<RecordRevision> $revisionClass */
+            $revisionClass = config('ai-page-builder.models.record_revision', RecordRevision::class);
+
+            $revisionClass::query()->create([
+                'collection' => $model->key,
+                'record_id' => (string) $recordId,
+                'operation' => $operation,
+                'before' => $before,
+                'after' => $after,
+                'changed_by' => $this->actingUserId(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ai-page-builder: failed to write record revision', [
+                'collection' => $model->key,
+                'operation' => $operation,
+                'record_id' => $recordId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * The acting pb-guard end-user's id, or null when unauthenticated / auth off.
+     */
+    private function actingUserId(): ?int
+    {
+        if (! (bool) config('ai-page-builder.auth.enabled', true)) {
+            return null;
+        }
+
+        $guard = (string) config('ai-page-builder.auth.guard', 'pb');
+        $user = Auth::guard($guard)->user();
+
+        if (! $user instanceof Authenticatable) {
+            return null;
+        }
+
+        $id = $user->getAuthIdentifier();
+
+        return is_numeric($id) ? (int) $id : null;
     }
 }

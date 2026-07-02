@@ -72,8 +72,13 @@ class FunctionNode implements FlowNodeHandler, ProvidesNodeDefinition
         $slug = (string) ($config['function'] ?? '');
         $output = (string) ($config['output'] ?? 'result');
 
+        // Args are resolved expression-aware: `{{ token }}` interpolates, a bare
+        // EL expression (`vars.item['id']`, `vars.item['qty'] * vars.item['price']`)
+        // evaluates with its type preserved, and a plain literal passes through.
+        // This lets an author pass per-iteration loop values straight into a
+        // function without hand-writing `{{ }}` around every one.
         /** @var array<string,mixed> $args */
-        $args = $context->interpolateDeep((array) ($config['args'] ?? []));
+        $args = (array) $context->resolveDynamic((array) ($config['args'] ?? []));
 
         $result = null;
 

@@ -9,6 +9,12 @@ it('maps relation fields to a {key}_id column and others verbatim', function ():
         ->and(FieldType::String->columnName('name'))->toBe('name');
 });
 
+it('does not double the _id suffix on a relation field already keyed *_id', function (): void {
+    expect(FieldType::Relation->columnName('product_id'))->toBe('product_id')
+        ->and(FieldType::Relation->columnName('order_id'))->toBe('order_id')
+        ->and(FieldType::Relation->columnName('category'))->toBe('category_id');
+});
+
 it('exposes the right eloquent cast per type', function (): void {
     expect(FieldType::Integer->cast())->toBe('integer')
         ->and(FieldType::Relation->cast())->toBe('integer')

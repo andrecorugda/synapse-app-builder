@@ -36,6 +36,11 @@ final class HtmlSanitizer
     private const FORBIDDEN_TAGS = [
         'script', 'iframe', 'object', 'embed', 'applet', 'noscript',
         'link', 'meta', 'base', 'frame', 'frameset',
+        // SVG SMIL animation elements: <animate>/<set>/<animateMotion>/
+        // <animateTransform> can animate an attribute (e.g. href) to a
+        // javascript: value at runtime, bypassing the static URL-scheme check.
+        // DOMDocument lowercases tag names, so match the lowercased forms.
+        'animate', 'set', 'animatemotion', 'animatetransform',
     ];
 
     /**
@@ -201,8 +206,14 @@ final class HtmlSanitizer
             return false;
         }
 
-        // Permit image data URIs (used by gallery/team blocks); block data:text/html.
+        // Permit raster image data URIs (used by gallery/team blocks); block
+        // data:text/html AND data:image/svg+xml — SVG is a scriptable document
+        // type (can carry <script>/on* handlers), so it is NOT a safe inline URL.
         if (str_starts_with($trimmed, 'data:')) {
+            if (str_starts_with($trimmed, 'data:image/svg+xml')) {
+                return false;
+            }
+
             return str_starts_with($trimmed, 'data:image/');
         }
 

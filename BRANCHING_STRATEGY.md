@@ -20,9 +20,9 @@ one review. Releases flow `develop → main → tag`. Never push straight to `ma
 | **`main`** | The **stable** branch. Every commit is release-quality; this is what the latest tag points at and what most users install. | No — PRs/back-merges only | **Yes** (`vX.Y.Z`) |
 | **`N.x`** (e.g. `1.x`) | A **maintenance line** for an older major, created only once a newer major lands. Receives backported fixes + patch releases for that line. | No — PRs/back-merges only | Yes (for that line) |
 
-> Synapse currently has only `main`. `develop` is introduced with this strategy —
-> see **Initial setup** at the bottom. Until then, treat `main` as the integration
-> branch and adapt the PR target accordingly.
+> `develop` is the default branch; `main` holds the stable releases. Both are
+> protected by a GitHub ruleset (PR + 1 review + green CI required; no direct pushes
+> or force-pushes) — see **Repository protection** below.
 
 ## Short-lived branches
 
@@ -182,31 +182,26 @@ Filament-version support maps to major lines (as on the gateway: `^1.0` → Fila
 
 ---
 
-## Branch protection (recommended GitHub settings — maintainer applies once)
+## Repository protection (already enforced)
 
-On **`main`** and **`develop`** (Settings → Branches → Add rule):
+A GitHub **ruleset** named *"Protected branches (main / develop / release lines)"*
+enforces the following on `main`, `develop`, and `[0-9]*.x` lines — these are live,
+not aspirational:
 
-- ✅ Require a pull request before merging — **1 approval**; dismiss stale approvals on new commits.
-- ✅ Require status checks to pass — select the **tests** matrix jobs; require branches to be up to date.
-- ✅ Require conversation resolution before merging.
-- ✅ Require linear history (pairs with squash-merge).
-- ✅ Do not allow force pushes; do not allow deletions.
-- 🚫 Block direct pushes (no bypass, or restrict to maintainers only).
+- **Pull request required** — 1 approval, stale approvals dismissed on new pushes,
+  all review threads resolved before merge, squash/merge only.
+- **Required status checks** — all `tests` matrix jobs (PHP 8.2–8.4 × Laravel 11/12)
+  must pass, and the branch must be up to date, before merging.
+- **Linear history**; **no force-pushes**; **no branch deletion**.
+- Repository admins retain a bypass for emergency maintenance (hotfix back-merges,
+  release tagging).
 
-Set the repository's **default branch to `develop`** so PRs target it automatically.
+Repo-level security is also on: secret scanning + push protection, Dependabot alerts
++ automated security fixes, and private vulnerability reporting.
 
----
-
-## Initial setup (one-time — `develop` does not exist yet)
-
-Run once to bring the repo in line with this strategy:
-
-```bash
-git switch main && git pull --ff-only
-git switch -c develop && git push -u origin develop
-# Then on GitHub: set default branch to `develop`, apply the protection rules above.
-# Add the dev-develop branch-alias to composer.json on develop.
-```
+> **Optional hardening:** require signed commits, require 2 approvals, add a
+> `CODEOWNERS` with required code-owner review, or remove the admin bypass for
+> absolute PR-only enforcement.
 
 ---
 

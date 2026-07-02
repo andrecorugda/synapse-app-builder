@@ -96,18 +96,20 @@ class PasswordResetController
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $invalid = redirect('/'.$this->loginPath().'/forgot')
-            ->withErrors(['email' => 'This password reset link is invalid or has expired. Please request a new one.']);
-
+        // NB: build the invalid-link redirect lazily (only on the branches that
+        // return it). RedirectResponse::withErrors() flashes into the session as
+        // a SIDE EFFECT at call time — so eagerly assigning it here would flash
+        // the "expired link" error even on the success path, and it would then
+        // ride along to the /login page next to the success banner.
         if (! $this->tokenIsValid($data['email'], $data['token'])) {
-            return $invalid;
+            return $this->invalidLinkRedirect();
         }
 
         /** @var class-string<PbUser> $userClass */
         $userClass = config('ai-page-builder.models.user', PbUser::class);
         $user = $userClass::query()->where('email', $data['email'])->first();
         if (! $user instanceof PbUser) {
-            return $invalid;
+            return $this->invalidLinkRedirect();
         }
 
         $user->setAttribute('password', $data['password']); // hashed by cast
@@ -120,6 +122,17 @@ class PasswordResetController
 
         return redirect($this->loginUrl())
             ->with('status', 'Your password has been reset — please sign in.');
+    }
+
+    /**
+     * Redirect back to "forgot" with the invalid/expired-link error. Built on
+     * demand: withErrors() flashes at construction time, so this must only ever
+     * be called on a branch that actually returns it (never pre-assigned).
+     */
+    private function invalidLinkRedirect(): RedirectResponse
+    {
+        return redirect('/'.$this->loginPath().'/forgot')
+            ->withErrors(['email' => 'This password reset link is invalid or has expired. Please request a new one.']);
     }
 
     /** A reset token is valid when it matches the stored hash and is not expired. */

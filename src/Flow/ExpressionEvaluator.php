@@ -78,6 +78,52 @@ class ExpressionEvaluator
      */
     public function evaluateOrThrow(string $expression, array $variables = []): mixed
     {
-        return $this->el->evaluate($expression, $variables);
+        return $this->el->evaluate($this->normalize($expression), $variables);
+    }
+
+    /**
+     * Rewrite dot-access on the context roots (vars/input/args/states/globals) to
+     * bracket-access, because those roots are ARRAYS and Symfony EL's `foo.bar`
+     * only works on objects — arrays require `foo['bar']`. So an author who writes
+     * `vars.item['id']` or `vars.order.total` (the natural, forgiving form) gets
+     * the same result as the strict `vars['item']['id']`.
+     *
+     * String literals are left untouched, so a value like `'input.txt'` or a URL
+     * inside quotes is never mangled.
+     */
+    private function normalize(string $expression): string
+    {
+        // Split on quoted literals (single or double), keeping them as captured
+        // delimiters at the odd indices so we only rewrite the code between them.
+        $segments = preg_split(
+            '/(\'(?:[^\'\\\\]|\\\\.)*\'|"(?:[^"\\\\]|\\\\.)*")/',
+            $expression,
+            -1,
+            PREG_SPLIT_DELIM_CAPTURE
+        );
+
+        if ($segments === false) {
+            return $expression;
+        }
+
+        $out = '';
+        foreach ($segments as $i => $segment) {
+            if ($i % 2 === 1) {          // a quoted literal — leave verbatim
+                $out .= $segment;
+
+                continue;
+            }
+            $out .= preg_replace_callback(
+                '/\b(vars|input|args|states|globals)((?:\.[a-zA-Z_]\w*)+)/',
+                static function (array $m): string {
+                    $keys = explode('.', ltrim($m[2], '.'));
+
+                    return $m[1].implode('', array_map(static fn (string $k): string => "['".$k."']", $keys));
+                },
+                $segment
+            );
+        }
+
+        return $out;
     }
 }

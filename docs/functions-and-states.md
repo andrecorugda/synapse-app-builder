@@ -152,4 +152,13 @@ Page markup binds to it declaratively over `$store.app.<key>` — `x-text`, `x-s
 
 A flow can update the store **live** without a reload: a `result` action of type `setState`/`setStates` (applied by the page runtime) writes into `$store.app`, and every bound component re-renders. (Persisting the value server-side is a separate `set_variable` node — `setState` only changes the in-page store for that visitor.)
 
+## Compose, don't repeat
+
+There are two levels of reuse:
+
+- **A single expression** that's used in multiple places → factor it into a **Function** and call it with the [`function` node](flows.md#function). A function is a named one-liner (or short expression) that stays readable and testable in isolation.
+- **A multi-step process** needed by more than one flow → make it its own **Flow** and invoke it with the [`call_flow` node](flows.md#call_flow). The called flow runs with the caller's shared context (`vars`/`input`), so outputs flow through naturally.
+
+The AI generator applies the same principle: it will factor logic that appears in more than one place into a function or a shared flow, but it won't over-factor a one-off step that only exists in one context.
+
 Next: [Authentication & permissions](authentication-and-permissions.md).

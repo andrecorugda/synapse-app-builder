@@ -15,7 +15,9 @@ use Andre\AiPageBuilder\Models\PbPermission;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbSetting;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Models\RecordRevision;
 use Andre\AiPageBuilder\Models\Variable;
+use Andre\AiPageBuilder\Models\Watcher;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
 
@@ -40,6 +42,8 @@ return [
             // Metadata for user-defined data models (the "collections").
             'models' => 'page_builder_models',
             'fields' => 'page_builder_fields',
+            // Per-record change history (data revisions) for collection writes.
+            'record_revisions' => 'page_builder_record_revisions',
             // Persistent, app-wide global variables.
             'variables' => 'page_builder_variables',
             // Builder configuration (home page, email/SMTP transport, …).
@@ -69,7 +73,9 @@ return [
         'flow_function' => FlowFunction::class,
         'model' => PbModel::class,
         'field' => PbField::class,
+        'record_revision' => RecordRevision::class,
         'variable' => Variable::class,
+        'watcher' => Watcher::class,
         'setting' => PbSetting::class,
         'user' => PbUser::class,
         'role' => PbRole::class,
@@ -106,6 +112,12 @@ return [
         'allow_destructive_sync' => (bool) env('AI_PAGE_BUILDER_DATA_DESTRUCTIVE', false),
         'default_per_page' => (int) env('AI_PAGE_BUILDER_DATA_PER_PAGE', 25),
         'max_per_page' => (int) env('AI_PAGE_BUILDER_DATA_MAX_PER_PAGE', 200),
+        // Snapshot every create/update/delete on a MANAGED collection into the
+        // record_revisions table so an admin can browse (and optionally restore)
+        // a record's history. External / read-only collections are never
+        // snapshotted (the package doesn't own their writes). Turn off to skip
+        // history entirely. A revision-write failure never blocks the real write.
+        'record_history' => (bool) env('AI_PAGE_BUILDER_RECORD_HISTORY', true),
     ],
 
     /*
@@ -300,6 +312,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public upload endpoint
+    |--------------------------------------------------------------------------
+    | Controls the behaviour of POST /pb-upload — the public image-upload route
+    | used by [data-pb-record] forms on rendered pages.
+    |
+    | allow_anonymous — false (default, safe): only authenticated users (either
+    |   a signed-in pb app-user or a panel/host-app user) may upload. Set to
+    |   true ONLY when you have external controls (WAF, IP allow-list, etc.).
+    |
+    | max_kb — maximum accepted file size in kilobytes (default 5 120 = 5 MB).
+    |   Applies regardless of the allow_anonymous setting.
+    */
+    'uploads' => [
+        'allow_anonymous' => (bool) env('AI_PAGE_BUILDER_ALLOW_ANON_UPLOADS', false),
+        'max_kb' => (int) env('AI_PAGE_BUILDER_UPLOAD_MAX_KB', 5120),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Render cache
     |--------------------------------------------------------------------------
     | The assembled HTML for a published page is cached. ttl 0 disables it.
@@ -367,6 +398,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Editor
+    |--------------------------------------------------------------------------
+    |
+    | livewire_max_nesting_depth — the visual editor syncs a nested GrapesJS
+    | component tree to Livewire; rich pages nest past Livewire's default of 10
+    | (→ MaxNestingDepthExceededException on save). The package raises the host's
+    | limit to this floor (never lowers a higher host value).
+    */
+    'editor' => [
+        'livewire_max_nesting_depth' => (int) env('AI_PAGE_BUILDER_LW_MAX_NESTING', 50),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Filament
     |--------------------------------------------------------------------------
     */
@@ -374,6 +419,11 @@ return [
         // Legacy single-group fallback (kept for backward compat).
         'navigation_group' => 'Content',
         'navigation_sort' => 10,
+
+        // Content width for every Synapse admin page — wider by default so forms and
+        // the flow canvas have room. Any Filament MaxWidth value ('full', 'screen-2xl',
+        // '7xl', …); set null to leave the host panel's own width untouched.
+        'max_content_width' => env('AI_PAGE_BUILDER_MAX_CONTENT_WIDTH', 'full'),
 
         // Resources + pages are grouped by purpose for a tidy, scannable menu.
         // Override a label to rename a group, or set several keys to the SAME

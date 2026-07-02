@@ -37,33 +37,37 @@ Nothing leaves your server. There's no SaaS, no per-seat pricing, no lock-in. It
 
 | Pillar | What it gives you |
 |---|---|
-| 🧩 **Pages & components** | A GrapesJS visual builder + a real UI kit (cards, modals, drawers, tabs, forms, **data tables**), per-page CSS/JS, SEO, a cached public render route, and a pickable **home page**. |
-| 🗄️ **Collections (data)** | Define your own models → **real database tables** (`pb_<key>`, Directus-style) with typed fields, schema sync, an instant **REST API** (filter/sort/search/paginate) and a records browser. Or map an **existing external table** as a read-through virtual collection — same API/blocks/flows, never schema-managed. |
-| ⚡ **Flows (the brain)** | An n8n-style visual canvas. Triggers (a click, a record event, cron, an API call) run nodes: CRUD, HTTP, AI invoke, functions, conditions, set-state, **send email**, page actions. |
-| ƒ **Functions & States** | Reusable logic (expression / callable / PHP) and a persistent, app-wide **reactive store** that components bind to and flows update live. |
+| 🧩 **Pages & components** | A GrapesJS visual builder + a real UI kit (cards, modals, drawers, tabs, forms, **data tables**), per-page CSS/JS, SEO, a cached public render route, and a pickable **home page**. **Management pages** give you an Add form + live data table + per-row Edit/Delete in one pattern. Image fields upload on select via a gated `/pb-upload` endpoint. |
+| 🗄️ **Collections (data)** | Define your own models → **real database tables** (`pb_<key>`, Directus-style) with typed fields, schema sync, an instant **REST API** (filter/sort/search/paginate/`expand=*`) and a records browser. `?expand=*` resolves belongs-to relations so lists show related record names instead of raw ids. Or map an **existing external table** as a read-through virtual collection — same API/blocks/flows, never schema-managed. |
+| ⚡ **Flows (the brain)** | An n8n-style visual canvas. Transaction and Loop bodies are edited as an ordered, sortable **step list**. A **`call_flow`** node runs a saved flow as a sub-step, sharing context. One Trigger per flow (START-badged), enforced by the editor. **Colour-coded node types** (with a matching, colour-coded node drawer), **green / red true / false branch ports** on conditions, zoom controls + non-overlapping auto-layout. Nodes: CRUD, HTTP, AI invoke, functions, conditions, set-state, **send email**, page actions — with a low-code **Result** type-picker. |
+| ƒ **Functions & States** | Reusable logic (expression / callable / PHP) and a persistent, app-wide **reactive store** that components bind to and flows update live. Factor a one-liner into a Function; a multi-step process into a reusable Flow via `call_flow`. |
 | 🔐 **Auth & permissions** | The built app's **own** users, roles and permissions — sign in once, every gated page just works. Password / **SSO** (Google · Microsoft · GitHub, org-restricted) / **2FA** (email-OTP + authenticator), self-registration + email **invites**, per-page gating, opt-in CRUD rules, **row-/field-level security** and record ownership. Optional: a public site ignores it entirely. |
 | ✉️ **Email** | An isolated SMTP transport (configured in Settings) + a `send_email` flow node that uses any page as an interpolated **email template**. |
-| ✦ **AI generation** | Describe an app in plain language → review a validated plan → apply it. A **floating chat** follows you across the admin to refine what you've built. Powered by the [AI OpenRouter Gateway](https://github.com/andrecorugda/ai-openrouter-gateway). |
+| ✦ **AI generation** | Describe an app in plain language → review a validated plan → apply it. The generator composes reusable functions and flows instead of repeating logic. A **floating chat** follows you across the admin to refine what you've built. Backed by a **generation quality harness** that asserts every layer of a generated app. Powered by the [AI OpenRouter Gateway](https://github.com/andrecorugda/ai-openrouter-gateway). |
 
 ---
 
 ## See it
 
-Everything below was **built with the package itself** — run `php artisan ai-page-builder:install-demo` to get these two apps.
+Everything below was **built with the package itself** — run `php artisan ai-page-builder:install-demo` to get the marketing site and the role-gated Inventory app, then sign in and explore.
 
-| A designed marketing site | A role-gated Inventory app |
+| A designed marketing site | A role-gated Inventory app — live data, KPIs, search & CRUD |
 |---|---|
 | ![Marketing site](art/screenshots/marketing-site.png) | ![Inventory dashboard](art/screenshots/inventory.png) |
 
-| Chat to build & refine (Ask / Plan / Build) | An automation flow (fan-out + branches) |
+| The visual builder — drag typed, colour-coded blocks | The flow canvas — colour-coded nodes + true / false branches |
 |---|---|
-| ![AI chat](art/screenshots/ai-chat.png) | ![Flow editor](art/screenshots/flow.png) |
+| ![Visual page builder](art/screenshots/editor.png) | ![Flow editor](art/screenshots/flow.png) |
+
+| Describe it; AI returns a reviewable Build Plan | The app's own sign-in (password · SSO · 2FA) |
+|---|---|
+| ![AI chat build plan](art/screenshots/ai-chat.png) | ![End-user login](art/screenshots/login.png) |
 
 ---
 
 ## What you can build
 
-- **An internal CRUD tool** — define collections, drop a form + a data table, gate it behind a login with per-role, row-level access (users see only their own rows).
+- **An internal CRUD tool** — define collections, use the management page pattern (Add form + data table + per-row Edit/Delete), gate it behind a login with per-role, row-level access (users see only their own rows). Relation columns resolve names automatically.
 - **A lead-capture or feedback site** — a public page whose form writes straight into a collection, with a flow that emails a templated confirmation on every submission.
 - **A reactive dashboard** — components bound to live state, updated by flows as data changes, no page reload.
 - **A marketing site** — pick a home page, design freely, publish to a cached route.

@@ -82,6 +82,14 @@ The conversation is kept in the browser (`localStorage`) and the panel is append
 
 On boot, when the gateway is present, the package seeds the `app_builder` integration with the generated prompt (`AppBuilderIntegrationSeeder`). It is idempotent and **self-healing** — re-seeded if deleted so the feature can't be broken by removing it — and it never clobbers a tuned prompt version. (`AI_PAGE_BUILDER_AI_AUTO_SEED` controls this; the manual command is `php artisan ai-page-builder:seed-integration`.)
 
+### Compose, don't repeat
+
+The generator applies the same reuse principle a human would: a named expression factored into a **Function** for a one-liner, a multi-step process shared by more than one flow factored into its own **Flow** invoked via `call_flow`. It does not over-factor: one-off logic that exists in exactly one flow stays inline. See [Functions & States → Compose, don't repeat](functions-and-states.md#compose-dont-repeat).
+
+### Generation quality harness
+
+A deterministic test suite (`tests/Feature/GenerationQualityTest.php`) asserts the full stack of a generated app: pages render, data binds correctly, the checkout flow runs atomically, and relations resolve with expanded names. This harness runs as part of the standard test suite (`composer test`) and fails if a generator change silently breaks generated output.
+
 ## Safety
 
 - **HTML sanitization** — AI output is untrusted, so `src/Ai/HtmlSanitizer.php` strips `<script>`, `<iframe>`, `<object>`/`<embed>`, inline `on*` handlers, `javascript:`/`vbscript:`/`data:text/html` URLs, and **executable** Alpine (`@*`, `x-on:*`, `x-init`, `x-effect`, `x-html`). It **keeps** declarative Alpine (`x-data`, `x-show`, `x-text`, `x-model`, `x-for`, `x-bind:`/`:`, `x-cloak`, `x-transition*`), `data-pb-*` and safe URLs (including `data:image/*`). Owner-authored blocks are trusted and bypass it — only AI page HTML is routed through `sanitize()`.

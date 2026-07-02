@@ -21,14 +21,23 @@ class FlowController
         /** @var class-string<Flow> $model */
         $model = config('ai-page-builder.models.flow', Flow::class);
 
+        // Any active flow is runnable here — how a flow was authored to be
+        // triggered (manual/component/…) does not gate access; the Public flag does:
+        //   • Public  → callable from ANY origin (external / webhook / API).
+        //   • Private → callable only SAME-ORIGIN (the app's own pages).
+        // A cross-origin hit on a private flow is 404 (not 403) so the endpoint
+        // never leaks that the flow exists.
         /** @var Flow|null $flow */
         $flow = $model::query()
             ->active()
             ->where('slug', $slug)
-            ->where('is_public', true)
             ->first();
 
         if ($flow === null) {
+            abort(404);
+        }
+
+        if (! $flow->is_public && ! $this->isSameOrigin($request)) {
             abort(404);
         }
 
@@ -45,7 +54,11 @@ class FlowController
         $input = (array) $request->input('input', []);
 
         try {
-            $ctx = app(FlowManager::class)->run($flow, $input);
+            // This is the page/API trigger path: the request payload IS the page's
+            // live $store.app state, so overlay it onto `states.*` (so a node's
+            // {{ states.email }} resolves to what the visitor typed, not the empty
+            // persisted Variable). Non-page triggers (cron/collection/admin) pass none.
+            $ctx = app(FlowManager::class)->run($flow, $input, $input);
 
             return response()->json(['actions' => $ctx->actions]);
         } catch (\Throwable $e) {
@@ -56,5 +69,23 @@ class FlowController
 
             return response()->json(['error' => 'Flow failed'], 500);
         }
+    }
+
+    /**
+     * True when the request originates from the app's own host (Origin, falling
+     * back to Referer). A request with neither header is treated as cross-origin.
+     */
+    private function isSameOrigin(Request $request): bool
+    {
+        foreach (['Origin', 'Referer'] as $header) {
+            $value = $request->headers->get($header);
+            if (is_string($value) && $value !== '') {
+                $host = parse_url($value, PHP_URL_HOST);
+
+                return is_string($host) && $host === $request->getHost();
+            }
+        }
+
+        return false;
     }
 }
