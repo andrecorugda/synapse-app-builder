@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Maintenance-mode admin bypass works.** An admin end-user could not preview
+  the live site during maintenance — the bypass checked a non-existent
+  `user.is_admin` attribute instead of the role flag (`isAdmin()`), so admins
+  got the 503 like everyone else. Now admins bypass; non-admins still get the
+  maintenance page.
+
 ### AI
 
 - **Prompt/validator accuracy.** The generator now gets a real `call_flow` node
