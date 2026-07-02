@@ -72,11 +72,12 @@ it('calls an http endpoint and stores the response', function (): void {
         ->and($ctx->vars['h_status'])->toBe(200);
 });
 
-it('emits setState / setStates result actions for the reactive page store', function (): void {
+it('drops state-setting actions from a Result node (that is the Set Variable node\'s job)', function (): void {
     $def = [
         'start' => 'r',
         'nodes' => [
             'r' => ['type' => 'result', 'config' => ['actions' => [
+                ['type' => 'notify', 'message' => 'Done {{ input.n }}', 'level' => 'success'],
                 ['type' => 'setState', 'key' => 'count', 'value' => '{{ input.n }}'],
                 ['type' => 'setStates', 'values' => ['a' => 1, 'b' => 2]],
             ]]],
@@ -85,9 +86,10 @@ it('emits setState / setStates result actions for the reactive page store', func
 
     $ctx = app(FlowRunner::class)->run($def, ['n' => 7]);
 
-    expect($ctx->actions)->toHaveCount(2)
-        ->and($ctx->actions[0])->toMatchArray(['type' => 'setState', 'key' => 'count', 'value' => '7'])
-        ->and($ctx->actions[1]['type'])->toBe('setStates');
+    // Only the notify survives — setState/setStates are no longer allowed in a
+    // Result node (redundant with the Set Variable node, which emits its own).
+    expect($ctx->actions)->toHaveCount(1)
+        ->and($ctx->actions[0])->toMatchArray(['type' => 'notify', 'message' => 'Done 7', 'level' => 'success']);
 });
 
 it('fans out to multiple nodes and runs a fan-in/join node only once', function (): void {
