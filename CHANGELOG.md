@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Inventory demo "Sign out" works (was a 419).** The demo shipped a raw
+  `<form action="/pb-logout">` with no CSRF token → every logout hit 419 and the
+  user was stranded, still signed in. It now uses the token-aware
+  `data-pb-logout` runtime control (the built-in no-code logout mechanism).
 - **The Embed block works again.** Its `<iframe>` was stripped on every save
   (the HTML sanitizer removed all iframes, and it runs on owner saves too), so
   the block never rendered. The sanitizer now keeps the **Embed block's** iframe
