@@ -261,7 +261,35 @@ class WatcherDispatcher
             throw new \RuntimeException(sprintf('Flow "%s" not found.', $watcher->target_key));
         }
 
-        $this->flows->run($flow, $input);
+        // Tag the recorded run with its watcher so the watcher's Runs tab can
+        // find it (meta is provenance only — it never reaches the flow input).
+        $this->flows->run($flow, $input, [], ['watcher_id' => $watcher->id]);
+    }
+
+    /**
+     * Run a watcher's target ONCE with a representative payload, bypassing its
+     * conditions — a wiring test from the admin. Stamps telemetry like a real
+     * fire. Depth-guarded like the dispatch paths.
+     */
+    public function testFire(Watcher $watcher): void
+    {
+        if (self::$depth >= self::MAX_DEPTH) {
+            $this->warnDepth(['test' => $watcher->id]);
+
+            return;
+        }
+
+        $input = $watcher->source_type === 'state'
+            ? ['event' => 'changed', 'key' => (string) $watcher->source_key, 'old' => null, 'new' => 'test']
+            : ['event' => (string) ($watcher->event ?? 'created'), 'collection' => (string) $watcher->source_key, 'record' => [], 'old' => []];
+
+        self::$depth++;
+
+        try {
+            $this->runTarget($watcher, $input);
+        } finally {
+            self::$depth--;
+        }
     }
 
     /**

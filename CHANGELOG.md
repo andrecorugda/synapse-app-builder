@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### State & Watchers
 
+- **Test-fire + Runs for watchers** — the watcher edit page has a **Test fire**
+  action (runs the target once with a sample payload, conditions bypassed) and a
+  **Runs** tab listing the flow runs it caused. Flow runs now carry a nullable
+  `watcher_id` (new `flow_runs` column) so a run's provenance is queryable;
+  browser-side (client) state watchers are hard-locked to flow targets on save.
 - **"Only when these fields changed"** — a collection *update* watcher can list
   fields (`config.changed`) and fire only when one of them actually changed
   (old ≠ new); a no-op for created/deleted. Combines with criteria.

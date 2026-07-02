@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources;
 
 use Andre\AiPageBuilder\Filament\Resources\WatcherResource\Pages;
+use Andre\AiPageBuilder\Filament\Resources\WatcherResource\RelationManagers;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\PbModel;
@@ -324,6 +325,13 @@ class WatcherResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\RunsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
@@ -359,6 +367,13 @@ class WatcherResource extends Resource
             // 'server' is the default — only a browser-side watcher needs the marker.
             if (($config['side'] ?? null) === 'server') {
                 unset($config['side']);
+            }
+
+            // Browser watchers fire through /pb-flow, which only runs flows —
+            // enforce it here too so an import/API write can't persist an
+            // unrunnable function target.
+            if (($config['side'] ?? null) === 'client') {
+                $data['target_type'] = 'flow';
             }
 
             $data['config'] = $config === [] ? null : $config;

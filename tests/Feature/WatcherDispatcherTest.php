@@ -333,3 +333,38 @@ it('back-fills legacy collection flows into watchers', function (): void {
     app(RecordQuery::class)->create($model, ['name' => 'Winner', 'email' => 'w@x.com', 'status' => 'won']);
     expect(FlowRun::where('flow_slug_snapshot', 'legacy-lead')->count())->toBe(1);
 });
+
+it('tags dispatcher-caused runs with the watcher and exposes them via runs()', function (): void {
+    $model = makeWatchedLeadsModel();
+    makeNotifyFlow('on-create');
+    $watcher = makeCollectionWatcher('leads', 'created', 'on-create');
+
+    app(RecordQuery::class)->create($model, ['name' => 'Acme', 'email' => 'a@acme.com', 'status' => 'open']);
+
+    $run = FlowRun::where('flow_slug_snapshot', 'on-create')->first();
+    expect($run->watcher_id)->toBe($watcher->id)
+        ->and($watcher->runs()->count())->toBe(1)
+        ->and($watcher->runs()->first()->id)->toBe($run->id);
+});
+
+it('testFire runs the target, stamps telemetry, and records a watcher-tagged run', function (): void {
+    makeNotifyFlow('on-create');
+    $watcher = makeCollectionWatcher('leads', 'created', 'on-create');
+
+    app(WatcherDispatcher::class)->testFire($watcher);
+
+    $watcher->refresh();
+    expect($watcher->last_status)->toBe('ok')
+        ->and($watcher->last_fired_at)->not->toBeNull()
+        ->and($watcher->runs()->count())->toBe(1);
+});
+
+it('testFire ignores conditions (fires even when criteria would not match)', function (): void {
+    makeNotifyFlow('on-hot');
+    $watcher = makeCollectionWatcher('leads', 'created', 'on-hot', ['criteria' => ['status' => ['eq' => 'won']]]);
+
+    // Empty test record would fail the criteria on a real event, but test-fire bypasses it.
+    app(WatcherDispatcher::class)->testFire($watcher);
+
+    expect(FlowRun::where('flow_slug_snapshot', 'on-hot')->count())->toBe(1);
+});

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property int $id
  * @property int $flow_id
+ * @property ?int $watcher_id
  * @property string $status
  * @property ?array $input
  * @property ?array $result
