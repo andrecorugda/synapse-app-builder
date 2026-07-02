@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowRun;
+use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\Watcher;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 
@@ -119,4 +120,33 @@ it('does not fire when there is no matching state watcher', function (): void {
     app(VariableStore::class)->set('msg', 'hello');
 
     expect(FlowRun::where('flow_slug_snapshot', 'on-msg')->count())->toBe(0);
+});
+
+it('server dispatch skips browser-side watchers (they fire from the page)', function (): void {
+    makeStateFlow('on-msg');
+    makeStateWatcher('msg', 'on-msg', ['side' => 'client']);
+
+    app(VariableStore::class)->set('msg', 'hello');
+
+    expect(FlowRun::where('flow_slug_snapshot', 'on-msg')->count())->toBe(0);
+});
+
+it('renders active browser-side watchers into the page runtime (and only those)', function (): void {
+    makeStateFlow('on-client');
+    makeStateFlow('on-server');
+    makeStateWatcher('cart_items', 'on-client', ['side' => 'client', 'path' => 'customer.city']);
+    makeStateWatcher('cart_items', 'on-server'); // server-side — must NOT be injected
+
+    Page::create([
+        'slug' => 'watch-me',
+        'title' => 'Watch me',
+        'status' => 'published',
+        'html' => '<section><h1>hello</h1></section>',
+    ]);
+
+    $html = $this->get('/p/watch-me')->assertOk()->getContent();
+
+    expect($html)->toContain('on-client')
+        ->and($html)->toContain('customer.city')
+        ->and($html)->not->toContain('on-server');
 });
