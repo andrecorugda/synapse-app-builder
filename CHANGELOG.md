@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Boolean variables parse textual values by meaning.** A `boolean` variable
+  (or Set Variable node) set to the string `"false"` stored `true` — a plain
+  truthiness test treats any non-empty string as true. `"false"`/`"no"`/`"off"`/
+  `"0"` now store `false`; `"true"`/`"yes"`/`"on"`/`"1"` store `true`.
 - **A handled transaction rollback records as `ok`, not `ok`-with-an-error.** A
   transaction that rolled back and followed its `rolled_back` branch left the
   run-level error populated, so telemetry showed a successful run carrying a

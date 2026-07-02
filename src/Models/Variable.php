@@ -96,7 +96,12 @@ class Variable extends Model
         }
 
         if ($type === 'boolean') {
-            return $value ? '1' : '0';
+            // Interpret the value the way a human means it: a real bool, an int,
+            // or a STRING like "true"/"false"/"1"/"0"/"yes"/"no"/"on"/"off".
+            // A plain `$value ? …` would store the string "false" as TRUE (any
+            // non-empty string is truthy in PHP) — so a boolean var set to
+            // "false" silently became true.
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
         }
 
         return (string) $value;
