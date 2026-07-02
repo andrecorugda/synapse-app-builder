@@ -146,6 +146,18 @@ final class SystemPromptBuilder
                          "next": "<node id>" | "next_true"/"next_false": "<node id>" } }
             }
           } ]
+        - "watchers": [ {
+            "name": "<label>",
+            "source_type": "collection|state",
+            "source_key": "<collection key OR state key>",
+            "event": "created|updated|deleted (collection) | changed (state)",
+            "config": { "criteria": { "<field>": { "<op>": <value> } },
+                        "changed": ["<field>"],
+                        "path": "<object.sub.path>", "from": <any>, "to": <any>,
+                        "op": "<op>", "value": <any> },
+            "target_type": "flow|function",
+            "target_key": "<flow/function slug>"
+          } ]
         - "pages": [ { "slug": "<lowercase-slug>", "title": "<label>",
                        "kind": "page|email", "status": "draft|published",
                        "html": "<markup using CLASSES, not inline styles>",
@@ -172,16 +184,23 @@ final class SystemPromptBuilder
         NEVER emit executable directives (@click, x-on:*, x-init) in html — use
         `custom_js` for that.
 
+        REACTING TO CHANGES → A WATCHER. A flow is a reusable graph; to run it when
+        a record or a State changes, emit a `watchers` entry pointing at the flow —
+        do NOT put trigger config on the flow. `trigger_type` is only a label now.
+        Use ONE watcher per event (created → flow A, updated → flow B, …). Optional
+        `config`: collection → `criteria` (all must match, same ops as RecordQuery)
+        and `changed` (update fires only if a listed field changed); state →
+        `path`/`from`/`to`/`op`/`value`. A collection watcher's flow receives
+        `{{ input.record.<field> }}`, `{{ input.old.<field> }}`, `{{ input.event }}`;
+        a state watcher's receives `{{ input.key }}`, `{{ input.old }}`, `{{ input.new }}`.
+
         Page "kind" defaults to "page" (a normal page). Use "email" to mark a page
         as an EMAIL TEMPLATE — its html becomes the body of an email sent by a
         `send_email` flow node. Email templates interpolate flow context with
         mustache tokens: `{{ input.x }}`, `{{ vars.x }}`, `{{ states.x }}` (NOT
-        Alpine — emails have no JS). To notify on an event: create a kind=email
-        page, then a flow (often trigger_type "collection") whose `send_email`
-        node sets `template` to that page's slug. For a collection-triggered
-        flow the changed row is at `{{ input.record.<field> }}` (plus
-        `{{ input.event }}` and `{{ input.collection }}`); its trigger_config is
-        `{ "collection": "<key>", "events": ["created"], "criteria": {} }`.
+        Alpine — emails have no JS). To notify on a record event: create a kind=email
+        page, a flow whose `send_email` node sets `template` to that page's slug,
+        and a `watchers` entry (source_type "collection") targeting that flow.
 
         Set "settings.home_page" to the slug of a published kind=page page to make
         it the site's home page. Only set it when the request implies a landing /
@@ -209,7 +228,7 @@ final class SystemPromptBuilder
         embedding it with `<div data-pb-partial="nav"></div>` instead of repeating
         the nav markup.
 
-        {"collections":[{"key":"signups","name":"Signups","fields":[{"key":"name","label":"Name","type":"string","options":{"required":true}},{"key":"email","label":"Email","type":"string","options":{"required":true}}]}],"partials":[{"slug":"nav","name":"Top nav","html":"<header class=\"pb-nav\"><span class=\"pb-nav__brand\">Waitlist</span><nav class=\"pb-nav__links\"><a data-pb-page=\"home\">Home</a><a data-pb-page=\"about\">About</a></nav></header>","custom_css":".pb-nav{display:flex;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid #e2e8f0}.pb-nav__links a{margin-left:1.25rem;color:#334155;text-decoration:none;cursor:pointer}.pb-nav__links a.is-active{color:#6366f1;font-weight:700}"}],"pages":[{"slug":"home","title":"Home","kind":"page","status":"published","html":"<div data-pb-partial=\"nav\"></div><section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">Join the waitlist</h1></section>","custom_css":":root{--accent:#6366f1}.pb-hero{padding:4rem 1.5rem;text-align:center}.pb-hero__title{margin:0;font-size:2.4rem;color:var(--accent)}"},{"slug":"about","title":"About","kind":"page","status":"published","html":"<div data-pb-partial=\"nav\"></div><section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">About us</h1></section>","custom_css":""},{"slug":"welcome-email","title":"Welcome email","kind":"email","status":"draft","html":"<h1>Welcome {{ input.record.name }}</h1><p>Thanks for joining the waitlist.</p>","css":""}],"flows":[{"slug":"on-signup","name":"On signup","trigger_type":"collection","trigger_config":{"collection":"signups","events":["created"]},"definition":{"start":"t","nodes":{"t":{"type":"trigger","next":["mail"]},"mail":{"type":"send_email","config":{"to":"{{ input.record.email }}","subject":"Welcome {{ input.record.name }}","template":"welcome-email","output":"email"}}}}}],"settings":{"home_page":"home"}}
+        {"collections":[{"key":"signups","name":"Signups","fields":[{"key":"name","label":"Name","type":"string","options":{"required":true}},{"key":"email","label":"Email","type":"string","options":{"required":true}}]}],"partials":[{"slug":"nav","name":"Top nav","html":"<header class=\"pb-nav\"><span class=\"pb-nav__brand\">Waitlist</span><nav class=\"pb-nav__links\"><a data-pb-page=\"home\">Home</a><a data-pb-page=\"about\">About</a></nav></header>","custom_css":".pb-nav{display:flex;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid #e2e8f0}.pb-nav__links a{margin-left:1.25rem;color:#334155;text-decoration:none;cursor:pointer}.pb-nav__links a.is-active{color:#6366f1;font-weight:700}"}],"pages":[{"slug":"home","title":"Home","kind":"page","status":"published","html":"<div data-pb-partial=\"nav\"></div><section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">Join the waitlist</h1></section>","custom_css":":root{--accent:#6366f1}.pb-hero{padding:4rem 1.5rem;text-align:center}.pb-hero__title{margin:0;font-size:2.4rem;color:var(--accent)}"},{"slug":"about","title":"About","kind":"page","status":"published","html":"<div data-pb-partial=\"nav\"></div><section data-pb-block=\"hero\" class=\"pb-hero\"><h1 class=\"pb-hero__title\">About us</h1></section>","custom_css":""},{"slug":"welcome-email","title":"Welcome email","kind":"email","status":"draft","html":"<h1>Welcome {{ input.record.name }}</h1><p>Thanks for joining the waitlist.</p>","css":""}],"flows":[{"slug":"on-signup","name":"On signup","trigger_type":"manual","definition":{"start":"t","nodes":{"t":{"type":"trigger","next":["mail"]},"mail":{"type":"send_email","config":{"to":"{{ input.record.email }}","subject":"Welcome {{ input.record.name }}","template":"welcome-email","output":"email"}}}}}],"watchers":[{"name":"Signup created → welcome email","source_type":"collection","source_key":"signups","event":"created","target_type":"flow","target_key":"on-signup"}],"settings":{"home_page":"home"}}
 
         ### Example — a checkout flow (COPY THIS SHAPE for any cart/order/transfer)
 
