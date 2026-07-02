@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Flow Result-action builder now uses the real catalog.** The builder fell
+  back to a stale inline list because `window.__pbActionCatalog` was never
+  injected — so it offered `setState`/`setText` actions the node silently
+  discards, and hid the real catalog's Modal **Partial** picker, Redirect
+  **new-tab** option, and target-field help. The canonical `ResultActionCatalog`
+  is now injected and used (and the dead inline fallback no longer lists the
+  discarded types).
 - **`data_table` and `list` now render when built as prescribed.** A bare
   `<div data-pb-block="data_table" data-pb-collection="…">` (the form the docs +
   AI emit) was never expanded — those blocks are category *Data*, but the
