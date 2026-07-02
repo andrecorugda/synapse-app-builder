@@ -151,17 +151,16 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
             $ips[] = $host;
         } else {
             // gethostbynamel() uses the libc resolver (consults /etc/hosts,
-            // matching what cURL dials); dns_get_record() adds AAAA. A name that
-            // resolves to NOTHING is refused rather than dialed blind (fail closed).
+            // matching what cURL dials, so a name mapped to loopback there is
+            // caught); dns_get_record() adds AAAA. A name that resolves to
+            // NOTHING is left to connect and fail on its own — an unresolvable
+            // host can't reach an internal target, and refusing it here would
+            // break legitimate hosts PHP's resolver happens not to see.
             foreach ((array) (@gethostbynamel($host) ?: []) as $ip) {
                 $ips[] = $ip;
             }
             foreach (@dns_get_record($host, DNS_A + DNS_AAAA) ?: [] as $rec) {
                 $ips[] = $rec['ip'] ?? $rec['ipv6'] ?? null;
-            }
-
-            if (array_filter($ips) === []) {
-                return true;
             }
         }
 

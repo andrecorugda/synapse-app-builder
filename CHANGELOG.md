@@ -14,9 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   understand every spelling cURL dials — so `localhost`, an IPv6 loopback
   literal `[::1]`, and a decimal/dotless IPv4 (`2130706433` = `127.0.0.1`) all
   slipped through to loopback. Hosts are now normalized (brackets stripped,
-  decimal IPs expanded), `localhost` is refused outright, name resolution also
-  goes through the libc resolver (`gethostbynamel`, matching cURL), and a name
-  that resolves to nothing is refused rather than dialed blind.
+  decimal IPs expanded), `localhost` is refused outright, and name resolution
+  also goes through the libc resolver (`gethostbynamel`, matching cURL and
+  consulting `/etc/hosts`) in addition to DNS, so a name mapped to an internal
+  address is caught.
 
 ### Fixed
 
