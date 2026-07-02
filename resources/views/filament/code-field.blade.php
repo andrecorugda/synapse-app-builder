@@ -78,16 +78,37 @@
                     </div>
                 </div>
 
-                <select
-                    title="Insert a State reference at the cursor"
-                    @change="insertState($event.target.value); $event.target.value = ''"
-                    style="background:#0f172a;color:#5eead4;border:1px solid #2dd4bf66;border-radius:.3rem;font-size:.72rem;padding:.15rem .4rem;max-width:220px;"
-                >
-                    <option value="">⎘ Insert state…</option>
-                    <template x-for="opt in stateInsertOptions()" :key="opt.value">
-                        <option :value="opt.value" x-text="opt.label"></option>
-                    </template>
-                </select>
+                {{-- Two-step State insert: pick a state, then (for an Object) a
+                     value inside it. insertState() turns the dotted ref into the
+                     field's accessor syntax ($states['a']['b'] / state('a')['b']). --}}
+                <span x-data="{ sel: '', paths: [] }" style="display:inline-flex;gap:.3rem;">
+                    <select
+                        title="Insert a State reference at the cursor"
+                        @change="
+                            sel = $event.target.value;
+                            var st = (window.__pbStates || []).find(function (v) { return v.key === sel; });
+                            paths = (st && Array.isArray(st.paths)) ? st.paths : [];
+                            if (sel && paths.length === 0) { insertState(sel); sel = ''; }
+                            $event.target.value = '';
+                        "
+                        style="background:#0f172a;color:#5eead4;border:1px solid #2dd4bf66;border-radius:.3rem;font-size:.72rem;padding:.15rem .4rem;max-width:220px;"
+                    >
+                        <option value="">⎘ Insert state…</option>
+                        <template x-for="s in (window.__pbStates || [])" :key="s.key">
+                            <option :value="s.key" x-text="s.key + ' · ' + (s.type || 'string')"></option>
+                        </template>
+                    </select>
+                    <select x-show="sel && paths.length" style="display:none;background:#0f172a;color:#5eead4;border:1px solid #2dd4bf66;border-radius:.3rem;font-size:.72rem;padding:.15rem .4rem;max-width:220px;"
+                        title="Pick a value inside the selected Object state"
+                        @change="if ($event.target.value) { insertState($event.target.value); } sel = ''; paths = []; $event.target.value = '';"
+                    >
+                        <option value="">⎘ value…</option>
+                        <option :value="sel" x-text="sel + ' (whole object)'"></option>
+                        <template x-for="p in paths" :key="p">
+                            <option :value="sel + '.' + p" x-text="p"></option>
+                        </template>
+                    </select>
+                </span>
             </div>
         @endif
         @php $editorRadius = in_array($language, ['php', 'javascript'], true) ? '0 0 0.5rem 0.5rem' : '0.5rem'; @endphp

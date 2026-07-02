@@ -1859,24 +1859,10 @@
                 },
 
                 /**
-                 * Flattened State picker options: each state's root, plus every
-                 * Object shape path. The option value is the dotted ref that follows
-                 * "states." (e.g. "address" or "address.city"), which insertState
-                 * wraps verbatim — no separate path arg needed.
-                 */
-                stateInsertOptions() {
-                    const out = [];
-                    (window.__pbVariables || []).forEach((s) => {
-                        out.push({ value: s.key, label: s.key + ' · ' + (s.type || 'string') });
-                        (s.paths || []).forEach((p) => out.push({ value: s.key + '.' + p, label: '↳ ' + s.key + '.' + p }));
-                    });
-                    return out;
-                },
-
-                /**
                  * Insert a {{ states.<ref> }} reference at the caret of the last
                  * focused node field (or append if none focused yet). `ref` is a
-                 * state key or a dotted shape path (address.city).
+                 * state key or a dotted shape path (address.city) — the toolbar's
+                 * two-step picker (flow-canvas) supplies the full dotted ref.
                  */
                 insertState(key) {
                     if (! key) { return; }
