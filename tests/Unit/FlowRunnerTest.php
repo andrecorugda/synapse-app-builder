@@ -112,7 +112,7 @@ it('fans out to multiple nodes and runs a fan-in/join node only once', function 
         ->and(array_count_values($messages)['JOIN'])->toBe(1); // join ran once despite two paths
 });
 
-it('drops disallowed result action types and skips unknown nodes', function (): void {
+it('fails the run on an unknown node and never routes downstream', function (): void {
     $def = [
         'start' => 'n1',
         'nodes' => [
@@ -124,7 +124,14 @@ it('drops disallowed result action types and skips unknown nodes', function (): 
         ],
     ];
 
-    // Unknown start node has no handler -> skipped, flow ends; nothing routes to n2.
+    // The unknown start node has no handler -> the run fails and n2 never routes,
+    // so its actions (incl. the redirect) never fire. The only queued action is
+    // the top-level error toast.
     $ctx = app(FlowRunner::class)->run($def);
-    expect($ctx->actions)->toBeEmpty();
+
+    expect($ctx->failed)->toBeTrue();
+    $types = array_map(fn ($a) => $a['type'], $ctx->actions);
+    expect($types)->not->toContain('redirect')
+        ->and($types)->not->toContain('evil')
+        ->and($types)->toBe(['notify']);
 });
