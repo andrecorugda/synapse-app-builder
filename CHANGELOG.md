@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — component configuration
 
+- **Form controls are properly configurable.** checkbox/radio now expose
+  **Submitted value** + **Checked by default** (and no longer wrongly show the
+  text "Input type"/min/max/pattern traits that could silently convert them);
+  textarea exposes **Rows** + **Max length**; a `<select>` can be **populated
+  from a collection** (field-picker), the previously-implemented-but-unreachable
+  path; the **File upload** is now an image upload with an `Accept` filter +
+  **multiple** toggle. Forms gain **Success message**, **Redirect after submit**
+  and **Reset after submit** settings.
 - **KPI & Chart value formatting** — number / currency (with code) / percent,
   plus optional decimals, prefix and suffix, so money dashboards read correctly
   (was locale-number only).
