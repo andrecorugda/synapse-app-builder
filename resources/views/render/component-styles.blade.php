@@ -5,6 +5,14 @@
      page (render/page.blade.php <style>) AND the editor canvas
      (filament/grapesjs-assets.blade.php) so the builder previews match the page.
      Keep this file pure CSS — no Blade/PHP — so both consumers can inline it. --}}
+/* ---- Modal: overlay layout ------------------------------------------------ */
+/* display:flex must live in a class, NOT the inline style: Alpine's x-show
+   clears the element's inline `display` when it shows the overlay, which wiped
+   an inline `display:flex` and left the dialog top-left (block) instead of
+   centered. The class survives x-show, so the modal centers (and drawer-display
+   docking, which needs a flex overlay, works). */
+[data-pb-block="modal"] .pb-modal__overlay{display:flex}
+
 /* ---- Modal: size ---------------------------------------------------------- */
 [data-pb-block="modal"][data-pb-size="sm"] .pb-modal__panel{max-width:24rem !important}
 [data-pb-block="modal"][data-pb-size="lg"] .pb-modal__panel{max-width:40rem !important}

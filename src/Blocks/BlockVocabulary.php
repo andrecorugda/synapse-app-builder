@@ -280,7 +280,7 @@ final class BlockVocabulary
             self::block('drawer', 'Drawer', 'Trigger button with a right-edge slide-over panel.', <<<'HTML'
             <div data-pb-block="drawer" class="pb-drawer" x-data="{ open: false }">
               <button type="button" class="pb-drawer__trigger" data-pb-open="open" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open drawer</button>
-              <div class="pb-drawer__backdrop" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-escape-close="open" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:1000;"></div>
+              <div class="pb-drawer__backdrop" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-close-self data-pb-escape-close="open" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:1000;"></div>
               <aside class="pb-drawer__panel" role="dialog" aria-modal="true" x-show="open" x-cloak x-transition:enter="pb-drawer-enter" x-transition:enter-start="pb-drawer-enter-start" x-transition:enter-end="pb-drawer-enter-end" x-transition:leave="pb-drawer-leave" x-transition:leave-start="pb-drawer-enter-end" x-transition:leave-end="pb-drawer-enter-start" style="position:fixed;top:0;right:0;height:100%;width:360px;max-width:90vw;background:#fff;box-shadow:-12px 0 40px rgba(15,23,42,0.18);z-index:1001;display:flex;flex-direction:column;">
                 <div class="pb-drawer__header" style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid #e2e8f0;">
                   <h3 class="pb-drawer__title" style="margin:0;font-size:1.15rem;color:#0f172a;">Drawer</h3>
