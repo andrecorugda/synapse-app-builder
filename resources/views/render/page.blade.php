@@ -159,7 +159,7 @@
                     _selectable: false,
                     _bulkSpec: [],    // [{action, label}]
                     // Runtime
-                    _sortKey: '', _sortDir: 'asc',
+                    _sortKey: '', _sortDir: 'asc', _emptyText: 'No records yet.',
                     _search: '',
                     _filters: {},     // {key: value}
                     _selected: {},    // {id: true}
@@ -197,6 +197,14 @@
 
                         var noSortRaw = (el.getAttribute('data-pb-no-sort') || '').trim();
                         self._noSort = noSortRaw ? noSortRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+
+                        // Default sort: load ordered by this field (else DB order).
+                        var sortDefault = (el.getAttribute('data-pb-sort') || '').trim();
+                        if (sortDefault) {
+                            self._sortKey = sortDefault;
+                            self._sortDir = el.getAttribute('data-pb-sort-dir') === 'desc' ? 'desc' : 'asc';
+                        }
+                        self._emptyText = (el.getAttribute('data-pb-empty-text') || 'No records yet.').trim() || 'No records yet.';
 
                         self._searchable = el.getAttribute('data-pb-searchable') === 'true';
 
@@ -556,7 +564,7 @@
                                 + '</span></td></tr></tbody>';
                         } else if (! self.rows.length) {
                             var colspan = cols.length + (self._selectable ? 1 : 0) + (recForm ? 1 : 0);
-                            tbody = '<tbody><tr><td colspan="' + colspan + '" style="padding:1rem .9rem;color:#64748b;font-family:inherit;">No records yet.</td></tr></tbody>';
+                            tbody = '<tbody><tr><td colspan="' + colspan + '" style="padding:1rem .9rem;color:#64748b;font-family:inherit;">' + self.esc(self._emptyText) + '</td></tr></tbody>';
                         } else {
                             var tdStyle = 'padding:.55rem .9rem;color:#0f172a;border-bottom:1px solid #f1f5f9;vertical-align:middle;';
                             var rows = self.rows.map(function (row, i) {
@@ -1312,11 +1320,34 @@
             // of treating a 403/500 body as data (which rendered a misleading 0).
             function agg(c, p) { return fetch(API + '/' + c + '/aggregate?' + qs(p), { headers: { Accept: 'application/json' } }).then(function (r) { if (! r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }); }
             function fmt(n) { n = Number(n) || 0; return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+            // Build a value formatter from a block's data-pb-format / -currency /
+            // -decimals / -prefix / -suffix settings (KPI + chart money display).
+            function makeFmt(el) {
+                var mode = el.getAttribute('data-pb-format') || 'number';
+                var dec = el.getAttribute('data-pb-decimals');
+                var prefix = el.getAttribute('data-pb-prefix') || '';
+                var suffix = el.getAttribute('data-pb-suffix') || '';
+                var opts = {};
+                if (dec != null && dec !== '') { opts.minimumFractionDigits = opts.maximumFractionDigits = Math.max(0, parseInt(dec, 10) || 0); }
+                return function (n) {
+                    n = Number(n) || 0;
+                    var out;
+                    if (mode === 'currency') {
+                        out = n.toLocaleString(undefined, Object.assign({ style: 'currency', currency: (el.getAttribute('data-pb-currency') || 'USD') }, opts));
+                    } else if (mode === 'percent') {
+                        out = (dec != null && dec !== '' ? n.toFixed(opts.maximumFractionDigits) : fmt(n)) + '%';
+                    } else {
+                        out = Object.keys(opts).length ? n.toLocaleString(undefined, opts) : fmt(n);
+                    }
+                    return prefix + out + suffix;
+                };
+            }
 
             document.querySelectorAll('[data-pb-block="kpi"]').forEach(function (el) {
                 var c = el.getAttribute('data-pb-collection'); if (! c) { return; }
+                var format = makeFmt(el);
                 agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '' })
-                    .then(function (d) { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = fmt(d && d.total); } })
+                    .then(function (d) { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = format(d && d.total); } })
                     // Don't leave a fake "0" on failure — show it couldn't load.
                     .catch(function () { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = '—'; v.setAttribute('title', 'Could not load — you may not have access.'); } });
             });
@@ -1350,7 +1381,7 @@
                     var raw = el.getAttribute('data-pb-chart-type') || 'bar';
                     var area = raw === 'area';
                     var type = area ? 'line' : (raw === 'donut' ? 'doughnut' : raw);
-                    agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '', group_by: el.getAttribute('data-pb-group') || '', date_bucket: el.getAttribute('data-pb-date-bucket') || '' })
+                    agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '', group_by: el.getAttribute('data-pb-group') || '', date_bucket: el.getAttribute('data-pb-date-bucket') || '', limit: el.getAttribute('data-pb-limit') || '', sort: el.getAttribute('data-pb-sort') || '' })
                         .then(function (d) {
                             var rows = (d && d.rows) || [];
                             var ph = el.querySelector('.pb-chart__placeholder'); if (ph) { ph.style.display = 'none'; }

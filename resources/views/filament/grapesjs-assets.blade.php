@@ -1246,10 +1246,19 @@
                             cmp.addTrait({ type: 'select', name: 'data-pb-collection', category: 'Data', label: 'Collection', options: collectionOptions });
                             cmp.addTrait({ type: 'select', name: 'data-pb-metric', category: 'Data', label: 'Metric', options: ['count', 'sum', 'avg', 'min', 'max'].map((m) => ({ id: m, name: m })) });
                             cmp.addTrait({ type: 'select', name: 'data-pb-field', category: 'Data', label: 'Field (sum/avg/min/max)', options: pbFieldOptions(curCollection, 'column', { numericOnly: true }) });
+                            // Value formatting (KPI + chart): number / currency / percent
+                            // + optional prefix/suffix/decimals for money dashboards.
+                            cmp.addTrait({ type: 'select', name: 'data-pb-format', category: 'Format', label: 'Value format', options: [{ id: 'number', name: 'Number' }, { id: 'currency', name: 'Currency' }, { id: 'percent', name: 'Percent' }] });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-currency', category: 'Format', label: 'Currency code', placeholder: 'USD' });
+                            cmp.addTrait({ type: 'number', name: 'data-pb-decimals', category: 'Format', label: 'Decimal places' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-prefix', category: 'Format', label: 'Prefix' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-suffix', category: 'Format', label: 'Suffix' });
                             if (pbBlock === 'chart') {
                                 cmp.addTrait({ type: 'select', name: 'data-pb-group', category: 'Data', label: 'Group by (field)', options: pbFieldOptions(curCollection, 'column') });
                                 cmp.addTrait({ type: 'select', name: 'data-pb-date-bucket', category: 'Data', label: 'Date bucket', options: [{ id: '', name: '— none —' }, { id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }] });
                                 cmp.addTrait({ type: 'select', name: 'data-pb-chart-type', category: 'Data', label: 'Chart type', options: ['bar', 'line', 'area', 'donut', 'pie'].map((t) => ({ id: t, name: t })) });
+                                cmp.addTrait({ type: 'number', name: 'data-pb-limit', category: 'Data', label: 'Max data points', placeholder: '50' });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-sort', category: 'Data', label: 'Sort by', options: [{ id: '', name: 'Value ↓ (default)' }, { id: '-value', name: 'Value ↓' }, { id: 'value', name: 'Value ↑' }, { id: 'label', name: 'Label A→Z' }, { id: '-label', name: 'Label Z→A' }] });
                             }
                             // Re-populate the dependent field selects when the
                             // collection changes. data-pb-collection is a real
@@ -1326,6 +1335,10 @@
                             });
                             cmp.addTrait({ type: 'text', name: 'data-pb-bulk', category: 'Data', label: 'Bulk actions (action:Label, comma-sep)' });
                             cmp.addTrait({ type: 'text', name: 'data-pb-per-page', category: 'Data', label: 'Rows per page', placeholder: '20' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-sort', category: 'Data', label: 'Default sort by', options: pbFieldOptions(cmp.getAttributes()['data-pb-collection'] || '', 'column') });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-sort-dir', category: 'Data', label: 'Sort direction', options: [{ id: 'asc', name: 'Ascending' }, { id: 'desc', name: 'Descending' }] });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-no-sort', category: 'Data', label: 'Non-sortable columns (comma-sep)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-empty-text', category: 'Data', label: 'Empty-state message', placeholder: 'No records yet.' });
                         }
 
                         // ── select — bind options from a collection ───────────
