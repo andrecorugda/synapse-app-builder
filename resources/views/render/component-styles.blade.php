@@ -87,3 +87,21 @@
 [data-pb-block="banner"][data-pb-variant="neutral"]{border-color:#e2e8f0 !important;background:#f8fafc !important;color:#334155 !important}
 [data-pb-block="banner"][data-pb-dismissible="false"] .pb-banner__dismiss{display:none !important}
 [data-pb-block="banner"][data-pb-icon="false"] .pb-banner__icon{display:none !important}
+
+/* ---- Progress: bar colour variant ---------------------------------------- */
+[data-pb-block="progress"][data-pb-variant="success"] .pb-progress__bar{background:#22c55e !important}
+[data-pb-block="progress"][data-pb-variant="warning"] .pb-progress__bar{background:#f59e0b !important}
+[data-pb-block="progress"][data-pb-variant="error"] .pb-progress__bar{background:#ef4444 !important}
+
+/* ---- Alert: severity (left border + surface tint) ------------------------- */
+[data-pb-block="alert"][data-pb-severity="success"]{border-left-color:#22c55e !important;background:#f0fdf4 !important}
+[data-pb-block="alert"][data-pb-severity="warning"]{border-left-color:#f59e0b !important;background:#fffbeb !important}
+[data-pb-block="alert"][data-pb-severity="error"]{border-left-color:#ef4444 !important;background:#fef2f2 !important}
+[data-pb-block="alert"][data-pb-icon="false"] > [aria-hidden]{display:none !important}
+
+/* ---- Avatar: size + shape ------------------------------------------------- */
+[data-pb-block="avatar"][data-pb-size="sm"]{width:40px !important;height:40px !important}
+[data-pb-block="avatar"][data-pb-size="lg"]{width:96px !important;height:96px !important}
+[data-pb-block="avatar"][data-pb-size="xl"]{width:128px !important;height:128px !important}
+[data-pb-block="avatar"][data-pb-shape="rounded"]{border-radius:0.6rem !important}
+[data-pb-block="avatar"][data-pb-shape="square"]{border-radius:0 !important}

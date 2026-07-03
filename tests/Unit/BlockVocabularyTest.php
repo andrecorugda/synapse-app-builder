@@ -78,6 +78,16 @@ it('data/interactive components expose their config + carry the bug fixes', func
         ->and($grid->template)->not->toContain('x-model.number="row.qty"');
 });
 
+it('media components expose value/appearance settings', function (): void {
+    $keys = fn (SectionBlock $b) => array_map(fn ($s) => $s->key, $b->settings);
+
+    expect($keys(BlockVocabulary::find('rating')))->toContain('data-pb-value', 'data-pb-max');
+    expect($keys(BlockVocabulary::find('progress')))->toContain('data-pb-percent', 'data-pb-variant');
+    expect($keys(BlockVocabulary::find('alert')))->toContain('data-pb-severity');
+    expect($keys(BlockVocabulary::find('video')))->toContain('data-pb-video-src', 'data-pb-controls');
+    expect($keys(BlockVocabulary::find('avatar')))->toContain('src', 'data-pb-size', 'data-pb-shape');
+});
+
 it('modal ships a hidden close-icon button the config CSS can reveal', function (): void {
     // The ✕ carries data-pb-close so the existing runtime closes it; it's hidden
     // until data-pb-close-icon="true" (config CSS).

@@ -41,6 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Media components are configurable (were only editable by hand-editing
+  markup).** **Video** takes a source URL + poster and controls/autoplay/loop/
+  muted toggles (it shipped an empty `<source>` and never played); **Progress**
+  has a single `Progress %` that drives both the bar and the label (they were
+  two unlinked values) + colour variant + show-label; **Rating** takes a value +
+  max and renders the stars; **Alert** takes a severity (info/success/warning/
+  error/neutral) that recolours it and swaps the icon (was hardcoded "info");
+  **Avatar** takes an image URL + alt + size + shape (its image was unreachable
+  in the UI).
 - **Autocomplete now captures the picked id.** The hidden value input had no
   `name`, so a surrounding form submitted the typed label text and lost the id
   (the block's whole purpose — capturing a foreign key). It now submits the id
