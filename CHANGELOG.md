@@ -5,7 +5,7 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-07-03
 
 ### Security
 
@@ -87,18 +87,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `user.is_admin` attribute instead of the role flag (`isAdmin()`), so admins
   got the 503 like everyone else. Now admins bypass; non-admins still get the
   maintenance page.
-
-### AI
-
-- **Prompt/validator accuracy.** The generator now gets a real `call_flow` node
-  hint (was generic); the Result-node hint no longer advertises `setState`/
-  `setStates`/`setText` (which the node drops — state writes go through Set
-  Variable); the offline validator's fallback node list now includes
-  `loop`/`transaction`/`call_flow` (its own canonical example uses them); and
-  the example email page uses `custom_css` (the real channel) not `css`.
-
-### Fixed
-
 - **Reference fields get their pickers inside transaction/loop bodies.** A
   node used as a body step rendered `integration` / `credential` / email
   `template` / `function` / `flow` as free-typed text (the top-level canvas
@@ -157,6 +145,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the canvas), so authors can actually edit and fill what's inside them. A
   dashed marker shows they're open only for editing; the published page is
   unchanged (closed by default, opens on interaction).
+
+### AI
+
+- **Prompt/validator accuracy.** The generator now gets a real `call_flow` node
+  hint (was generic); the Result-node hint no longer advertises `setState`/
+  `setStates`/`setText` (which the node drops — state writes go through Set
+  Variable); the offline validator's fallback node list now includes
+  `loop`/`transaction`/`call_flow` (its own canonical example uses them); and
+  the example email page uses `custom_css` (the real channel) not `css`.
 
 ## [1.2.0] - 2026-07-02
 
