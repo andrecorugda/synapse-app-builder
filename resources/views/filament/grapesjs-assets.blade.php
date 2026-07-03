@@ -1150,6 +1150,70 @@
                             cmp.addTrait({ type: 'select', name: 'data-pb-reset', category: 'Data', label: 'Reset form after submit', options: [{ id: '', name: 'Yes (default)' }, { id: 'false', name: 'No' }] });
                         }
 
+                        // Choice-list editor for select / radio_group — the single
+                        // biggest form gap: previously the only way to add/edit
+                        // options was hand-editing child DOM. A changeProp trait
+                        // (comma-sep "value:Label" or "Label") regenerates the option
+                        // children. Reads use getEl() (the real canvas DOM — robust);
+                        // writes use component.components(html). Guarded so a hiccup
+                        // never breaks the rest of the trait panel.
+                        try {
+                            const pbBlkForChoices = cmp.getAttributes()['data-pb-block'];
+                            if ((pbBlkForChoices === 'select' || pbBlkForChoices === 'radio_group') && ! names.includes('pb-choices')) {
+                                const escAttr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                const escText = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                const parseChoices = (raw) => String(raw || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
+                                    const c = s.indexOf(':');
+                                    return c > 0 ? { value: s.slice(0, c).trim(), label: s.slice(c + 1).trim() } : { value: s, label: s };
+                                });
+                                const dom = cmp.getEl();
+                                let seed = '';
+                                if (dom && pbBlkForChoices === 'select') {
+                                    const s = dom.querySelector('select');
+                                    if (s) { seed = Array.prototype.slice.call(s.options).filter((o) => o.value !== '').map((o) => { const t = (o.textContent || '').trim(); return o.value === t ? t : (o.value + ':' + t); }).join(', '); }
+                                } else if (dom) {
+                                    seed = Array.prototype.slice.call(dom.querySelectorAll('input[type=radio]')).map((r) => { const lab = r.closest('label'); const sp = lab && lab.querySelector('span'); const t = sp ? (sp.textContent || '').trim() : r.value; return r.value === t ? t : (r.value + ':' + t); }).join(', ');
+                                }
+                                cmp.set('pb-choices', seed);
+                                cmp.addTrait({ type: 'text', name: 'pb-choices', changeProp: true, category: 'Content', label: 'Options (comma-sep, value:Label)' });
+                                cmp.on('change:pb-choices', () => {
+                                    const items = parseChoices(cmp.get('pb-choices'));
+                                    if (! items.length) { return; }
+                                    if (pbBlkForChoices === 'select') {
+                                        const sel = cmp.find('select')[0]; if (! sel) { return; }
+                                        const d = cmp.getEl(); const hadEmpty = d && d.querySelector('select option[value=""]');
+                                        let html = hadEmpty ? '<option value="">— select —</option>' : '';
+                                        html += items.map((it) => '<option value="' + escAttr(it.value) + '">' + escText(it.label) + '</option>').join('');
+                                        sel.components(html);
+                                    } else {
+                                        const d = cmp.getEl(); const firstRadio = d && d.querySelector('input[type=radio]');
+                                        const name = firstRadio ? (firstRadio.getAttribute('name') || 'choice') : 'choice';
+                                        const legendEl = d && d.querySelector('legend');
+                                        const legendHtml = legendEl ? legendEl.outerHTML : '';
+                                        const optStyle = 'display:flex;align-items:center;gap:0.6rem;margin:0 0 0.4rem;color:#0f172a;font-size:0.9375rem;cursor:pointer;';
+                                        const inStyle = 'width:1.05rem;height:1.05rem;outline-offset:2px;cursor:pointer;';
+                                        const opts = items.map((it, i) => '<label class="pb-radio-group__option" style="' + optStyle + '"><input type="radio" name="' + escAttr(name) + '" value="' + escAttr(it.value) + '" class="pb-radio-group__control" style="' + inStyle + '"' + (i === 0 ? ' checked' : '') + '><span>' + escText(it.label) + '</span></label>').join('');
+                                        cmp.components(legendHtml + opts);
+                                    }
+                                });
+                            }
+
+                            // "Label" text for a form control — edit the field's label
+                            // without hunting for the text node in the canvas.
+                            const pbLabelSel = { text_input: '.pb-text-input__label', email_input: '.pb-text-input__label', textarea: '.pb-text-input__label', select: '.pb-select__label', date_picker: '.pb-text-input__label', file_upload: '.pb-field__label', radio_group: '.pb-radio-group__legend' }[cmp.getAttributes()['data-pb-block']];
+                            if (pbLabelSel && ! names.includes('pb-label-text')) {
+                                const domL = cmp.getEl();
+                                const labEl = domL && (domL.querySelector(pbLabelSel) || domL.querySelector('span, legend'));
+                                cmp.set('pb-label-text', labEl ? (labEl.textContent || '').trim() : '');
+                                cmp.addTrait({ type: 'text', name: 'pb-label-text', changeProp: true, category: 'Content', label: 'Label' });
+                                cmp.on('change:pb-label-text', () => {
+                                    const t = cmp.get('pb-label-text');
+                                    const lc = cmp.find(pbLabelSel)[0] || cmp.find('span')[0] || cmp.find('legend')[0];
+                                    if (lc && t != null) { lc.components(String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')); }
+                                });
+                            }
+                        } catch (e) { /* trait enrichment is best-effort; never break the panel */ }
+
                         // Dialog blocks get an ID trait so a flow's "modal" result
                         // action can target this exact modal by #id (no-code).
                         if ((cmp.getAttributes()['data-pb-block'] === 'modal' || cmp.getAttributes()['data-pb-block'] === 'drawer') && ! names.includes('id')) {
