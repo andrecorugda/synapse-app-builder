@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — component configuration
 
+- **KPI & Chart value formatting** — number / currency (with code) / percent,
+  plus optional decimals, prefix and suffix, so money dashboards read correctly
+  (was locale-number only).
+- **Chart data controls** — max data points (top-N) and sort (value/label,
+  asc/desc); a group-by on a high-cardinality field no longer silently
+  truncates to 50 rows in arbitrary order.
+- **Data Table** — default sort field + direction, a configurable empty-state
+  message, non-sortable-columns list (the runtime already honoured it; now
+  there's a trait).
 - **Overlays & disclosure components are now configurable** (settings render as
   traits in the editor and drive the published page + canvas preview):
   - **Modal**: **Display as** — centered dialog *or* a slide-in drawer
