@@ -444,10 +444,15 @@
         })
         .then(function (result) {
             if (result.status >= 200 && result.status < 300) {
-                showToast(editId ? 'Updated' : 'Saved');
-                form.reset();
+                // Author-configurable success behaviour (falls back to the old
+                // defaults): custom message, reset toggle, and post-submit redirect.
+                var okMsg = form.getAttribute('data-pb-success-message') || (editId ? 'Updated' : 'Saved');
+                showToast(okMsg);
+                if (form.getAttribute('data-pb-reset') !== 'false') { form.reset(); }
                 form.removeAttribute('data-pb-record-id');           // back to create mode
                 form.dispatchEvent(new CustomEvent('pb:record-created', { bubbles: true, detail: result.body }));
+                var redirect = form.getAttribute('data-pb-redirect');
+                if (redirect) { window.location.href = redirect; }
                 return;
             }
             if (result.status === 422) {

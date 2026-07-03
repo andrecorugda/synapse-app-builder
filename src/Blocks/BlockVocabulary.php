@@ -516,10 +516,10 @@ final class BlockVocabulary
             </label>
             HTML, 'Forms'),
 
-            self::block('file_upload', 'File upload', 'A file input field.', <<<'HTML'
+            self::block('file_upload', 'Image upload', 'An image upload field (jpeg/png/gif/webp, up to 5 MB).', <<<'HTML'
             <label data-pb-block="file_upload" class="pb-field" style="display:block;font-family:inherit;max-width:24rem;">
-              <span class="pb-field__label" style="display:block;font-size:0.875rem;font-weight:600;color:var(--pb-ink,#0f172a);margin-bottom:0.35rem;">Upload a file</span>
-              <input type="file" name="file" style="width:100%;padding:0.5rem;border:1px dashed #cbd5e1;border-radius:0.5rem;font:inherit;color:var(--pb-muted,#64748b);box-sizing:border-box;">
+              <span class="pb-field__label" style="display:block;font-size:0.875rem;font-weight:600;color:var(--pb-ink,#0f172a);margin-bottom:0.35rem;">Upload an image</span>
+              <input type="file" name="file" accept="image/*" style="width:100%;padding:0.5rem;border:1px dashed #cbd5e1;border-radius:0.5rem;font:inherit;color:var(--pb-muted,#64748b);box-sizing:border-box;">
             </label>
             HTML, 'Forms'),
         ];

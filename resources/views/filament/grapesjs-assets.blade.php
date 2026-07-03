@@ -1093,27 +1093,61 @@
                         // allow), so they persist to the published page.
                         const pbTag = String(cmp.get('tagName') || '').toLowerCase();
                         if ((pbTag === 'input' || pbTag === 'textarea' || pbTag === 'select') && ! names.includes('required')) {
-                            if (pbTag !== 'select') {
+                            // The control's current input type decides which traits make
+                            // sense. checkbox/radio/file must NOT get the text "Input type"
+                            // dropdown or min/max/pattern/placeholder (picking a text type
+                            // silently converted the control) — they get their own traits.
+                            const inputType = String(cmp.getAttributes().type || (pbTag === 'input' ? 'text' : '')).toLowerCase();
+                            const isToggle = inputType === 'checkbox' || inputType === 'radio';
+                            const isFile = inputType === 'file';
+                            const isTextLike = pbTag === 'textarea' || (pbTag === 'input' && ! isToggle && ! isFile);
+
+                            if (isTextLike) {
                                 cmp.addTrait({ type: 'text', name: 'placeholder', category: 'Content', label: 'Placeholder' });
                             }
                             cmp.addTrait({ type: 'text', name: 'name', category: 'Content', label: 'Field name' });
                             cmp.addTrait({ type: 'checkbox', name: 'required', category: 'Validation', label: 'Required' });
-                            if (pbTag === 'input') {
+
+                            if (pbTag === 'textarea') {
+                                cmp.addTrait({ type: 'number', name: 'rows', category: 'Content', label: 'Rows (height)' });
+                                cmp.addTrait({ type: 'number', name: 'maxlength', category: 'Validation', label: 'Max length' });
+                            }
+                            if (isToggle) {
+                                // checkbox / radio: the useful knobs are the submitted
+                                // value and whether it starts checked (NOT input-type).
+                                cmp.addTrait({ type: 'text', name: 'value', category: 'Content', label: 'Submitted value', placeholder: 'yes' });
+                                cmp.addTrait({ type: 'checkbox', name: 'checked', category: 'Content', label: 'Checked by default' });
+                            } else if (isFile) {
+                                cmp.addTrait({ type: 'text', name: 'accept', category: 'Validation', label: 'Accept (e.g. image/*, .pdf)' });
+                                cmp.addTrait({ type: 'checkbox', name: 'multiple', category: 'Validation', label: 'Allow multiple files' });
+                            } else if (pbTag === 'input') {
                                 cmp.addTrait({ type: 'select', name: 'type', category: 'Validation', label: 'Input type', options: [
                                     { id: 'text', name: 'Text' }, { id: 'email', name: 'Email' }, { id: 'number', name: 'Number' },
                                     { id: 'tel', name: 'Phone' }, { id: 'url', name: 'URL' }, { id: 'password', name: 'Password' },
                                     { id: 'date', name: 'Date' }, { id: 'time', name: 'Time' }, { id: 'search', name: 'Search' },
                                 ] });
-                                // Constraint attributes — plain HTML validation
-                                // attrs GrapesJS syncs straight through; meaningful
-                                // per-type (min/max/step for number/date/range,
-                                // pattern/maxlength for text-like). Sanitizer keeps them.
+                                // Constraint attributes — meaningful for text/number/date.
                                 cmp.addTrait({ type: 'text', name: 'min', category: 'Validation', label: 'Min' });
                                 cmp.addTrait({ type: 'text', name: 'max', category: 'Validation', label: 'Max' });
                                 cmp.addTrait({ type: 'text', name: 'step', category: 'Validation', label: 'Step' });
                                 cmp.addTrait({ type: 'text', name: 'pattern', category: 'Validation', label: 'Pattern (regex)' });
                                 cmp.addTrait({ type: 'number', name: 'maxlength', category: 'Validation', label: 'Max length' });
+                            } else if (pbTag === 'select') {
+                                // Populate a <select> from a collection (the runtime
+                                // fills its <option>s). Was implemented but had no trait.
+                                const collOpts = [{ id: '', name: '— static options —' }].concat(
+                                    (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                                );
+                                cmp.addTrait({ type: 'select', name: 'data-pb-options', category: 'Data', label: 'Populate from collection', options: collOpts });
+                                cmp.addTrait({ type: 'text', name: 'data-pb-label-field', category: 'Data', label: 'Option label field', placeholder: 'name' });
                             }
+                        }
+
+                        // Form-level submit behaviour (success message / redirect / reset).
+                        if (String(cmp.get('tagName') || '').toLowerCase() === 'form' && ! names.includes('data-pb-success-message')) {
+                            cmp.addTrait({ type: 'text', name: 'data-pb-success-message', category: 'Data', label: 'Success message', placeholder: 'Saved' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-redirect', category: 'Data', label: 'Redirect after submit (URL/path)' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-reset', category: 'Data', label: 'Reset form after submit', options: [{ id: '', name: 'Yes (default)' }, { id: 'false', name: 'No' }] });
                         }
 
                         // Dialog blocks get an ID trait so a flow's "modal" result
