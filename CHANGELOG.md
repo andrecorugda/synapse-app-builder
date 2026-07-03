@@ -5,6 +5,36 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — component configuration
+
+- **Overlays & disclosure components are now configurable** (settings render as
+  traits in the editor and drive the published page + canvas preview):
+  - **Modal**: **Display as** — centered dialog *or* a slide-in drawer
+    (left/right/top/bottom); **Size** (sm–full); **Click outside to close**;
+    **Show dark backdrop**; **Show ✕ close icon** (+ position); **Open on load**.
+  - **Drawer**: **Slide from** side (left/right/top/bottom); **Panel size**;
+    **Click outside to close**; **Show backdrop**.
+  - **Tabs**: default active tab + alignment. **Accordion**: single-open +
+    flush style. **Tooltip**: bubble side + wrap. **Dropdown**: alignment +
+    open direction. **Context menu**: trigger mode (right-click/kebab/both).
+    **Banner**: severity variant (info/success/warning/error/neutral) +
+    dismissible + icon toggles.
+
+### Fixed
+
+- **Drawer now animates.** It referenced slide-transition classes that were
+  never defined, so it popped in/out instantly; the keyframe/transition CSS is
+  added (and is side-aware).
+- **Accordion honours "one open at a time".** Items had independent state so
+  several stayed open at once despite the description; the single-open setting
+  (default on) now closes siblings.
+- **Tooltip a11y: unique bubble id per instance.** The bubble id was hardcoded,
+  so multiple tooltips emitted duplicate ids and every trigger's
+  `aria-describedby` pointed at the first bubble; each instance now gets a
+  unique id.
+
 ## [1.3.0] - 2026-07-03
 
 ### Security
