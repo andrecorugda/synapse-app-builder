@@ -60,6 +60,24 @@ it('declares author-configurable settings on the overlay/disclosure components',
     expect($modalArr['settings'][0])->toHaveKeys(['key', 'label', 'type', 'options', 'category', 'default']);
 });
 
+it('data/interactive components expose their config + carry the bug fixes', function (): void {
+    $keys = fn (SectionBlock $b) => array_map(fn ($s) => $s->key, $b->settings);
+
+    // Autocomplete: hidden value input now has a name so the picked id submits.
+    $ac = BlockVocabulary::find('autocomplete');
+    expect($ac->template)->toContain('class="pb-autocomplete__value" name="autocomplete_id"')
+        ->and($keys($ac))->toContain('data-pb-value-name');
+
+    // List: display-field is configurable.
+    expect($keys(BlockVocabulary::find('list')))->toContain('data-pb-item-field');
+
+    // Editable grid: template binds to the CONFIGURED keys, not hardcoded qty/price.
+    $grid = BlockVocabulary::find('editable_grid');
+    expect($grid->template)->toContain('x-model.number="row[qtyKey]"')
+        ->and($grid->template)->toContain('x-model.number="row[priceKey]"')
+        ->and($grid->template)->not->toContain('x-model.number="row.qty"');
+});
+
 it('modal ships a hidden close-icon button the config CSS can reveal', function (): void {
     // The ✕ carries data-pb-close so the existing runtime closes it; it's hidden
     // until data-pb-close-icon="true" (config CSS).
