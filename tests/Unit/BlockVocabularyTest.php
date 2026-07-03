@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Blocks\BlockVocabulary;
+use Andre\AiPageBuilder\Blocks\SectionBlock;
 
 it('exposes a rich set of section keys for the AI vocabulary', function (): void {
     $keys = BlockVocabulary::keys();
@@ -40,7 +41,7 @@ it('serializes all blocks for the JS block manager', function (): void {
 });
 
 it('declares author-configurable settings on the overlay/disclosure components', function (): void {
-    $keys = fn (\Andre\AiPageBuilder\Blocks\SectionBlock $b) => array_map(fn ($s) => $s->key, $b->settings);
+    $keys = fn (SectionBlock $b) => array_map(fn ($s) => $s->key, $b->settings);
 
     $modal = BlockVocabulary::find('modal');
     expect($keys($modal))->toContain('data-pb-display', 'data-pb-size', 'data-pb-backdrop-close', 'data-pb-close-icon');
