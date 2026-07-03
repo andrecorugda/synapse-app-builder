@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — component configuration
 
+- **Edit select / radio options without touching markup.** A comma-separated
+  "Options" field (value:Label or Label) regenerates the `<option>`s / radio
+  buttons — previously the only way to change the choices was hand-editing child
+  DOM in the layer tree. Plus a **Label** trait on every form control to edit
+  its label text directly.
 - **Form controls are properly configurable.** checkbox/radio now expose
   **Submitted value** + **Checked by default** (and no longer wrongly show the
   text "Input type"/min/max/pattern traits that could silently convert them);
