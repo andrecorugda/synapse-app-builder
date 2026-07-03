@@ -741,7 +741,9 @@ final class BlockVocabulary
                 <button type="button" class="pb-context__item" role="menuitem" data-pb-context-close data-pb-context-remove style="display:block;width:100%;text-align:left;padding:0.5rem 0.65rem;border:0;border-radius:0.375rem;background:transparent;color:#dc2626;font:inherit;cursor:pointer;">Remove</button>
               </div>
             </div>
-            HTML, 'Interactive'),
+            HTML, 'Interactive', [
+                new CS('data-pb-trigger', 'Open on', 'select', ['both' => 'Right-click + kebab', 'right-click' => 'Right-click only', 'kebab' => 'Kebab button only'], 'Behaviour', 'both'),
+            ]),
 
             // Bare picker: only data-pb-label-field and data-pb-target are set.
             // data-pb-image-field and data-pb-extra-field are OPT-IN (no defaults).
@@ -832,8 +834,8 @@ final class BlockVocabulary
     }
 
     /**
-     * @param  list<ComponentSetting>  $settings  Author-configurable settings rendered
-     *                                            as traits on the selected component.
+     * @param  list<CS>  $settings  Author-configurable settings rendered
+     *                              as traits on the selected component.
      */
     private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY, array $settings = []): SectionBlock
     {

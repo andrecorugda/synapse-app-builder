@@ -1059,6 +1059,8 @@
                 if (! window.Alpine) { return; }
                 var root = e.target.closest('[data-pb-contextmenu]');
                 if (! root) { return; }
+                // "Open on: Kebab button only" → don't hijack the native right-click.
+                if (root.getAttribute('data-pb-trigger') === 'kebab') { return; }
                 e.preventDefault();
                 var c = ad(root);
                 if (! c || ! c.openAt) { return; }
@@ -1128,7 +1130,22 @@
                 if (! window.Alpine) { return; }
 
                 var toggle = e.target.closest('[data-pb-toggle]');
-                if (toggle) { mutate(toggle, 'toggle', toggle.getAttribute('data-pb-toggle')); return; }
+                if (toggle) {
+                    mutate(toggle, 'toggle', toggle.getAttribute('data-pb-toggle'));
+                    // Accordion "only one open at a time": after opening an item, close
+                    // its siblings within a single-open accordion root.
+                    var acc = toggle.closest('[data-pb-block="accordion"][data-pb-single-open="true"]');
+                    if (acc) {
+                        var item = toggle.closest('.pb-accordion__item');
+                        var opened = item && ad(item) && ad(item)[toggle.getAttribute('data-pb-toggle')];
+                        if (opened) {
+                            acc.querySelectorAll('.pb-accordion__item').forEach(function (sib) {
+                                if (sib !== item) { var d = ad(sib); if (d && 'open' in d) { d.open = false; } }
+                            });
+                        }
+                    }
+                    return;
+                }
 
                 var open = e.target.closest('[data-pb-open]');
                 if (open) { mutate(open, 'open', open.getAttribute('data-pb-open')); return; }
@@ -1155,8 +1172,14 @@
                 var close = e.target.closest('[data-pb-close]');
                 if (close) {
                     // Guard: a backdrop marked data-pb-close-self closes only when the
-                    // click landed directly on it (mirrors @click.self on overlays).
-                    if (close.hasAttribute('data-pb-close-self') && e.target !== close) { return; }
+                    // click landed directly on it (mirrors @click.self on overlays)…
+                    if (close.hasAttribute('data-pb-close-self')) {
+                        if (e.target !== close) { return; }
+                        // …and only when the block's "Click outside to close" setting
+                        // (data-pb-backdrop-close) isn't disabled.
+                        var croot = close.closest('[data-pb-block]');
+                        if (croot && croot.getAttribute('data-pb-backdrop-close') === 'false') { return; }
+                    }
                     mutate(close, 'close', close.getAttribute('data-pb-close'));
                     return;
                 }
@@ -1206,6 +1229,36 @@
                 var p = root && ad(root);
                 if (p && p.search) { p.open = true; p.search(); }
             }, false);
+
+            // Component settings applied once Alpine has built each component's scope:
+            //   • tabs  data-pb-default-tab  → seed the active tab
+            //   • modal data-pb-open-on-load → open on load (promo/consent dialogs)
+            function applyInitialState() {
+                document.querySelectorAll('[data-pb-block="tabs"][data-pb-default-tab]').forEach(function (el) {
+                    var d = ad(el); var t = el.getAttribute('data-pb-default-tab');
+                    if (d && t && 'tab' in d) { d.tab = t; }
+                });
+                document.querySelectorAll('[data-pb-block="modal"][data-pb-open-on-load="true"]').forEach(function (el) {
+                    var d = ad(el); if (d && 'open' in d) { d.open = true; }
+                });
+                // Tooltip a11y: give each bubble a unique id and point its trigger's
+                // aria-describedby at it (the template shipped a single hardcoded id,
+                // so multiple tooltips collided). Runs after Alpine so it wins over
+                // the :aria-describedby binding's initial (false→null) value.
+                var ti = 0;
+                document.querySelectorAll('[data-pb-block="tooltip"]').forEach(function (el) {
+                    var bubble = el.querySelector('.pb-tooltip__bubble');
+                    var trigger = el.querySelector('[data-pb-hover]');
+                    if (! bubble || ! trigger) { return; }
+                    var uid = 'pb-tip-' + (++ti) + '-' + Math.round(el.getBoundingClientRect().top);
+                    bubble.id = uid;
+                    trigger.removeAttribute(':aria-describedby');
+                    trigger.removeAttribute('x-bind:aria-describedby');
+                    trigger.setAttribute('aria-describedby', uid);
+                });
+            }
+            if (window.Alpine) { applyInitialState(); }
+            else { document.addEventListener('alpine:initialized', applyInitialState, { once: true }); }
         })();
     </script>
 
