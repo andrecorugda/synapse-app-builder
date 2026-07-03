@@ -1431,6 +1431,49 @@
         })();
     </script>
 
+    {{-- Media components: apply the author's data-pb-* settings so a video URL,
+         progress %, rating value and alert severity are configurable without
+         hand-editing markup (colour for progress/alert is CSS in
+         component-styles; this sets the values + icon). --}}
+    <script>
+        (function () {
+            document.querySelectorAll('[data-pb-block="video"]').forEach(function (el) {
+                var v = el.querySelector('video'); if (! v) { return; }
+                var src = el.getAttribute('data-pb-video-src');
+                if (src) { var s = v.querySelector('source'); if (s) { s.setAttribute('src', src); s.setAttribute('type', ''); s.removeAttribute('type'); } v.setAttribute('src', src); if (v.load) { v.load(); } }
+                var poster = el.getAttribute('data-pb-poster'); if (poster) { v.setAttribute('poster', poster); }
+                ['controls', 'autoplay', 'loop', 'muted'].forEach(function (a) {
+                    var val = el.getAttribute('data-pb-' + a);
+                    if (val === 'true') { v.setAttribute(a, ''); }
+                    else if (val === 'false') { v.removeAttribute(a); }
+                });
+            });
+            document.querySelectorAll('[data-pb-block="progress"]').forEach(function (el) {
+                var pct = el.getAttribute('data-pb-percent'); if (pct == null || pct === '') { return; }
+                pct = Math.max(0, Math.min(100, Number(pct) || 0));
+                var bar = el.querySelector('.pb-progress__bar'); if (bar) { bar.style.width = pct + '%'; }
+                var lbl = el.querySelectorAll('.pb-progress__label span'); if (lbl.length) { lbl[lbl.length - 1].textContent = pct + '%'; }
+                if (el.getAttribute('data-pb-show-label') === 'false') { var lr = el.querySelector('.pb-progress__label'); if (lr) { lr.style.display = 'none'; } }
+            });
+            document.querySelectorAll('[data-pb-block="rating"]').forEach(function (el) {
+                var raw = el.getAttribute('data-pb-value'); if (raw == null || raw === '') { return; }
+                var val = Number(raw) || 0;
+                var max = Math.max(1, Number(el.getAttribute('data-pb-max')) || 5);
+                var full = Math.round(val); full = full < 0 ? 0 : (full > max ? max : full);
+                var html = '';
+                for (var i = 0; i < max; i++) { html += i < full ? '★' : '<span style="color:#cbd5e1;">★</span>'; }
+                el.innerHTML = html;
+                el.setAttribute('aria-label', 'Rated ' + val + ' out of ' + max);
+            });
+            var alertIcon = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '⛔', neutral: '' };
+            document.querySelectorAll('[data-pb-block="alert"][data-pb-severity]').forEach(function (el) {
+                var sev = el.getAttribute('data-pb-severity');
+                var ic = el.querySelector('[aria-hidden]');
+                if (ic && Object.prototype.hasOwnProperty.call(alertIcon, sev)) { ic.textContent = alertIcon[sev]; }
+            });
+        })();
+    </script>
+
     {{-- Per-page custom JS (authored in the builder's Advanced section) — an
          escape hatch for scenarios the builder doesn't cover. Emitted BEFORE
          Alpine (which is deferred) so that any component factory it defines
