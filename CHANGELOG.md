@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Autocomplete now captures the picked id.** The hidden value input had no
+  `name`, so a surrounding form submitted the typed label text and lost the id
+  (the block's whole purpose — capturing a foreign key). It now submits the id
+  under a configurable field name (`data-pb-value-name`, default
+  `autocomplete_id`), with a min-characters setting.
+- **Editable grid honours its Qty/Price field settings.** The `data-pb-qty` /
+  `data-pb-price` traits were read but ignored — the template hardcoded
+  `row.qty`/`row.price`, so a grid bound to e.g. `quantity`/`unit_price`
+  computed `0`/`NaN`. Subtotals, total and new rows now use the configured keys.
+- **List can show any item field.** It hardcoded `item.label`, so a State array
+  shaped `{id,name}` rendered blank rows; the display field is now configurable
+  (`data-pb-item-field`).
 - **Drawer now animates.** It referenced slide-transition classes that were
   never defined, so it popped in/out instantly; the keyframe/transition CSS is
   added (and is side-aware).

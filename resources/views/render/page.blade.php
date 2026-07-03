@@ -697,9 +697,17 @@
                     q: '', results: [], open: false, selectedId: '',
                     collection: (root && root.getAttribute('data-pb-collection')) || '',
                     labelField: (root && root.getAttribute('data-pb-label-field')) || 'name',
+                    minChars: pbNum(root, 'data-pb-min-chars', 1),
+                    init: function () {
+                        // Submit the picked id under the author-chosen field name so a
+                        // surrounding form saves the foreign key (the hidden value input
+                        // previously had no name → the id was never submitted).
+                        var vn = root && root.getAttribute('data-pb-value-name');
+                        if (vn) { var h = root.querySelector('.pb-autocomplete__value'); if (h) { h.name = vn; } }
+                    },
                     search: function () {
                         var self = this;
-                        if (! this.collection || this.q.length < 1) { this.results = []; return; }
+                        if (! this.collection || this.q.length < Math.max(1, this.minChars)) { this.results = []; return; }
                         fetch(API_BASE + '/' + this.collection + '?search=' + encodeURIComponent(this.q) + '&per_page=8', { headers: { Accept: 'application/json' } })
                             .then(function (r) { return r.json(); })
                             .then(function (d) {
@@ -781,7 +789,13 @@
                     },
                     add: function () {
                         if (this.max > 0 && this.rows.length >= this.max) { return; }
-                        this.rows.push({ label: '', qty: 1, price: 0 });
+                        // Seed a new row using the CONFIGURED qty/price keys (not
+                        // hardcoded 'qty'/'price') so a grid bound to e.g.
+                        // quantity/unit_price stays consistent with the State shape.
+                        var o = { label: '' };
+                        o[this.qtyKey] = 1;
+                        o[this.priceKey] = 0;
+                        this.rows.push(o);
                     },
                     removeAt: function (i) {
                         if (i >= 0 && i < this.rows.length) { this.rows.splice(i, 1); }
@@ -791,8 +805,9 @@
                         return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     },
                     get total() {
+                        var qk = this.qtyKey, pk = this.priceKey;
                         return this.rows.reduce(function (sum, r) {
-                            return sum + (Number(r.qty) || 0) * (Number(r.price) || 0);
+                            return sum + (Number(r[qk]) || 0) * (Number(r[pk]) || 0);
                         }, 0);
                     },
                 };

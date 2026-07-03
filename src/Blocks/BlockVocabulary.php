@@ -572,7 +572,9 @@ final class BlockVocabulary
               <div class="pb-list__sample" x-show="false" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">First item</div>
               <div class="pb-list__sample" x-show="false" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">Second item</div>
             </div>
-            HTML, 'Data'),
+            HTML, 'Data', [
+                new CS('data-pb-item-field', 'Show item field', 'text', [], 'Data', 'label'),
+            ]),
 
             self::block('kpi', 'Stat card', 'A KPI number aggregated from a collection (count/sum/avg).', <<<'HTML'
             <div data-pb-block="kpi" class="pb-kpi" data-pb-collection="" data-pb-metric="count" data-pb-field="" data-pb-label="Total" style="font-family:inherit;border:1px solid #e2e8f0;border-radius:0.75rem;padding:1.25rem 1.5rem;background:#fff;min-width:12rem;display:inline-flex;flex-direction:column;gap:0.4rem;">
@@ -608,14 +610,17 @@ final class BlockVocabulary
             self::block('autocomplete', 'Autocomplete', 'A typeahead input that searches a collection and fills a value.', <<<'HTML'
             <div data-pb-block="autocomplete" class="pb-autocomplete" data-pb-collection="" data-pb-label-field="name" x-data="pbAutocomplete($el)" data-pb-outside-close="open" style="position:relative;font-family:inherit;max-width:24rem;">
               <input type="text" class="pb-autocomplete__input" name="autocomplete" x-model="q" data-pb-ac-search placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;">
-              <input type="hidden" class="pb-autocomplete__value" :value="selectedId">
+              <input type="hidden" class="pb-autocomplete__value" name="autocomplete_id" :value="selectedId">
               <ul class="pb-autocomplete__menu" x-show="open && results.length" x-cloak style="position:absolute;z-index:30;left:0;right:0;margin:0.25rem 0 0;padding:0.25rem;list-style:none;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px -12px rgba(2,6,23,0.35);max-height:14rem;overflow:auto;">
                 <template x-for="r in results" :key="r.id">
                   <li class="pb-autocomplete__option" x-text="r.label" :data-pb-ac-pick="r.id" style="padding:0.5rem 0.6rem;border-radius:0.375rem;cursor:pointer;"></li>
                 </template>
               </ul>
             </div>
-            HTML, 'Forms'),
+            HTML, 'Forms', [
+                new CS('data-pb-value-name', 'Submit picked id as (field name)', 'text', [], 'Data', 'autocomplete_id'),
+                new CS('data-pb-min-chars', 'Min characters before searching', 'number', [], 'Behaviour', 1),
+            ]),
         ];
     }
 
@@ -687,9 +692,9 @@ final class BlockVocabulary
                 <template x-for="(row, index) in rows" :key="index">
                   <tr class="pb-grid__row" style="border-top:1px solid #e2e8f0;">
                     <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="text" class="pb-grid__field" x-model="row.label" placeholder="Item" style="width:100%;padding:0.4rem 0.55rem;border:1px solid transparent;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;background:transparent;"></td>
-                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="1" class="pb-grid__field" x-model.number="row.qty" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
-                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="0.01" class="pb-grid__field" x-model.number="row.price" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
-                    <td class="pb-grid__td pb-grid__subtotal" x-text="money((Number(row.qty)||0) * (Number(row.price)||0))" style="padding:0.5rem 1rem;text-align:right;font-variant-numeric:tabular-nums;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="1" class="pb-grid__field" x-model.number="row[qtyKey]" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="0.01" class="pb-grid__field" x-model.number="row[priceKey]" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td pb-grid__subtotal" x-text="money((Number(row[qtyKey])||0) * (Number(row[priceKey])||0))" style="padding:0.5rem 1rem;text-align:right;font-variant-numeric:tabular-nums;"></td>
                     <td class="pb-grid__td" style="padding:0.5rem 1rem;text-align:center;"><button type="button" class="pb-grid__remove" data-pb-grid-remove aria-label="Delete row" style="display:inline-flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#dc2626;cursor:pointer;line-height:0;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>
                   </tr>
                 </template>

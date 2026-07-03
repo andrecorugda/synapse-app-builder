@@ -172,6 +172,14 @@ class PageRenderer
                 );
             }
 
+            // The list renders one field per item, hardcoded to `item.label`. A
+            // State array shaped {id,name} (a raw collection load) would render
+            // blank; rebind the item field to the configured one.
+            if ($m['key'] === 'list' && ! empty($config['data-pb-item-field']) && $config['data-pb-item-field'] !== 'label') {
+                $field = preg_replace('/[^A-Za-z0-9_]/', '', (string) $config['data-pb-item-field']);
+                $expanded = str_replace('x-text="item.label"', 'x-text="item.'.$field.'"', $expanded);
+            }
+
             return $expanded;
         }, $html) ?? $html;
     }
