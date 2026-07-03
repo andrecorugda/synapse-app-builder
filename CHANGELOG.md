@@ -5,6 +5,79 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-07-03
+
+### Added — component configuration
+
+- **Edit select / radio options without touching markup.** A comma-separated
+  "Options" field (value:Label or Label) regenerates the `<option>`s / radio
+  buttons — previously the only way to change the choices was hand-editing child
+  DOM in the layer tree. Plus a **Label** trait on every form control to edit
+  its label text directly.
+- **Form controls are properly configurable.** checkbox/radio now expose
+  **Submitted value** + **Checked by default** (and no longer wrongly show the
+  text "Input type"/min/max/pattern traits that could silently convert them);
+  textarea exposes **Rows** + **Max length**; a `<select>` can be **populated
+  from a collection** (field-picker), the previously-implemented-but-unreachable
+  path; the **File upload** is now an image upload with an `Accept` filter +
+  **multiple** toggle. Forms gain **Success message**, **Redirect after submit**
+  and **Reset after submit** settings.
+- **KPI & Chart value formatting** — number / currency (with code) / percent,
+  plus optional decimals, prefix and suffix, so money dashboards read correctly
+  (was locale-number only).
+- **Chart data controls** — max data points (top-N) and sort (value/label,
+  asc/desc); a group-by on a high-cardinality field no longer silently
+  truncates to 50 rows in arbitrary order.
+- **Data Table** — default sort field + direction, a configurable empty-state
+  message, non-sortable-columns list (the runtime already honoured it; now
+  there's a trait).
+- **Overlays & disclosure components are now configurable** (settings render as
+  traits in the editor and drive the published page + canvas preview):
+  - **Modal**: **Display as** — centered dialog *or* a slide-in drawer
+    (left/right/top/bottom); **Size** (sm–full); **Click outside to close**;
+    **Show dark backdrop**; **Show ✕ close icon** (+ position); **Open on load**.
+  - **Drawer**: **Slide from** side (left/right/top/bottom); **Panel size**;
+    **Click outside to close**; **Show backdrop**.
+  - **Tabs**: default active tab + alignment. **Accordion**: single-open +
+    flush style. **Tooltip**: bubble side + wrap. **Dropdown**: alignment +
+    open direction. **Context menu**: trigger mode (right-click/kebab/both).
+    **Banner**: severity variant (info/success/warning/error/neutral) +
+    dismissible + icon toggles.
+
+### Fixed
+
+- **Media components are configurable (were only editable by hand-editing
+  markup).** **Video** takes a source URL + poster and controls/autoplay/loop/
+  muted toggles (it shipped an empty `<source>` and never played); **Progress**
+  has a single `Progress %` that drives both the bar and the label (they were
+  two unlinked values) + colour variant + show-label; **Rating** takes a value +
+  max and renders the stars; **Alert** takes a severity (info/success/warning/
+  error/neutral) that recolours it and swaps the icon (was hardcoded "info");
+  **Avatar** takes an image URL + alt + size + shape (its image was unreachable
+  in the UI).
+- **Autocomplete now captures the picked id.** The hidden value input had no
+  `name`, so a surrounding form submitted the typed label text and lost the id
+  (the block's whole purpose — capturing a foreign key). It now submits the id
+  under a configurable field name (`data-pb-value-name`, default
+  `autocomplete_id`), with a min-characters setting.
+- **Editable grid honours its Qty/Price field settings.** The `data-pb-qty` /
+  `data-pb-price` traits were read but ignored — the template hardcoded
+  `row.qty`/`row.price`, so a grid bound to e.g. `quantity`/`unit_price`
+  computed `0`/`NaN`. Subtotals, total and new rows now use the configured keys.
+- **List can show any item field.** It hardcoded `item.label`, so a State array
+  shaped `{id,name}` rendered blank rows; the display field is now configurable
+  (`data-pb-item-field`).
+- **Drawer now animates.** It referenced slide-transition classes that were
+  never defined, so it popped in/out instantly; the keyframe/transition CSS is
+  added (and is side-aware).
+- **Accordion honours "one open at a time".** Items had independent state so
+  several stayed open at once despite the description; the single-open setting
+  (default on) now closes siblings.
+- **Tooltip a11y: unique bubble id per instance.** The bubble id was hardcoded,
+  so multiple tooltips emitted duplicate ids and every trigger's
+  `aria-describedby` pointed at the first bubble; each instance now gets a
+  unique id.
+
 ## [1.3.0] - 2026-07-03
 
 ### Security

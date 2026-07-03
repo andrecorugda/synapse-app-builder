@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Blocks;
 
+use Andre\AiPageBuilder\Blocks\ComponentSetting as CS;
 use Andre\AiPageBuilder\Capabilities\ComponentRegistry;
 
 /**
@@ -241,13 +242,20 @@ final class BlockVocabulary
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-variant', 'Type', 'select', ['info' => 'Info', 'success' => 'Success', 'warning' => 'Warning', 'error' => 'Error', 'neutral' => 'Neutral'], 'Appearance', 'info'),
+                new CS('data-pb-dismissible', 'Show dismiss ✕', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-icon', 'Show icon', 'checkbox', [], 'Appearance', 'true'),
+            ]),
 
             self::block('modal', 'Modal', 'Trigger button with a centered overlay dialog.', <<<'HTML'
             <div data-pb-block="modal" class="pb-modal" x-data="{ open: false }">
               <button type="button" class="pb-modal__trigger" data-pb-open="open" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open modal</button>
               <div class="pb-modal__overlay" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-close-self data-pb-escape-close="open" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,0.55);z-index:1000;">
-                <div class="pb-modal__panel" role="dialog" aria-modal="true" x-transition style="width:100%;max-width:28rem;background:#fff;border-radius:0.75rem;box-shadow:0 20px 50px rgba(15,23,42,0.25);overflow:hidden;">
+                <div class="pb-modal__panel" role="dialog" aria-modal="true" x-transition style="position:relative;width:100%;max-width:28rem;background:#fff;border-radius:0.75rem;box-shadow:0 20px 50px rgba(15,23,42,0.25);overflow:hidden;">
+                  <button type="button" class="pb-modal__x" data-pb-close="open" aria-label="Close">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
                   <div class="pb-modal__body" style="padding:1.75rem;">
                     <h3 class="pb-modal__title" style="margin:0 0 0.75rem;font-size:1.25rem;color:#0f172a;">Modal title</h3>
                     <p class="pb-modal__text" style="margin:0;color:#475569;line-height:1.6;">Put your dialog content here. Press Escape, click the backdrop, or use the buttons to close.</p>
@@ -259,12 +267,20 @@ final class BlockVocabulary
                 </div>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-display', 'Display as', 'select', ['center' => 'Centered dialog', 'drawer-right' => 'Drawer — right', 'drawer-left' => 'Drawer — left', 'drawer-top' => 'Drawer — top', 'drawer-bottom' => 'Drawer — bottom'], 'Layout', 'center'),
+                new CS('data-pb-size', 'Size', 'select', ['sm' => 'Small', 'md' => 'Medium', 'lg' => 'Large', 'xl' => 'Extra large', 'full' => 'Full width'], 'Layout', 'md'),
+                new CS('data-pb-backdrop-close', 'Click outside to close', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-backdrop', 'Show dark backdrop', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-close-icon', 'Show ✕ close icon', 'checkbox', [], 'Behaviour', 'false'),
+                new CS('data-pb-close-icon-pos', 'Close icon position', 'select', ['right' => 'Top right', 'left' => 'Top left'], 'Behaviour', 'right'),
+                new CS('data-pb-open-on-load', 'Open on page load', 'checkbox', [], 'Behaviour', 'false'),
+            ]),
 
             self::block('drawer', 'Drawer', 'Trigger button with a right-edge slide-over panel.', <<<'HTML'
             <div data-pb-block="drawer" class="pb-drawer" x-data="{ open: false }">
               <button type="button" class="pb-drawer__trigger" data-pb-open="open" style="display:inline-block;padding:0.7rem 1.4rem;border:0;border-radius:0.5rem;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;">Open drawer</button>
-              <div class="pb-drawer__backdrop" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-escape-close="open" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:1000;"></div>
+              <div class="pb-drawer__backdrop" x-show="open" x-cloak x-transition.opacity data-pb-close="open" data-pb-close-self data-pb-escape-close="open" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:1000;"></div>
               <aside class="pb-drawer__panel" role="dialog" aria-modal="true" x-show="open" x-cloak x-transition:enter="pb-drawer-enter" x-transition:enter-start="pb-drawer-enter-start" x-transition:enter-end="pb-drawer-enter-end" x-transition:leave="pb-drawer-leave" x-transition:leave-start="pb-drawer-enter-end" x-transition:leave-end="pb-drawer-enter-start" style="position:fixed;top:0;right:0;height:100%;width:360px;max-width:90vw;background:#fff;box-shadow:-12px 0 40px rgba(15,23,42,0.18);z-index:1001;display:flex;flex-direction:column;">
                 <div class="pb-drawer__header" style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid #e2e8f0;">
                   <h3 class="pb-drawer__title" style="margin:0;font-size:1.15rem;color:#0f172a;">Drawer</h3>
@@ -277,7 +293,12 @@ final class BlockVocabulary
                 </div>
               </aside>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-side', 'Slide from', 'select', ['right' => 'Right', 'left' => 'Left', 'top' => 'Top', 'bottom' => 'Bottom'], 'Layout', 'right'),
+                new CS('data-pb-size', 'Panel size', 'select', ['sm' => 'Small', 'md' => 'Medium', 'lg' => 'Large', 'xl' => 'Extra large'], 'Layout', 'md'),
+                new CS('data-pb-backdrop-close', 'Click outside to close', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-backdrop', 'Show dark backdrop', 'checkbox', [], 'Behaviour', 'true'),
+            ]),
 
             self::block('tabs', 'Tabs', 'Tabbed panels — switch content without navigating.', <<<'HTML'
             <div data-pb-block="tabs" class="pb-tabs" x-data="{ tab: 'one' }" style="max-width:36rem;">
@@ -292,7 +313,10 @@ final class BlockVocabulary
                 <div class="pb-tabs__panel" role="tabpanel" x-show="tab === 'three'" x-cloak><p style="margin:0;">Content for the third tab.</p></div>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-default-tab', 'Default active tab', 'select', ['one' => 'Tab one', 'two' => 'Tab two', 'three' => 'Tab three'], 'Behaviour', 'one'),
+                new CS('data-pb-align', 'Tab alignment', 'select', ['start' => 'Start', 'center' => 'Center', 'end' => 'End', 'stretch' => 'Stretch'], 'Layout', 'start'),
+            ]),
 
             self::block('accordion', 'Accordion', 'Collapsible items — expand one at a time.', <<<'HTML'
             <div data-pb-block="accordion" class="pb-accordion" style="max-width:36rem;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;">
@@ -318,14 +342,20 @@ final class BlockVocabulary
                 <div class="pb-accordion__body" x-show="open" x-cloak style="padding:0 1.25rem 1rem;color:#475569;line-height:1.6;"><p style="margin:0;">Body content for the third item.</p></div>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-single-open', 'Only one open at a time', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-variant', 'Style', 'select', ['bordered' => 'Bordered', 'flush' => 'Flush'], 'Appearance', 'bordered'),
+            ]),
 
             self::block('tooltip', 'Tooltip', 'Hover/focus hint bubble above an element.', <<<'HTML'
             <div data-pb-block="tooltip" class="pb-tooltip" x-data="{ h: false }" style="display:inline-block;position:relative;">
               <button type="button" class="pb-tooltip__trigger" data-pb-hover="h" :aria-describedby="h ? 'pb-tooltip-bubble' : null" style="display:inline-block;padding:0.6rem 1.1rem;border:1px solid #cbd5e1;border-radius:0.5rem;background:#fff;color:#334155;font-weight:600;cursor:default;">Hover me</button>
               <span class="pb-tooltip__bubble" id="pb-tooltip-bubble" role="tooltip" x-show="h" x-cloak x-transition.opacity style="position:absolute;bottom:calc(100% + 0.5rem);left:50%;transform:translateX(-50%);white-space:nowrap;padding:0.4rem 0.65rem;border-radius:0.375rem;background:#0f172a;color:#fff;font-size:0.8125rem;line-height:1.3;box-shadow:0 4px 12px rgba(15,23,42,0.25);z-index:10;">Helpful hint goes here</span>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-side', 'Bubble position', 'select', ['top' => 'Top', 'bottom' => 'Bottom', 'left' => 'Left', 'right' => 'Right'], 'Layout', 'top'),
+                new CS('data-pb-multiline', 'Allow wrapping', 'checkbox', [], 'Appearance', 'false'),
+            ]),
 
             self::block('dropdown_menu', 'Dropdown menu', 'Button that toggles a menu of actions.', <<<'HTML'
             <div data-pb-block="dropdown_menu" class="pb-dropdown" x-data="{ open: false }" data-pb-outside-close="open" data-pb-escape-close="open" style="display:inline-block;position:relative;">
@@ -339,7 +369,10 @@ final class BlockVocabulary
                 <a href="#" class="pb-dropdown__item" role="menuitem" data-pb-close="open" style="display:block;padding:0.5rem 0.65rem;border-radius:0.375rem;color:#dc2626;text-decoration:none;">Delete</a>
               </div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-align', 'Menu alignment', 'select', ['start' => 'Left', 'end' => 'Right'], 'Layout', 'start'),
+                new CS('data-pb-direction', 'Open direction', 'select', ['down' => 'Down', 'up' => 'Up'], 'Layout', 'down'),
+            ]),
 
             self::block('video', 'Video', 'A self-hosted HTML5 video player.', <<<'HTML'
             <div data-pb-block="video" class="pb-video" style="max-width:100%;border-radius:var(--pb-radius,0.75rem);overflow:hidden;background:#000;">
@@ -347,7 +380,14 @@ final class BlockVocabulary
                 <source src="" type="video/mp4">
               </video>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-video-src', 'Video URL (MP4/WebM)', 'text', [], 'Content'),
+                new CS('data-pb-poster', 'Poster image URL', 'text', [], 'Content'),
+                new CS('data-pb-controls', 'Show controls', 'checkbox', [], 'Behaviour', 'true'),
+                new CS('data-pb-autoplay', 'Autoplay', 'checkbox', [], 'Behaviour', 'false'),
+                new CS('data-pb-loop', 'Loop', 'checkbox', [], 'Behaviour', 'false'),
+                new CS('data-pb-muted', 'Muted', 'checkbox', [], 'Behaviour', 'false'),
+            ]),
 
             self::block('breadcrumbs', 'Breadcrumbs', 'A breadcrumb trail.', <<<'HTML'
             <nav data-pb-block="breadcrumbs" class="pb-breadcrumbs" aria-label="Breadcrumb" style="font-family:inherit;font-size:0.875rem;color:var(--pb-muted,#64748b);">
@@ -363,25 +403,40 @@ final class BlockVocabulary
 
             self::block('rating', 'Rating', 'A star rating display.', <<<'HTML'
             <div data-pb-block="rating" class="pb-rating" role="img" aria-label="Rated 4 out of 5" style="font-size:1.25rem;letter-spacing:2px;color:var(--pb-accent,#f59e0b);">★★★★<span style="color:#cbd5e1;">★</span></div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-value', 'Rating value', 'number', [], 'Content', 4),
+                new CS('data-pb-max', 'Out of', 'number', [], 'Content', 5),
+            ]),
 
             self::block('progress', 'Progress bar', 'A labelled progress bar.', <<<'HTML'
             <div data-pb-block="progress" class="pb-progress" style="font-family:inherit;max-width:32rem;">
               <div class="pb-progress__label" style="display:flex;justify-content:space-between;font-size:0.8125rem;color:var(--pb-muted,#64748b);margin-bottom:0.35rem;"><span>Progress</span><span>70%</span></div>
               <div class="pb-progress__track" style="height:0.6rem;border-radius:999px;background:var(--pb-border,#e2e8f0);overflow:hidden;"><div class="pb-progress__bar" style="height:100%;width:70%;border-radius:999px;background:var(--pb-primary,#6366f1);"></div></div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-percent', 'Progress %', 'number', [], 'Content', 70),
+                new CS('data-pb-variant', 'Colour', 'select', ['primary' => 'Primary', 'success' => 'Success', 'warning' => 'Warning', 'error' => 'Error'], 'Appearance', 'primary'),
+                new CS('data-pb-show-label', 'Show % label', 'checkbox', [], 'Appearance', 'true'),
+            ]),
 
             self::block('alert', 'Alert', 'A callout / alert box.', <<<'HTML'
             <div data-pb-block="alert" class="pb-alert" role="alert" style="display:flex;gap:0.75rem;align-items:flex-start;padding:1rem 1.15rem;border:1px solid var(--pb-border,#e2e8f0);border-left:4px solid var(--pb-primary,#6366f1);border-radius:var(--pb-radius,0.6rem);background:var(--pb-surface,#f8fafc);color:var(--pb-ink,#0f172a);font-family:inherit;">
               <span aria-hidden="true" style="font-size:1.15rem;line-height:1.3;">ℹ️</span>
               <div><strong class="pb-alert__title" style="display:block;margin-bottom:0.15rem;">Heads up</strong><span class="pb-alert__text" style="color:var(--pb-muted,#64748b);font-size:0.9375rem;">This is an informational message you can edit.</span></div>
             </div>
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('data-pb-severity', 'Severity', 'select', ['info' => 'Info', 'success' => 'Success', 'warning' => 'Warning', 'error' => 'Error', 'neutral' => 'Neutral'], 'Appearance', 'info'),
+                new CS('data-pb-icon', 'Show icon', 'checkbox', [], 'Appearance', 'true'),
+            ]),
 
             self::block('avatar', 'Avatar', 'A circular avatar image.', <<<'HTML'
             <img data-pb-block="avatar" class="pb-avatar" src="https://placehold.co/96x96/6366f1/ffffff?text=A" alt="Avatar" width="64" height="64" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--pb-border,#e2e8f0);">
-            HTML, 'Components'),
+            HTML, 'Components', [
+                new CS('src', 'Image URL', 'text', [], 'Content'),
+                new CS('alt', 'Alt text', 'text', [], 'Content'),
+                new CS('data-pb-size', 'Size', 'select', ['sm' => 'Small', 'md' => 'Medium', 'lg' => 'Large', 'xl' => 'Extra large'], 'Appearance', 'md'),
+                new CS('data-pb-shape', 'Shape', 'select', ['circle' => 'Circle', 'rounded' => 'Rounded', 'square' => 'Square'], 'Appearance', 'circle'),
+            ]),
         ];
     }
 
@@ -483,10 +538,10 @@ final class BlockVocabulary
             </label>
             HTML, 'Forms'),
 
-            self::block('file_upload', 'File upload', 'A file input field.', <<<'HTML'
+            self::block('file_upload', 'Image upload', 'An image upload field (jpeg/png/gif/webp, up to 5 MB).', <<<'HTML'
             <label data-pb-block="file_upload" class="pb-field" style="display:block;font-family:inherit;max-width:24rem;">
-              <span class="pb-field__label" style="display:block;font-size:0.875rem;font-weight:600;color:var(--pb-ink,#0f172a);margin-bottom:0.35rem;">Upload a file</span>
-              <input type="file" name="file" style="width:100%;padding:0.5rem;border:1px dashed #cbd5e1;border-radius:0.5rem;font:inherit;color:var(--pb-muted,#64748b);box-sizing:border-box;">
+              <span class="pb-field__label" style="display:block;font-size:0.875rem;font-weight:600;color:var(--pb-ink,#0f172a);margin-bottom:0.35rem;">Upload an image</span>
+              <input type="file" name="file" accept="image/*" style="width:100%;padding:0.5rem;border:1px dashed #cbd5e1;border-radius:0.5rem;font:inherit;color:var(--pb-muted,#64748b);box-sizing:border-box;">
             </label>
             HTML, 'Forms'),
         ];
@@ -539,7 +594,9 @@ final class BlockVocabulary
               <div class="pb-list__sample" x-show="false" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">First item</div>
               <div class="pb-list__sample" x-show="false" style="padding:0.75rem 1rem;border:1px solid #e2e8f0;border-radius:0.5rem;background:#fff;">Second item</div>
             </div>
-            HTML, 'Data'),
+            HTML, 'Data', [
+                new CS('data-pb-item-field', 'Show item field', 'text', [], 'Data', 'label'),
+            ]),
 
             self::block('kpi', 'Stat card', 'A KPI number aggregated from a collection (count/sum/avg).', <<<'HTML'
             <div data-pb-block="kpi" class="pb-kpi" data-pb-collection="" data-pb-metric="count" data-pb-field="" data-pb-label="Total" style="font-family:inherit;border:1px solid #e2e8f0;border-radius:0.75rem;padding:1.25rem 1.5rem;background:#fff;min-width:12rem;display:inline-flex;flex-direction:column;gap:0.4rem;">
@@ -575,14 +632,17 @@ final class BlockVocabulary
             self::block('autocomplete', 'Autocomplete', 'A typeahead input that searches a collection and fills a value.', <<<'HTML'
             <div data-pb-block="autocomplete" class="pb-autocomplete" data-pb-collection="" data-pb-label-field="name" x-data="pbAutocomplete($el)" data-pb-outside-close="open" style="position:relative;font-family:inherit;max-width:24rem;">
               <input type="text" class="pb-autocomplete__input" name="autocomplete" x-model="q" data-pb-ac-search placeholder="Search…" autocomplete="off" style="width:100%;padding:0.6rem 0.8rem;border:1px solid #cbd5e1;border-radius:0.5rem;font:inherit;">
-              <input type="hidden" class="pb-autocomplete__value" :value="selectedId">
+              <input type="hidden" class="pb-autocomplete__value" name="autocomplete_id" :value="selectedId">
               <ul class="pb-autocomplete__menu" x-show="open && results.length" x-cloak style="position:absolute;z-index:30;left:0;right:0;margin:0.25rem 0 0;padding:0.25rem;list-style:none;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 12px 32px -12px rgba(2,6,23,0.35);max-height:14rem;overflow:auto;">
                 <template x-for="r in results" :key="r.id">
                   <li class="pb-autocomplete__option" x-text="r.label" :data-pb-ac-pick="r.id" style="padding:0.5rem 0.6rem;border-radius:0.375rem;cursor:pointer;"></li>
                 </template>
               </ul>
             </div>
-            HTML, 'Forms'),
+            HTML, 'Forms', [
+                new CS('data-pb-value-name', 'Submit picked id as (field name)', 'text', [], 'Data', 'autocomplete_id'),
+                new CS('data-pb-min-chars', 'Min characters before searching', 'number', [], 'Behaviour', 1),
+            ]),
         ];
     }
 
@@ -654,9 +714,9 @@ final class BlockVocabulary
                 <template x-for="(row, index) in rows" :key="index">
                   <tr class="pb-grid__row" style="border-top:1px solid #e2e8f0;">
                     <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="text" class="pb-grid__field" x-model="row.label" placeholder="Item" style="width:100%;padding:0.4rem 0.55rem;border:1px solid transparent;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;background:transparent;"></td>
-                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="1" class="pb-grid__field" x-model.number="row.qty" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
-                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="0.01" class="pb-grid__field" x-model.number="row.price" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
-                    <td class="pb-grid__td pb-grid__subtotal" x-text="money((Number(row.qty)||0) * (Number(row.price)||0))" style="padding:0.5rem 1rem;text-align:right;font-variant-numeric:tabular-nums;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="1" class="pb-grid__field" x-model.number="row[qtyKey]" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td" style="padding:0.5rem 1rem;"><input type="number" min="0" step="0.01" class="pb-grid__field" x-model.number="row[priceKey]" style="width:100%;padding:0.4rem 0.55rem;border:1px solid #e2e8f0;border-radius:0.375rem;font:inherit;color:#0f172a;box-sizing:border-box;"></td>
+                    <td class="pb-grid__td pb-grid__subtotal" x-text="money((Number(row[qtyKey])||0) * (Number(row[priceKey])||0))" style="padding:0.5rem 1rem;text-align:right;font-variant-numeric:tabular-nums;"></td>
                     <td class="pb-grid__td" style="padding:0.5rem 1rem;text-align:center;"><button type="button" class="pb-grid__remove" data-pb-grid-remove aria-label="Delete row" style="display:inline-flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;padding:0;border:1px solid #e2e8f0;border-radius:0.375rem;background:#fff;color:#dc2626;cursor:pointer;line-height:0;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>
                   </tr>
                 </template>
@@ -708,7 +768,9 @@ final class BlockVocabulary
                 <button type="button" class="pb-context__item" role="menuitem" data-pb-context-close data-pb-context-remove style="display:block;width:100%;text-align:left;padding:0.5rem 0.65rem;border:0;border-radius:0.375rem;background:transparent;color:#dc2626;font:inherit;cursor:pointer;">Remove</button>
               </div>
             </div>
-            HTML, 'Interactive'),
+            HTML, 'Interactive', [
+                new CS('data-pb-trigger', 'Open on', 'select', ['both' => 'Right-click + kebab', 'right-click' => 'Right-click only', 'kebab' => 'Kebab button only'], 'Behaviour', 'both'),
+            ]),
 
             // Bare picker: only data-pb-label-field and data-pb-target are set.
             // data-pb-image-field and data-pb-extra-field are OPT-IN (no defaults).
@@ -798,8 +860,12 @@ final class BlockVocabulary
         return app(ComponentRegistry::class)->toArray();
     }
 
-    private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY): SectionBlock
+    /**
+     * @param  list<CS>  $settings  Author-configurable settings rendered
+     *                              as traits on the selected component.
+     */
+    private static function block(string $key, string $label, string $description, string $template, string $category = self::SECTION_CATEGORY, array $settings = []): SectionBlock
     {
-        return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key));
+        return new SectionBlock($key, $label, $category, trim($template), $description, Icons::for($key), $settings);
     }
 }

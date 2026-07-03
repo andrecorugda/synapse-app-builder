@@ -55,6 +55,9 @@
         @keyframes pbZoomIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
         @media (prefers-reduced-motion: reduce) { html.pb-anim-ready [data-pb-anim] { opacity: 1 !important; animation: none !important; } }
 
+        /* Component config styles (driven by the components' data-pb-* settings). */
+        @include('ai-page-builder::render.component-styles')
+
         {!! $css !!}
         {{-- Per-page custom CSS overrides (authored in the builder's Advanced section). --}}
         {!! $customCss !!}
@@ -156,7 +159,7 @@
                     _selectable: false,
                     _bulkSpec: [],    // [{action, label}]
                     // Runtime
-                    _sortKey: '', _sortDir: 'asc',
+                    _sortKey: '', _sortDir: 'asc', _emptyText: 'No records yet.',
                     _search: '',
                     _filters: {},     // {key: value}
                     _selected: {},    // {id: true}
@@ -194,6 +197,14 @@
 
                         var noSortRaw = (el.getAttribute('data-pb-no-sort') || '').trim();
                         self._noSort = noSortRaw ? noSortRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+
+                        // Default sort: load ordered by this field (else DB order).
+                        var sortDefault = (el.getAttribute('data-pb-sort') || '').trim();
+                        if (sortDefault) {
+                            self._sortKey = sortDefault;
+                            self._sortDir = el.getAttribute('data-pb-sort-dir') === 'desc' ? 'desc' : 'asc';
+                        }
+                        self._emptyText = (el.getAttribute('data-pb-empty-text') || 'No records yet.').trim() || 'No records yet.';
 
                         self._searchable = el.getAttribute('data-pb-searchable') === 'true';
 
@@ -553,7 +564,7 @@
                                 + '</span></td></tr></tbody>';
                         } else if (! self.rows.length) {
                             var colspan = cols.length + (self._selectable ? 1 : 0) + (recForm ? 1 : 0);
-                            tbody = '<tbody><tr><td colspan="' + colspan + '" style="padding:1rem .9rem;color:#64748b;font-family:inherit;">No records yet.</td></tr></tbody>';
+                            tbody = '<tbody><tr><td colspan="' + colspan + '" style="padding:1rem .9rem;color:#64748b;font-family:inherit;">' + self.esc(self._emptyText) + '</td></tr></tbody>';
                         } else {
                             var tdStyle = 'padding:.55rem .9rem;color:#0f172a;border-bottom:1px solid #f1f5f9;vertical-align:middle;';
                             var rows = self.rows.map(function (row, i) {
@@ -694,9 +705,17 @@
                     q: '', results: [], open: false, selectedId: '',
                     collection: (root && root.getAttribute('data-pb-collection')) || '',
                     labelField: (root && root.getAttribute('data-pb-label-field')) || 'name',
+                    minChars: pbNum(root, 'data-pb-min-chars', 1),
+                    init: function () {
+                        // Submit the picked id under the author-chosen field name so a
+                        // surrounding form saves the foreign key (the hidden value input
+                        // previously had no name → the id was never submitted).
+                        var vn = root && root.getAttribute('data-pb-value-name');
+                        if (vn) { var h = root.querySelector('.pb-autocomplete__value'); if (h) { h.name = vn; } }
+                    },
                     search: function () {
                         var self = this;
-                        if (! this.collection || this.q.length < 1) { this.results = []; return; }
+                        if (! this.collection || this.q.length < Math.max(1, this.minChars)) { this.results = []; return; }
                         fetch(API_BASE + '/' + this.collection + '?search=' + encodeURIComponent(this.q) + '&per_page=8', { headers: { Accept: 'application/json' } })
                             .then(function (r) { return r.json(); })
                             .then(function (d) {
@@ -778,7 +797,13 @@
                     },
                     add: function () {
                         if (this.max > 0 && this.rows.length >= this.max) { return; }
-                        this.rows.push({ label: '', qty: 1, price: 0 });
+                        // Seed a new row using the CONFIGURED qty/price keys (not
+                        // hardcoded 'qty'/'price') so a grid bound to e.g.
+                        // quantity/unit_price stays consistent with the State shape.
+                        var o = { label: '' };
+                        o[this.qtyKey] = 1;
+                        o[this.priceKey] = 0;
+                        this.rows.push(o);
                     },
                     removeAt: function (i) {
                         if (i >= 0 && i < this.rows.length) { this.rows.splice(i, 1); }
@@ -788,8 +813,9 @@
                         return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     },
                     get total() {
+                        var qk = this.qtyKey, pk = this.priceKey;
                         return this.rows.reduce(function (sum, r) {
-                            return sum + (Number(r.qty) || 0) * (Number(r.price) || 0);
+                            return sum + (Number(r[qk]) || 0) * (Number(r[pk]) || 0);
                         }, 0);
                     },
                 };
@@ -1056,6 +1082,8 @@
                 if (! window.Alpine) { return; }
                 var root = e.target.closest('[data-pb-contextmenu]');
                 if (! root) { return; }
+                // "Open on: Kebab button only" → don't hijack the native right-click.
+                if (root.getAttribute('data-pb-trigger') === 'kebab') { return; }
                 e.preventDefault();
                 var c = ad(root);
                 if (! c || ! c.openAt) { return; }
@@ -1125,7 +1153,22 @@
                 if (! window.Alpine) { return; }
 
                 var toggle = e.target.closest('[data-pb-toggle]');
-                if (toggle) { mutate(toggle, 'toggle', toggle.getAttribute('data-pb-toggle')); return; }
+                if (toggle) {
+                    mutate(toggle, 'toggle', toggle.getAttribute('data-pb-toggle'));
+                    // Accordion "only one open at a time": after opening an item, close
+                    // its siblings within a single-open accordion root.
+                    var acc = toggle.closest('[data-pb-block="accordion"][data-pb-single-open="true"]');
+                    if (acc) {
+                        var item = toggle.closest('.pb-accordion__item');
+                        var opened = item && ad(item) && ad(item)[toggle.getAttribute('data-pb-toggle')];
+                        if (opened) {
+                            acc.querySelectorAll('.pb-accordion__item').forEach(function (sib) {
+                                if (sib !== item) { var d = ad(sib); if (d && 'open' in d) { d.open = false; } }
+                            });
+                        }
+                    }
+                    return;
+                }
 
                 var open = e.target.closest('[data-pb-open]');
                 if (open) { mutate(open, 'open', open.getAttribute('data-pb-open')); return; }
@@ -1152,8 +1195,14 @@
                 var close = e.target.closest('[data-pb-close]');
                 if (close) {
                     // Guard: a backdrop marked data-pb-close-self closes only when the
-                    // click landed directly on it (mirrors @click.self on overlays).
-                    if (close.hasAttribute('data-pb-close-self') && e.target !== close) { return; }
+                    // click landed directly on it (mirrors @click.self on overlays)…
+                    if (close.hasAttribute('data-pb-close-self')) {
+                        if (e.target !== close) { return; }
+                        // …and only when the block's "Click outside to close" setting
+                        // (data-pb-backdrop-close) isn't disabled.
+                        var croot = close.closest('[data-pb-block]');
+                        if (croot && croot.getAttribute('data-pb-backdrop-close') === 'false') { return; }
+                    }
                     mutate(close, 'close', close.getAttribute('data-pb-close'));
                     return;
                 }
@@ -1203,6 +1252,36 @@
                 var p = root && ad(root);
                 if (p && p.search) { p.open = true; p.search(); }
             }, false);
+
+            // Component settings applied once Alpine has built each component's scope:
+            //   • tabs  data-pb-default-tab  → seed the active tab
+            //   • modal data-pb-open-on-load → open on load (promo/consent dialogs)
+            function applyInitialState() {
+                document.querySelectorAll('[data-pb-block="tabs"][data-pb-default-tab]').forEach(function (el) {
+                    var d = ad(el); var t = el.getAttribute('data-pb-default-tab');
+                    if (d && t && 'tab' in d) { d.tab = t; }
+                });
+                document.querySelectorAll('[data-pb-block="modal"][data-pb-open-on-load="true"]').forEach(function (el) {
+                    var d = ad(el); if (d && 'open' in d) { d.open = true; }
+                });
+                // Tooltip a11y: give each bubble a unique id and point its trigger's
+                // aria-describedby at it (the template shipped a single hardcoded id,
+                // so multiple tooltips collided). Runs after Alpine so it wins over
+                // the :aria-describedby binding's initial (false→null) value.
+                var ti = 0;
+                document.querySelectorAll('[data-pb-block="tooltip"]').forEach(function (el) {
+                    var bubble = el.querySelector('.pb-tooltip__bubble');
+                    var trigger = el.querySelector('[data-pb-hover]');
+                    if (! bubble || ! trigger) { return; }
+                    var uid = 'pb-tip-' + (++ti) + '-' + Math.round(el.getBoundingClientRect().top);
+                    bubble.id = uid;
+                    trigger.removeAttribute(':aria-describedby');
+                    trigger.removeAttribute('x-bind:aria-describedby');
+                    trigger.setAttribute('aria-describedby', uid);
+                });
+            }
+            if (window.Alpine) { applyInitialState(); }
+            else { document.addEventListener('alpine:initialized', applyInitialState, { once: true }); }
         })();
     </script>
 
@@ -1241,11 +1320,34 @@
             // of treating a 403/500 body as data (which rendered a misleading 0).
             function agg(c, p) { return fetch(API + '/' + c + '/aggregate?' + qs(p), { headers: { Accept: 'application/json' } }).then(function (r) { if (! r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }); }
             function fmt(n) { n = Number(n) || 0; return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+            // Build a value formatter from a block's data-pb-format / -currency /
+            // -decimals / -prefix / -suffix settings (KPI + chart money display).
+            function makeFmt(el) {
+                var mode = el.getAttribute('data-pb-format') || 'number';
+                var dec = el.getAttribute('data-pb-decimals');
+                var prefix = el.getAttribute('data-pb-prefix') || '';
+                var suffix = el.getAttribute('data-pb-suffix') || '';
+                var opts = {};
+                if (dec != null && dec !== '') { opts.minimumFractionDigits = opts.maximumFractionDigits = Math.max(0, parseInt(dec, 10) || 0); }
+                return function (n) {
+                    n = Number(n) || 0;
+                    var out;
+                    if (mode === 'currency') {
+                        out = n.toLocaleString(undefined, Object.assign({ style: 'currency', currency: (el.getAttribute('data-pb-currency') || 'USD') }, opts));
+                    } else if (mode === 'percent') {
+                        out = (dec != null && dec !== '' ? n.toFixed(opts.maximumFractionDigits) : fmt(n)) + '%';
+                    } else {
+                        out = Object.keys(opts).length ? n.toLocaleString(undefined, opts) : fmt(n);
+                    }
+                    return prefix + out + suffix;
+                };
+            }
 
             document.querySelectorAll('[data-pb-block="kpi"]').forEach(function (el) {
                 var c = el.getAttribute('data-pb-collection'); if (! c) { return; }
+                var format = makeFmt(el);
                 agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '' })
-                    .then(function (d) { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = fmt(d && d.total); } })
+                    .then(function (d) { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = format(d && d.total); } })
                     // Don't leave a fake "0" on failure — show it couldn't load.
                     .catch(function () { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = '—'; v.setAttribute('title', 'Could not load — you may not have access.'); } });
             });
@@ -1279,7 +1381,7 @@
                     var raw = el.getAttribute('data-pb-chart-type') || 'bar';
                     var area = raw === 'area';
                     var type = area ? 'line' : (raw === 'donut' ? 'doughnut' : raw);
-                    agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '', group_by: el.getAttribute('data-pb-group') || '', date_bucket: el.getAttribute('data-pb-date-bucket') || '' })
+                    agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '', group_by: el.getAttribute('data-pb-group') || '', date_bucket: el.getAttribute('data-pb-date-bucket') || '', limit: el.getAttribute('data-pb-limit') || '', sort: el.getAttribute('data-pb-sort') || '' })
                         .then(function (d) {
                             var rows = (d && d.rows) || [];
                             var ph = el.querySelector('.pb-chart__placeholder'); if (ph) { ph.style.display = 'none'; }
@@ -1325,6 +1427,49 @@
                 var url = el.getAttribute('data-pb-embed-url'); if (! url) { return; }
                 var f = el.querySelector('iframe'); if (f) { f.src = toEmbed(url); }
                 var ph = el.querySelector('.pb-embed__placeholder'); if (ph) { ph.style.display = 'none'; }
+            });
+        })();
+    </script>
+
+    {{-- Media components: apply the author's data-pb-* settings so a video URL,
+         progress %, rating value and alert severity are configurable without
+         hand-editing markup (colour for progress/alert is CSS in
+         component-styles; this sets the values + icon). --}}
+    <script>
+        (function () {
+            document.querySelectorAll('[data-pb-block="video"]').forEach(function (el) {
+                var v = el.querySelector('video'); if (! v) { return; }
+                var src = el.getAttribute('data-pb-video-src');
+                if (src) { var s = v.querySelector('source'); if (s) { s.setAttribute('src', src); s.setAttribute('type', ''); s.removeAttribute('type'); } v.setAttribute('src', src); if (v.load) { v.load(); } }
+                var poster = el.getAttribute('data-pb-poster'); if (poster) { v.setAttribute('poster', poster); }
+                ['controls', 'autoplay', 'loop', 'muted'].forEach(function (a) {
+                    var val = el.getAttribute('data-pb-' + a);
+                    if (val === 'true') { v.setAttribute(a, ''); }
+                    else if (val === 'false') { v.removeAttribute(a); }
+                });
+            });
+            document.querySelectorAll('[data-pb-block="progress"]').forEach(function (el) {
+                var pct = el.getAttribute('data-pb-percent'); if (pct == null || pct === '') { return; }
+                pct = Math.max(0, Math.min(100, Number(pct) || 0));
+                var bar = el.querySelector('.pb-progress__bar'); if (bar) { bar.style.width = pct + '%'; }
+                var lbl = el.querySelectorAll('.pb-progress__label span'); if (lbl.length) { lbl[lbl.length - 1].textContent = pct + '%'; }
+                if (el.getAttribute('data-pb-show-label') === 'false') { var lr = el.querySelector('.pb-progress__label'); if (lr) { lr.style.display = 'none'; } }
+            });
+            document.querySelectorAll('[data-pb-block="rating"]').forEach(function (el) {
+                var raw = el.getAttribute('data-pb-value'); if (raw == null || raw === '') { return; }
+                var val = Number(raw) || 0;
+                var max = Math.max(1, Number(el.getAttribute('data-pb-max')) || 5);
+                var full = Math.round(val); full = full < 0 ? 0 : (full > max ? max : full);
+                var html = '';
+                for (var i = 0; i < max; i++) { html += i < full ? '★' : '<span style="color:#cbd5e1;">★</span>'; }
+                el.innerHTML = html;
+                el.setAttribute('aria-label', 'Rated ' + val + ' out of ' + max);
+            });
+            var alertIcon = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '⛔', neutral: '' };
+            document.querySelectorAll('[data-pb-block="alert"][data-pb-severity]').forEach(function (el) {
+                var sev = el.getAttribute('data-pb-severity');
+                var ic = el.querySelector('[aria-hidden]');
+                if (ic && Object.prototype.hasOwnProperty.call(alertIcon, sev)) { ic.textContent = alertIcon[sev]; }
             });
         })();
     </script>

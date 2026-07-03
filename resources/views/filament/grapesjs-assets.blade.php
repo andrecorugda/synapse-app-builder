@@ -956,7 +956,10 @@
                                 + '[data-pb-block="context_menu"] .pb-context__menu{display:block !important;position:static !important;box-shadow:none !important;z-index:auto !important;}'
                                 + '[data-pb-block="tooltip"] .pb-tooltip__bubble{display:inline-block !important;position:static !important;transform:none !important;white-space:normal !important;}'
                                 // a quiet marker so authors know these are open only for editing
-                                + '[data-pb-block="modal"] .pb-modal__overlay,[data-pb-block="drawer"] .pb-drawer__panel,[data-pb-block="dropdown_menu"] .pb-dropdown__menu,[data-pb-block="context_menu"] .pb-context__menu,[data-pb-block="tabs"] .pb-tabs__panel,[data-pb-block="accordion"] .pb-accordion__body{outline:1px dashed #c7d2fe;outline-offset:3px;}';
+                                + '[data-pb-block="modal"] .pb-modal__overlay,[data-pb-block="drawer"] .pb-drawer__panel,[data-pb-block="dropdown_menu"] .pb-dropdown__menu,[data-pb-block="context_menu"] .pb-context__menu,[data-pb-block="tabs"] .pb-tabs__panel,[data-pb-block="accordion"] .pb-accordion__body{outline:1px dashed #c7d2fe;outline-offset:3px;}'
+                                // Shared component CONFIG styles (same rules the published
+                                // page uses) so size/side/variant/etc. preview live in-canvas.
+                                + @json(view('ai-page-builder::render.component-styles')->render());
                             doc.head.appendChild(s);
                             // Inject the page's custom_css into the canvas so the
                             // visual editor matches the real rendered page (WYSIWYG).
@@ -1090,28 +1093,126 @@
                         // allow), so they persist to the published page.
                         const pbTag = String(cmp.get('tagName') || '').toLowerCase();
                         if ((pbTag === 'input' || pbTag === 'textarea' || pbTag === 'select') && ! names.includes('required')) {
-                            if (pbTag !== 'select') {
+                            // The control's current input type decides which traits make
+                            // sense. checkbox/radio/file must NOT get the text "Input type"
+                            // dropdown or min/max/pattern/placeholder (picking a text type
+                            // silently converted the control) — they get their own traits.
+                            const inputType = String(cmp.getAttributes().type || (pbTag === 'input' ? 'text' : '')).toLowerCase();
+                            const isToggle = inputType === 'checkbox' || inputType === 'radio';
+                            const isFile = inputType === 'file';
+                            const isTextLike = pbTag === 'textarea' || (pbTag === 'input' && ! isToggle && ! isFile);
+
+                            if (isTextLike) {
                                 cmp.addTrait({ type: 'text', name: 'placeholder', category: 'Content', label: 'Placeholder' });
                             }
                             cmp.addTrait({ type: 'text', name: 'name', category: 'Content', label: 'Field name' });
                             cmp.addTrait({ type: 'checkbox', name: 'required', category: 'Validation', label: 'Required' });
-                            if (pbTag === 'input') {
+
+                            if (pbTag === 'textarea') {
+                                cmp.addTrait({ type: 'number', name: 'rows', category: 'Content', label: 'Rows (height)' });
+                                cmp.addTrait({ type: 'number', name: 'maxlength', category: 'Validation', label: 'Max length' });
+                            }
+                            if (isToggle) {
+                                // checkbox / radio: the useful knobs are the submitted
+                                // value and whether it starts checked (NOT input-type).
+                                cmp.addTrait({ type: 'text', name: 'value', category: 'Content', label: 'Submitted value', placeholder: 'yes' });
+                                cmp.addTrait({ type: 'checkbox', name: 'checked', category: 'Content', label: 'Checked by default' });
+                            } else if (isFile) {
+                                cmp.addTrait({ type: 'text', name: 'accept', category: 'Validation', label: 'Accept (e.g. image/*, .pdf)' });
+                                cmp.addTrait({ type: 'checkbox', name: 'multiple', category: 'Validation', label: 'Allow multiple files' });
+                            } else if (pbTag === 'input') {
                                 cmp.addTrait({ type: 'select', name: 'type', category: 'Validation', label: 'Input type', options: [
                                     { id: 'text', name: 'Text' }, { id: 'email', name: 'Email' }, { id: 'number', name: 'Number' },
                                     { id: 'tel', name: 'Phone' }, { id: 'url', name: 'URL' }, { id: 'password', name: 'Password' },
                                     { id: 'date', name: 'Date' }, { id: 'time', name: 'Time' }, { id: 'search', name: 'Search' },
                                 ] });
-                                // Constraint attributes — plain HTML validation
-                                // attrs GrapesJS syncs straight through; meaningful
-                                // per-type (min/max/step for number/date/range,
-                                // pattern/maxlength for text-like). Sanitizer keeps them.
+                                // Constraint attributes — meaningful for text/number/date.
                                 cmp.addTrait({ type: 'text', name: 'min', category: 'Validation', label: 'Min' });
                                 cmp.addTrait({ type: 'text', name: 'max', category: 'Validation', label: 'Max' });
                                 cmp.addTrait({ type: 'text', name: 'step', category: 'Validation', label: 'Step' });
                                 cmp.addTrait({ type: 'text', name: 'pattern', category: 'Validation', label: 'Pattern (regex)' });
                                 cmp.addTrait({ type: 'number', name: 'maxlength', category: 'Validation', label: 'Max length' });
+                            } else if (pbTag === 'select') {
+                                // Populate a <select> from a collection (the runtime
+                                // fills its <option>s). Was implemented but had no trait.
+                                const collOpts = [{ id: '', name: '— static options —' }].concat(
+                                    (window.__pbCollections || []).map((c) => ({ id: c.key, name: c.name + ' (' + c.key + ')' }))
+                                );
+                                cmp.addTrait({ type: 'select', name: 'data-pb-options', category: 'Data', label: 'Populate from collection', options: collOpts });
+                                cmp.addTrait({ type: 'text', name: 'data-pb-label-field', category: 'Data', label: 'Option label field', placeholder: 'name' });
                             }
                         }
+
+                        // Form-level submit behaviour (success message / redirect / reset).
+                        if (String(cmp.get('tagName') || '').toLowerCase() === 'form' && ! names.includes('data-pb-success-message')) {
+                            cmp.addTrait({ type: 'text', name: 'data-pb-success-message', category: 'Data', label: 'Success message', placeholder: 'Saved' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-redirect', category: 'Data', label: 'Redirect after submit (URL/path)' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-reset', category: 'Data', label: 'Reset form after submit', options: [{ id: '', name: 'Yes (default)' }, { id: 'false', name: 'No' }] });
+                        }
+
+                        // Choice-list editor for select / radio_group — the single
+                        // biggest form gap: previously the only way to add/edit
+                        // options was hand-editing child DOM. A changeProp trait
+                        // (comma-sep "value:Label" or "Label") regenerates the option
+                        // children. Reads use getEl() (the real canvas DOM — robust);
+                        // writes use component.components(html). Guarded so a hiccup
+                        // never breaks the rest of the trait panel.
+                        try {
+                            const pbBlkForChoices = cmp.getAttributes()['data-pb-block'];
+                            if ((pbBlkForChoices === 'select' || pbBlkForChoices === 'radio_group') && ! names.includes('pb-choices')) {
+                                const escAttr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                const escText = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                const parseChoices = (raw) => String(raw || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
+                                    const c = s.indexOf(':');
+                                    return c > 0 ? { value: s.slice(0, c).trim(), label: s.slice(c + 1).trim() } : { value: s, label: s };
+                                });
+                                const dom = cmp.getEl();
+                                let seed = '';
+                                if (dom && pbBlkForChoices === 'select') {
+                                    const s = dom.querySelector('select');
+                                    if (s) { seed = Array.prototype.slice.call(s.options).filter((o) => o.value !== '').map((o) => { const t = (o.textContent || '').trim(); return o.value === t ? t : (o.value + ':' + t); }).join(', '); }
+                                } else if (dom) {
+                                    seed = Array.prototype.slice.call(dom.querySelectorAll('input[type=radio]')).map((r) => { const lab = r.closest('label'); const sp = lab && lab.querySelector('span'); const t = sp ? (sp.textContent || '').trim() : r.value; return r.value === t ? t : (r.value + ':' + t); }).join(', ');
+                                }
+                                cmp.set('pb-choices', seed);
+                                cmp.addTrait({ type: 'text', name: 'pb-choices', changeProp: true, category: 'Content', label: 'Options (comma-sep, value:Label)' });
+                                cmp.on('change:pb-choices', () => {
+                                    const items = parseChoices(cmp.get('pb-choices'));
+                                    if (! items.length) { return; }
+                                    if (pbBlkForChoices === 'select') {
+                                        const sel = cmp.find('select')[0]; if (! sel) { return; }
+                                        const d = cmp.getEl(); const hadEmpty = d && d.querySelector('select option[value=""]');
+                                        let html = hadEmpty ? '<option value="">— select —</option>' : '';
+                                        html += items.map((it) => '<option value="' + escAttr(it.value) + '">' + escText(it.label) + '</option>').join('');
+                                        sel.components(html);
+                                    } else {
+                                        const d = cmp.getEl(); const firstRadio = d && d.querySelector('input[type=radio]');
+                                        const name = firstRadio ? (firstRadio.getAttribute('name') || 'choice') : 'choice';
+                                        const legendEl = d && d.querySelector('legend');
+                                        const legendHtml = legendEl ? legendEl.outerHTML : '';
+                                        const optStyle = 'display:flex;align-items:center;gap:0.6rem;margin:0 0 0.4rem;color:#0f172a;font-size:0.9375rem;cursor:pointer;';
+                                        const inStyle = 'width:1.05rem;height:1.05rem;outline-offset:2px;cursor:pointer;';
+                                        const opts = items.map((it, i) => '<label class="pb-radio-group__option" style="' + optStyle + '"><input type="radio" name="' + escAttr(name) + '" value="' + escAttr(it.value) + '" class="pb-radio-group__control" style="' + inStyle + '"' + (i === 0 ? ' checked' : '') + '><span>' + escText(it.label) + '</span></label>').join('');
+                                        cmp.components(legendHtml + opts);
+                                    }
+                                });
+                            }
+
+                            // "Label" text for a form control — edit the field's label
+                            // without hunting for the text node in the canvas.
+                            const pbLabelSel = { text_input: '.pb-text-input__label', email_input: '.pb-text-input__label', textarea: '.pb-text-input__label', select: '.pb-select__label', date_picker: '.pb-text-input__label', file_upload: '.pb-field__label', radio_group: '.pb-radio-group__legend' }[cmp.getAttributes()['data-pb-block']];
+                            if (pbLabelSel && ! names.includes('pb-label-text')) {
+                                const domL = cmp.getEl();
+                                const labEl = domL && (domL.querySelector(pbLabelSel) || domL.querySelector('span, legend'));
+                                cmp.set('pb-label-text', labEl ? (labEl.textContent || '').trim() : '');
+                                cmp.addTrait({ type: 'text', name: 'pb-label-text', changeProp: true, category: 'Content', label: 'Label' });
+                                cmp.on('change:pb-label-text', () => {
+                                    const t = cmp.get('pb-label-text');
+                                    const lc = cmp.find(pbLabelSel)[0] || cmp.find('span')[0] || cmp.find('legend')[0];
+                                    if (lc && t != null) { lc.components(String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')); }
+                                });
+                            }
+                        } catch (e) { /* trait enrichment is best-effort; never break the panel */ }
 
                         // Dialog blocks get an ID trait so a flow's "modal" result
                         // action can target this exact modal by #id (no-code).
@@ -1128,9 +1229,22 @@
                         const pbSettings = (window.__pbBlockSettings || {})[pbBlockKey] || [];
                         pbSettings.forEach((s) => {
                             if (names.includes(s.key)) { return; }
+                            // Seed the declared default as the attribute (once) so the
+                            // control reflects the real value AND the CSS/runtime read an
+                            // explicit value rather than relying on attribute-absence.
+                            if (s.default !== null && s.default !== undefined
+                                && ! Object.prototype.hasOwnProperty.call(cmp.getAttributes(), s.key)) {
+                                cmp.addAttributes({ [s.key]: String(s.default) });
+                            }
                             const trait = { type: 'text', name: s.key, label: s.label || s.key, category: s.category || 'Settings' };
                             if (s.type === 'number') { trait.type = 'number'; }
-                            else if (s.type === 'checkbox') { trait.type = 'checkbox'; }
+                            else if (s.type === 'checkbox') {
+                                // Write literal "true"/"false" (not attribute presence) so
+                                // the config CSS selectors [data-pb-x="true"] match.
+                                trait.type = 'checkbox';
+                                trait.valueTrue = 'true';
+                                trait.valueFalse = 'false';
+                            }
                             else if (s.type === 'select') {
                                 trait.type = 'select';
                                 trait.options = Object.entries(s.options || {}).map(([id, name]) => ({ id, name }));
@@ -1230,10 +1344,19 @@
                             cmp.addTrait({ type: 'select', name: 'data-pb-collection', category: 'Data', label: 'Collection', options: collectionOptions });
                             cmp.addTrait({ type: 'select', name: 'data-pb-metric', category: 'Data', label: 'Metric', options: ['count', 'sum', 'avg', 'min', 'max'].map((m) => ({ id: m, name: m })) });
                             cmp.addTrait({ type: 'select', name: 'data-pb-field', category: 'Data', label: 'Field (sum/avg/min/max)', options: pbFieldOptions(curCollection, 'column', { numericOnly: true }) });
+                            // Value formatting (KPI + chart): number / currency / percent
+                            // + optional prefix/suffix/decimals for money dashboards.
+                            cmp.addTrait({ type: 'select', name: 'data-pb-format', category: 'Format', label: 'Value format', options: [{ id: 'number', name: 'Number' }, { id: 'currency', name: 'Currency' }, { id: 'percent', name: 'Percent' }] });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-currency', category: 'Format', label: 'Currency code', placeholder: 'USD' });
+                            cmp.addTrait({ type: 'number', name: 'data-pb-decimals', category: 'Format', label: 'Decimal places' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-prefix', category: 'Format', label: 'Prefix' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-suffix', category: 'Format', label: 'Suffix' });
                             if (pbBlock === 'chart') {
                                 cmp.addTrait({ type: 'select', name: 'data-pb-group', category: 'Data', label: 'Group by (field)', options: pbFieldOptions(curCollection, 'column') });
                                 cmp.addTrait({ type: 'select', name: 'data-pb-date-bucket', category: 'Data', label: 'Date bucket', options: [{ id: '', name: '— none —' }, { id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }] });
                                 cmp.addTrait({ type: 'select', name: 'data-pb-chart-type', category: 'Data', label: 'Chart type', options: ['bar', 'line', 'area', 'donut', 'pie'].map((t) => ({ id: t, name: t })) });
+                                cmp.addTrait({ type: 'number', name: 'data-pb-limit', category: 'Data', label: 'Max data points', placeholder: '50' });
+                                cmp.addTrait({ type: 'select', name: 'data-pb-sort', category: 'Data', label: 'Sort by', options: [{ id: '', name: 'Value ↓ (default)' }, { id: '-value', name: 'Value ↓' }, { id: 'value', name: 'Value ↑' }, { id: 'label', name: 'Label A→Z' }, { id: '-label', name: 'Label Z→A' }] });
                             }
                             // Re-populate the dependent field selects when the
                             // collection changes. data-pb-collection is a real
@@ -1310,6 +1433,10 @@
                             });
                             cmp.addTrait({ type: 'text', name: 'data-pb-bulk', category: 'Data', label: 'Bulk actions (action:Label, comma-sep)' });
                             cmp.addTrait({ type: 'text', name: 'data-pb-per-page', category: 'Data', label: 'Rows per page', placeholder: '20' });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-sort', category: 'Data', label: 'Default sort by', options: pbFieldOptions(cmp.getAttributes()['data-pb-collection'] || '', 'column') });
+                            cmp.addTrait({ type: 'select', name: 'data-pb-sort-dir', category: 'Data', label: 'Sort direction', options: [{ id: 'asc', name: 'Ascending' }, { id: 'desc', name: 'Descending' }] });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-no-sort', category: 'Data', label: 'Non-sortable columns (comma-sep)' });
+                            cmp.addTrait({ type: 'text', name: 'data-pb-empty-text', category: 'Data', label: 'Empty-state message', placeholder: 'No records yet.' });
                         }
 
                         // ── select — bind options from a collection ───────────
