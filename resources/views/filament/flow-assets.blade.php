@@ -7,6 +7,17 @@
     <link rel="stylesheet" href="{{ config('ai-page-builder.flow.drawflow_css', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css') }}">
     <script src="{{ config('ai-page-builder.flow.drawflow_js', 'https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js') }}"></script>
     @php
+        // The Result node's low-code actions builder reads its action catalog
+        // from window.__pbActionCatalog — the canonical ResultActionCatalog
+        // (partial picker, newTab, target help, and ONLY the action types the
+        // ResultNode actually applies). Without this it fell back to a stale
+        // inline list that offered discarded types (setState/setText) and hid
+        // the partial picker. Guarded like the others.
+        try {
+            $pbActionCatalog = \Andre\AiPageBuilder\Flow\ResultActionCatalog::types();
+        } catch (\Throwable $e) {
+            $pbActionCatalog = [];
+        }
         // Inject the available functions + collections so the node editors can
         // offer dropdowns instead of free-text slugs/keys. Guarded — the tables
         // may not exist yet during early boot / migration.
@@ -77,6 +88,7 @@
         }
     @endphp
     <script>
+        window.__pbActionCatalog = @js($pbActionCatalog);
         window.__pbFlowFunctions = @js($pbFlowFunctions);
         window.__pbFlows = @js($pbFlows);
         window.__pbCollections = @js($pbCollections);
@@ -603,9 +615,7 @@
                 alert:       { label: 'Alert dialog',   fields: [ { key: 'title', label: 'Title', type: 'string' }, { key: 'message', label: 'Message', type: 'text' } ] },
                 modal:       { label: 'Modal',          fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'action', label: 'Action', type: 'select', options: { open: 'open', close: 'close' } }, { key: 'html', label: 'HTML (on open)', type: 'text', showIf: { action: ['open'] } } ] },
                 redirect:    { label: 'Redirect',       fields: [ { key: 'url', label: 'URL', type: 'string' } ] },
-                setState:    { label: 'Set state',      fields: [ { key: 'key', label: 'State key', type: 'string' }, { key: 'value', label: 'Value (expression)', type: 'string' } ] },
                 setHtml:     { label: 'Set HTML',       fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'html', label: 'HTML', type: 'text' } ] },
-                setText:     { label: 'Set text',       fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'text', label: 'Text', type: 'text' } ] },
                 addClass:    { label: 'Add class',      fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'class', label: 'Class', type: 'string' } ] },
                 removeClass: { label: 'Remove class',   fields: [ { key: 'target', label: 'Target selector', type: 'string' }, { key: 'class', label: 'Class', type: 'string' } ] },
                 logout:      { label: 'Log out',        fields: [ { key: 'url', label: 'Redirect URL (optional)', type: 'string' } ] }
@@ -779,6 +789,25 @@
                     return label + '<textarea data-cfg="' + key + '" data-json placeholder=\'{"key":"value"}\'>' + pbEsc(jv) + '</textarea>';
                 }
                 if (input.type === 'text' || input.type === 'code') { return label + '<textarea data-cfg="' + key + '">' + pbEsc(val) + '</textarea>'; }
+                // Reference fields are declared type:'string' but name a real
+                // entity — inside a transaction/loop body step, render the same
+                // dropdown the top-level canvas does (the value is set from
+                // step.config after render, like the select/collection cases).
+                var refPickers = {
+                    integration: { list: window.__pbIntegrations, valueKey: 'slug', ph: '— select integration —' },
+                    credential:  { list: window.__pbCredentials, valueKey: 'key', ph: '— none —' },
+                    template:    { list: window.__pbEmailTemplates, valueKey: 'slug', ph: '— inline HTML below —' },
+                    function:    { list: window.__pbFlowFunctions, valueKey: 'slug', ph: '— select function —' },
+                    flow:        { list: window.__pbFlows, valueKey: 'slug', ph: '— select flow —' },
+                };
+                if (refPickers[key]) {
+                    var rp = refPickers[key];
+                    var ropts = '<option value="">' + pbEsc(rp.ph) + '</option>'
+                        + (rp.list || []).map(function (it) {
+                            return '<option value="' + pbEsc(it[rp.valueKey]) + '">' + pbEsc((it.name || it[rp.valueKey]) + ' (' + it[rp.valueKey] + ')') + '</option>';
+                        }).join('');
+                    return label + '<select data-cfg="' + key + '">' + ropts + '</select>';
+                }
                 return label + '<input type="text" data-cfg="' + key + '" value="' + pbEsc(val) + '" />';
             }
 

@@ -175,6 +175,13 @@ it('rolls back every write when the transaction body fails', function (): void {
     expect(widgetCount($this->widgets))->toBe(0)
         ->and($ran->contains('failed'))->toBeTrue()
         ->and($ran->contains('done'))->toBeFalse();
+
+    // A rollback that took its rolled_back branch is a SUCCESSFUL run: no
+    // run-level failure/error (telemetry reads `ok`), but the reason is still
+    // exposed to the branch as vars.error.
+    expect($ctx->failed)->toBeFalse()
+        ->and($ctx->error)->toBeNull()
+        ->and($ctx->get('vars.error'))->not->toBeNull();
 });
 
 it('discards UI actions emitted by a rolled-back body', function (): void {
@@ -246,6 +253,72 @@ it('rolls back a loop inside a transaction all-or-nothing (POS shape)', function
 
     expect(widgetCount($this->widgets))->toBe(0)
         ->and($ran->contains('failed'))->toBeTrue();
+});
+
+it('a transaction rolls back when the loop body overruns the step budget (no silent half-commit)', function (): void {
+    // A low budget forces the loop to exhaust the global step cap mid-way. The
+    // walk must flag the run failed rather than exiting silently — otherwise the
+    // transaction would COMMIT the handful of rows it managed to write and report
+    // success. All-or-nothing must hold under budget exhaustion.
+    config()->set('ai-page-builder.flow.max_steps', 5);
+
+    $definition = [
+        'start' => 'tx',
+        'nodes' => [
+            'tx' => [
+                'type' => 'transaction',
+                'committed' => 'done',
+                'rolled_back' => 'failed',
+                'config' => [
+                    'body' => [
+                        'start' => 'loop',
+                        'nodes' => [
+                            'loop' => [
+                                'type' => 'loop',
+                                'config' => [
+                                    'over' => 'input.cart',
+                                    'body' => [
+                                        'start' => 'line',
+                                        'nodes' => ['line' => createWidgetNode('{{ vars.item }}', '{{ vars.item }}')],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            'done' => ['type' => 'trigger'],
+            'failed' => ['type' => 'trigger'],
+        ],
+    ];
+
+    $ctx = $this->runner->run($definition, ['cart' => ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']]);
+    $ran = collect($ctx->steps)->pluck('node');
+
+    // The invariant: NOTHING committed (rows written before the overrun were
+    // rolled back) and the run is marked failed — never a silent success. (With
+    // this deliberately tiny budget the run stops before the rolled_back branch
+    // can route, which is itself correct: the budget is exhausted everywhere.)
+    expect(widgetCount($this->widgets))->toBe(0)
+        ->and($ctx->failed)->toBeTrue()
+        ->and($ran->contains('done'))->toBeFalse();
+});
+
+it('fails the run on an unknown node type instead of silently truncating', function (): void {
+    $definition = [
+        'start' => 'bad',
+        'nodes' => [
+            'bad' => ['type' => 'no_such_node_type', 'next' => ['after']],
+            // Downstream node that must NOT run (and must not be reported ok).
+            'after' => createWidgetNode('should-not-exist', 'should-not-exist'),
+        ],
+    ];
+
+    $ctx = $this->runner->run($definition);
+
+    expect($ctx->failed)->toBeTrue()
+        ->and($ctx->error)->toContain('no_such_node_type')
+        ->and(widgetCount($this->widgets))->toBe(0);
 });
 
 // --- Registry metadata ------------------------------------------------------

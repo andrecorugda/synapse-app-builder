@@ -36,6 +36,10 @@ it('blocks SSRF to loopback / link-local / metadata + non-http schemes', functio
     'private 192' => ['http://192.168.1.1/admin'],
     'file scheme' => ['file:///etc/passwd'],
     'gopher scheme' => ['gopher://127.0.0.1:6379/'],
+    // Spellings that bypassed a naive host check (dns_get_record misses them):
+    'localhost name' => ['http://localhost:8000/x'],
+    'ipv6 loopback literal' => ['http://[::1]:8000/x'],
+    'decimal ipv4' => ['http://2130706433:8000/x'], // == 127.0.0.1
 ]);
 
 it('allows a public host', function (): void {

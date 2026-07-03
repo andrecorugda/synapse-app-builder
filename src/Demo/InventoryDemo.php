@@ -240,9 +240,7 @@ class InventoryDemo
             <div class="inv-brand"><span class="inv-logo">◆</span> Nimbus <span class="inv-brand-sub">Inventory</span></div>
             <div class="inv-top-actions">
               <span class="inv-who" x-show="$store.app.$user" x-cloak>Signed in as <b x-text="$store.app.$user?.name"></b></span>
-              <form method="POST" action="/pb-logout" class="inv-logout">
-                <button type="submit" class="inv-btn inv-btn-ghost">Sign out</button>
-              </form>
+              <button type="button" data-pb-logout="1" class="inv-btn inv-btn-ghost inv-logout">Sign out</button>
             </div>
           </header>
 

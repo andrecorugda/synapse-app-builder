@@ -22,6 +22,34 @@ it('boots the reactive Store seeded from State on the published page', function 
         ->assertSee('Hi there', false);                 // State value injected into window.__pbState
 });
 
+it('expands a bare data_table wrapper so it carries the pbTable runtime binding', function (): void {
+    // As prescribed (and as the AI emits): a bare configured wrapper, no x-data.
+    $page = Page::factory()->published()->create([
+        'slug' => 'tbl',
+        'html' => '<div data-pb-block="data_table" data-pb-collection="products"></div>',
+    ]);
+
+    $html = app(PageRenderer::class)->render($page)->render();
+
+    // Before the fix this stayed a bare div (Data-category, never expanded) →
+    // no x-data → the table never fetched. Now it expands + keeps the collection.
+    expect($html)->toContain('x-data="pbTable(')
+        ->and($html)->toContain('data-pb-collection="products"');
+});
+
+it('expands a bare list wrapper and binds x-for to its data-pb-state key', function (): void {
+    $page = Page::factory()->published()->create([
+        'slug' => 'lst',
+        'html' => '<div data-pb-block="list" data-pb-state="orders"></div>',
+    ]);
+
+    $html = app(PageRenderer::class)->render($page)->render();
+
+    // Expanded, and the repeat is rebound from the default `items` to `orders`.
+    expect($html)->toContain('x-for="item in $store.app.orders"')
+        ->and($html)->not->toContain('$store.app.items');
+});
+
 it('renders a published page at its slug', function (): void {
     $page = Page::factory()->published()->create([
         'slug' => 'launch',

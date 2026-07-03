@@ -1237,14 +1237,17 @@
         (function () {
             var API = window.__pbApiBase;
             function qs(o) { return Object.keys(o).filter(function (k) { return o[k] !== '' && o[k] != null; }).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(o[k]); }).join('&'); }
-            function agg(c, p) { return fetch(API + '/' + c + '/aggregate?' + qs(p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }); }
+            // Throw on a non-2xx so callers can show a real error state instead
+            // of treating a 403/500 body as data (which rendered a misleading 0).
+            function agg(c, p) { return fetch(API + '/' + c + '/aggregate?' + qs(p), { headers: { Accept: 'application/json' } }).then(function (r) { if (! r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }); }
             function fmt(n) { n = Number(n) || 0; return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 
             document.querySelectorAll('[data-pb-block="kpi"]').forEach(function (el) {
                 var c = el.getAttribute('data-pb-collection'); if (! c) { return; }
                 agg(c, { metric: el.getAttribute('data-pb-metric') || 'count', field: el.getAttribute('data-pb-field') || '' })
                     .then(function (d) { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = fmt(d && d.total); } })
-                    .catch(function () {});
+                    // Don't leave a fake "0" on failure — show it couldn't load.
+                    .catch(function () { var v = el.querySelector('[data-pb-kpi-value]'); if (v) { v.textContent = '—'; v.setAttribute('title', 'Could not load — you may not have access.'); } });
             });
 
             // Relation <select data-pb-options="<collection>">: populate its options
@@ -1295,7 +1298,8 @@
                                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: pie } } },
                             });
                         })
-                        .catch(function () {});
+                        // Surface a load failure instead of an empty canvas.
+                        .catch(function () { var ph = el.querySelector('.pb-chart__placeholder'); if (ph) { ph.style.display = ''; ph.textContent = 'Could not load chart data — you may not have access.'; } });
                 });
             }
             if (window.Chart) { render(); return; }

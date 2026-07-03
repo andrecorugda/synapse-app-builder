@@ -38,6 +38,21 @@ it('reads a boolean value back as bool', function (): void {
         ->and($store->get('disabled'))->toBeFalse();
 });
 
+it('parses textual boolean values by meaning, not string-truthiness', function (): void {
+    $store = app(VariableStore::class);
+
+    // A form/flow supplies boolean values as strings. "false"/"no"/"off"/"0"
+    // must store FALSE — a plain `$v ? …` stored any non-empty string as true.
+    foreach (['false', 'no', 'off', '0'] as $falsey) {
+        $store->set('flag', $falsey, 'boolean');
+        expect($store->get('flag'))->toBeFalse("'{$falsey}' should be false");
+    }
+    foreach (['true', 'yes', 'on', '1'] as $truthy) {
+        $store->set('flag', $truthy, 'boolean');
+        expect($store->get('flag'))->toBeTrue("'{$truthy}' should be true");
+    }
+});
+
 it('reads a json value back as an array', function (): void {
     $store = app(VariableStore::class);
     $store->set('config', ['a' => 1, 'b' => [2, 3]], 'json');
@@ -194,7 +209,13 @@ it('persists a value through SetVariableNode and reflects it in the store', func
     $handler = app(SetVariableNode::class);
     $next = $handler->run($node, $ctx);
 
+    // The chosen type applies consistently: the persisted State, the downstream
+    // output var, AND the setState action pushed to the page all carry the typed
+    // int 100 — not the raw string "100".
+    $setState = collect($ctx->actions)->firstWhere('type', 'setState');
+
     expect(app(VariableStore::class)->get('last_amount'))->toBe(100)
-        ->and($ctx->vars['saved'])->toBe('100')
+        ->and($ctx->vars['saved'])->toBe(100)
+        ->and($setState['value'])->toBe(100)
         ->and($next)->toBe(['n2']);
 });

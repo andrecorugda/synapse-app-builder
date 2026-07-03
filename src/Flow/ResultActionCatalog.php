@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Flow;
 
+use Andre\AiPageBuilder\Models\Partial;
+use Illuminate\Database\Eloquent\Model;
+
 /**
  * Describes every UI action type the page runtime (flow-runtime.blade.php) can
  * apply. Each entry is a structured descriptor that the flow canvas can use to
@@ -54,12 +57,18 @@ final class ResultActionCatalog
             'modal' => [
                 'label' => 'Modal',
                 'fields' => [
-                    ['key' => 'target', 'label' => 'Target selector', 'type' => 'string', 'required' => true],
+                    ['key' => 'target', 'label' => 'Modal (CSS selector)', 'type' => 'string', 'required' => true,
+                        'help' => 'e.g. #promo — set the Modal block\'s ID in the editor (Component settings → ID).'],
                     ['key' => 'action', 'label' => 'Action', 'type' => 'select', 'options' => [
                         'open' => 'Open',
                         'close' => 'Close',
                     ]],
-                    ['key' => 'html', 'label' => 'HTML content', 'type' => 'text', 'show_if' => ['action' => ['open']]],
+                    ['key' => 'partial', 'label' => 'Show partial (designed content)', 'type' => 'select',
+                        'options' => self::partialOptions(),
+                        'help' => 'Optional. Fills the dialog body with a designed Partial (interpolated). Overrides the modal\'s own content.',
+                        'show_if' => ['action' => ['open']]],
+                    ['key' => 'html', 'label' => 'Or raw HTML', 'type' => 'text', 'show_if' => ['action' => ['open']],
+                        'help' => 'Optional. Raw markup for the dialog body (use a Partial above for designed content).'],
                 ],
             ],
 
@@ -105,5 +114,27 @@ final class ResultActionCatalog
                 ],
             ],
         ];
+    }
+
+    /**
+     * Partial slug => name, for the modal action's "Show partial" picker.
+     * Guarded — the catalog is also read where the DB may be unavailable
+     * (capabilities export / pre-migration); degrade to an empty list.
+     *
+     * @return array<string,string>
+     */
+    private static function partialOptions(): array
+    {
+        try {
+            /** @var class-string<Model> $model */
+            $model = config('ai-page-builder.models.partial', Partial::class);
+
+            /** @var array<string,string> $map */
+            $map = $model::query()->orderBy('name')->pluck('name', 'slug')->all();
+
+            return ['' => '— none —'] + $map;
+        } catch (\Throwable) {
+            return ['' => '— none —'];
+        }
     }
 }

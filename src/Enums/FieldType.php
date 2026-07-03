@@ -68,9 +68,15 @@ enum FieldType: string
      * Define this field's column on a create/alter Blueprint. Honours the
      * field's `options` (length, precision, default, nullable, unique, index).
      *
+     * When $change is true the column is ALTERed in place (`->change()`) to
+     * migrate an existing field to a new type — the type, nullability and
+     * default are re-applied but index/unique declarations are NOT, because
+     * `change()` doesn't reconcile indexes (re-adding an existing unique index
+     * would error). Index changes remain a create/destructive-sync concern.
+     *
      * @param  array<string,mixed>  $options
      */
-    public function defineColumn(Blueprint $table, string $key, array $options = []): void
+    public function defineColumn(Blueprint $table, string $key, array $options = [], bool $change = false): void
     {
         $name = $this->columnName($key);
         $nullable = (bool) ($options['nullable'] ?? ! ($options['required'] ?? false));
@@ -94,11 +100,60 @@ enum FieldType: string
             $column->default($this->castDefault($options['default']));
         }
 
+        if ($change) {
+            $column->change();
+
+            return;
+        }
+
         if (! empty($options['unique'])) {
             $column->unique();
         } elseif (! empty($options['index']) || $this === self::Relation) {
             $column->index();
         }
+    }
+
+    /**
+     * Coarse storage category, used to decide whether an existing column needs
+     * an ALTER when its field's type changed. Types that share physical storage
+     * collapse to one category so a no-op edit (e.g. text↔json on SQLite, or
+     * integer↔relation) never triggers a spurious ALTER. Distinct categories
+     * (string→integer, integer→boolean, …) are what actually require a change.
+     */
+    public function storageCategory(): string
+    {
+        return match ($this) {
+            self::String, self::Select, self::Image => 'string',
+            self::Text, self::Json => 'text',
+            self::Integer, self::Relation => 'integer',
+            self::Decimal => 'decimal',
+            self::Boolean => 'boolean',
+            self::Date => 'date',
+            self::DateTime => 'datetime',
+        };
+    }
+
+    /**
+     * Normalise a driver-reported column type (SQLite/MySQL/Postgres) into the
+     * same coarse categories as {@see storageCategory()}. Returns 'unknown' for
+     * anything unrecognised so the synchronizer stays conservative (no ALTER on
+     * a type it can't classify). Order matters: `tinyint` (boolean) is tested
+     * before the generic `int`, and `text`/`json` before other matches.
+     */
+    public static function normalizeDbType(string $dbType): string
+    {
+        $t = strtolower($dbType);
+
+        return match (true) {
+            str_contains($t, 'char') => 'string',
+            str_contains($t, 'text'), str_contains($t, 'clob'), str_contains($t, 'json') => 'text',
+            str_contains($t, 'tinyint'), str_contains($t, 'bool') => 'boolean',
+            str_contains($t, 'int') => 'integer',
+            str_contains($t, 'decimal'), str_contains($t, 'numeric'), str_contains($t, 'float'), str_contains($t, 'double'), str_contains($t, 'real') => 'decimal',
+            str_contains($t, 'datetime'), str_contains($t, 'timestamp') => 'datetime',
+            str_contains($t, 'date') => 'date',
+            default => 'unknown',
+        };
     }
 
     /** The Eloquent cast for this type (null = leave as string). */

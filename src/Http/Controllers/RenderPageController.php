@@ -138,6 +138,10 @@ class RenderPageController
 
         $user = Auth::guard((string) config('ai-page-builder.auth.guard', 'pb'))->user();
 
-        return $user !== null && (bool) ($user->is_admin ?? false);
+        // Admin status lives on the ROLE (role.is_admin), exposed via isAdmin() —
+        // there is no `is_admin` column on the user. (AuthController::me() already
+        // uses isAdmin(); this used the non-existent attribute → the bypass never
+        // fired and admins were locked out with everyone else during maintenance.)
+        return $user !== null && method_exists($user, 'isAdmin') && $user->isAdmin();
     }
 }

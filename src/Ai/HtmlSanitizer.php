@@ -34,7 +34,9 @@ final class HtmlSanitizer
      * @var array<int,string>
      */
     private const FORBIDDEN_TAGS = [
-        'script', 'iframe', 'object', 'embed', 'applet', 'noscript',
+        // NB: `iframe` is NOT here — it's handled specially in cleanNode so the
+        // owner-authored Embed block works; a stray/AI iframe is still removed.
+        'script', 'object', 'embed', 'applet', 'noscript',
         'link', 'meta', 'base', 'frame', 'frameset',
         // SVG SMIL animation elements: <animate>/<set>/<animateMotion>/
         // <animateTransform> can animate an attribute (e.g. href) to a
@@ -104,9 +106,47 @@ final class HtmlSanitizer
                 continue;
             }
 
+            // An <iframe> is allowed ONLY as the Embed block's frame; any other
+            // (stray / AI-injected) iframe is removed. The kept one is hardened:
+            // drop srcdoc (an inline-html XSS vector) and force a sandbox that
+            // permits normal embeds (YouTube/Vimeo/Maps) but blocks the frame
+            // from navigating the top window (anti-clickjacking/phishing). Its
+            // `src` is scheme-checked by cleanAttributes like any URL attr.
+            if ($tag === 'iframe') {
+                if (! $this->isEmbedIframe($child)) {
+                    $element->removeChild($child);
+
+                    continue;
+                }
+                $child->removeAttribute('srcdoc');
+                if (! $child->hasAttribute('sandbox')) {
+                    $child->setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms allow-presentation');
+                }
+            }
+
             $this->cleanAttributes($child);
             $this->cleanNode($child);
         }
+    }
+
+    /**
+     * True when an <iframe> belongs to the Embed block — either it carries the
+     * block's `pb-embed__iframe` class, or its ancestry includes the
+     * `data-pb-block="embed"` wrapper. Everything else is a stray iframe.
+     */
+    private function isEmbedIframe(DOMElement $iframe): bool
+    {
+        if (str_contains((string) $iframe->getAttribute('class'), 'pb-embed__iframe')) {
+            return true;
+        }
+
+        for ($node = $iframe->parentNode; $node instanceof DOMElement; $node = $node->parentNode) {
+            if ($node->getAttribute('data-pb-block') === 'embed') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function cleanAttributes(DOMElement $element): void
@@ -170,6 +210,13 @@ final class HtmlSanitizer
         // Any other unknown x-* directive is treated as unsafe by default.
         if (str_starts_with($lower, 'x-')) {
             return false;
+        }
+
+        // The Embed block's URL lives in a data attr but is written to the
+        // iframe's src at runtime, so scheme-check it like a real URL attr
+        // (a javascript:/data: embed URL would otherwise slip through).
+        if ($lower === 'data-pb-embed-url') {
+            return $this->urlAllowed($value);
         }
 
         // data-pb-* convention + standard data-* are safe.

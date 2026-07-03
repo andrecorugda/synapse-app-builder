@@ -67,6 +67,22 @@ class Variable extends Model
     }
 
     /**
+     * The native typed value for a raw input + type, matching exactly what a
+     * later read of the persisted variable returns (castForStorage → typedValue
+     * round-trip). Callers use this to cast BEFORE persisting so the in-memory
+     * copy they keep (a flow's setState action, an output var) carries the same
+     * type as the stored State — not the raw pre-cast string.
+     */
+    public static function toTyped(mixed $value, string $type): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return (new self(['type' => $type, 'value' => self::castForStorage($value, $type)]))->typedValue();
+    }
+
+    /**
      * Serialize a value for storage in the string `value` column per `type`.
      */
     public static function castForStorage(mixed $value, string $type): ?string
@@ -80,7 +96,12 @@ class Variable extends Model
         }
 
         if ($type === 'boolean') {
-            return $value ? '1' : '0';
+            // Interpret the value the way a human means it: a real bool, an int,
+            // or a STRING like "true"/"false"/"1"/"0"/"yes"/"no"/"on"/"off".
+            // A plain `$value ? …` would store the string "false" as TRUE (any
+            // non-empty string is truthy in PHP) — so a boolean var set to
+            // "false" silently became true.
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
         }
 
         return (string) $value;

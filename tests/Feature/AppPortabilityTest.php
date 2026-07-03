@@ -6,6 +6,7 @@ use Andre\AiPageBuilder\Ai\BuildPlanApplier;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Models\Partial;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Watcher;
@@ -46,12 +47,18 @@ function seedSampleApp(): void
             'trigger_config' => ['collection' => 'leads', 'events' => ['created']],
             'definition' => ['start' => 'n1', 'nodes' => ['n1' => ['type' => 'trigger', 'config' => [], 'next' => []]]],
         ]],
+        'partials' => [[
+            'slug' => 'nav',
+            'name' => 'Top nav',
+            'html' => '<header class="pb-nav"><span>Brand</span></header>',
+            'custom_css' => '.pb-nav{display:flex}',
+        ]],
         'pages' => [[
             'slug' => 'home',
             'title' => 'Home',
             'kind' => 'page',
             'status' => 'published',
-            'html' => '<section data-pb-block="hero"><h1>Hi</h1></section>',
+            'html' => '<div data-pb-partial="nav"></div><section data-pb-block="hero"><h1>Hi</h1></section>',
         ]],
         'settings' => ['home_page' => 'home'],
     ]);
@@ -63,8 +70,17 @@ it('exports the app as an import-ready, plan-shaped document', function (): void
     $plan = app(AppExporter::class)->export();
 
     // Top-level shape: version + the sections the applier reads.
-    expect($plan)->toHaveKeys(['version', 'collections', 'states', 'functions', 'flows', 'watchers', 'pages', 'settings'])
+    expect($plan)->toHaveKeys(['version', 'collections', 'states', 'functions', 'flows', 'watchers', 'partials', 'pages', 'settings'])
         ->and($plan['version'])->toBe(AppExporter::VERSION);
+
+    // Partials — the shared chrome pages embed — travel with the app.
+    expect($plan['partials'])->toHaveCount(1)
+        ->and($plan['partials'][0])->toMatchArray([
+            'slug' => 'nav',
+            'name' => 'Top nav',
+            'html' => '<header class="pb-nav"><span>Brand</span></header>',
+            'custom_css' => '.pb-nav{display:flex}',
+        ]);
 
     // Collection with fields (+ options) carried through.
     expect($plan['collections'])->toHaveCount(1);
@@ -112,6 +128,7 @@ it('round-trips losslessly: export then import recreates every row', function ()
     Watcher::query()->forceDelete();
     FlowFunction::query()->forceDelete();
     Page::query()->forceDelete();
+    Partial::query()->forceDelete();
     app(VariableStore::class)->forget('cart_total');
     app(Settings::class)->forget('home_page');
 
@@ -123,6 +140,7 @@ it('round-trips losslessly: export then import recreates every row', function ()
         ->and($summary['created']['functions'])->toBe(['markup'])
         ->and($summary['created']['flows'])->toBe(['on-lead'])
         ->and($summary['created']['watchers'])->toBe(['collection:leads created → on-lead'])
+        ->and($summary['created']['partials'])->toBe(['nav'])
         ->and($summary['created']['pages'])->toBe(['home']);
 
     // Rows + physical table are back.
@@ -133,6 +151,7 @@ it('round-trips losslessly: export then import recreates every row', function ()
         ->and(Flow::query()->where('slug', 'on-lead')->exists())->toBeTrue()
         ->and(Watcher::query()->where('target_key', 'on-lead')->where('event', 'created')->exists())->toBeTrue()
         ->and(Page::query()->where('slug', 'home')->firstOrFail()->status->value)->toBe('published')
+        ->and(Partial::query()->where('slug', 'nav')->exists())->toBeTrue()
         ->and(app(VariableStore::class)->get('cart_total'))->toBe(42)
         ->and(app(Settings::class)->get('home_page'))->toBe('home');
 });

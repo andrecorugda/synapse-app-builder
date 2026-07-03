@@ -155,8 +155,24 @@ class PageRenderer
             }
 
             $template = $templates[$m['key']];
+            $config = $this->configAttrs($attrs);
+            $expanded = $this->applyConfigAttrs($template, $config);
 
-            return $this->applyConfigAttrs($template, $this->configAttrs($attrs));
+            // The `list` block repeats over `$store.app.items` by default; a bare
+            // wrapper that named a different state (data-pb-state="orders") must
+            // bind there. applyConfigAttrs only sets root attrs, so rewrite the
+            // inner x-for's state key here. (The editor's "List source" trait
+            // rewrites x-for directly, so an editor-built list already carries the
+            // right key and this is a no-op for it.)
+            if ($m['key'] === 'list' && ! empty($config['data-pb-state']) && $config['data-pb-state'] !== 'items') {
+                $expanded = str_replace(
+                    '$store.app.items',
+                    '$store.app.'.preg_replace('/[^A-Za-z0-9_]/', '', (string) $config['data-pb-state']),
+                    $expanded,
+                );
+            }
+
+            return $expanded;
         }, $html) ?? $html;
     }
 
@@ -177,7 +193,7 @@ class PageRenderer
      */
     private function interactiveTemplates(): array
     {
-        $expandableWidgets = ['kpi', 'chart'];
+        $expandableWidgets = ['kpi', 'chart', 'data_table', 'list'];
         $out = [];
         try {
             foreach (BlockVocabulary::all() as $block) {

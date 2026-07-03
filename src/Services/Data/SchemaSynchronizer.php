@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Services\Data;
 
+use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Support\Schema as PbSchema;
 use Illuminate\Database\Schema\Blueprint;
@@ -13,8 +14,9 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Keeps a user-defined model's REAL database table in sync with its field
  * definitions (Directus-style runtime DDL). Creating a model builds its table;
- * adding fields adds columns. Dropping columns for removed fields is gated
- * behind `data.allow_destructive_sync` so a mis-edit can't silently lose data.
+ * adding fields adds columns; editing a field's type ALTERs the column when its
+ * storage category changes. Dropping columns for removed fields is gated behind
+ * `data.allow_destructive_sync` so a mis-edit can't silently lose data.
  */
 class SchemaSynchronizer
 {
@@ -53,13 +55,34 @@ class SchemaSynchronizer
         $existing = $builder->getColumnListing($model->table_name);
         $desired = [];
 
-        $builder->table($model->table_name, function (Blueprint $table) use ($model, $fields, $existing, &$desired): void {
+        // Capture each existing column's current storage category up-front so we
+        // can tell when a field's type was edited to something incompatible and
+        // the physical column needs an ALTER (getColumnType inside the Blueprint
+        // closure would read the not-yet-applied schema).
+        $existingCategory = [];
+        foreach ($existing as $column) {
+            $existingCategory[$column] = FieldType::normalizeDbType($builder->getColumnType($model->table_name, $column));
+        }
+
+        $builder->table($model->table_name, function (Blueprint $table) use ($model, $fields, $existing, $existingCategory, &$desired): void {
             foreach ($fields as $field) {
                 $column = $field->columnName();
                 $desired[] = $column;
+                $type = $field->fieldType();
 
                 if (! in_array($column, $existing, true)) {
-                    $field->fieldType()->defineColumn($table, $field->key, (array) ($field->options ?? []));
+                    $type->defineColumn($table, $field->key, (array) ($field->options ?? []));
+
+                    continue;
+                }
+
+                // The column exists: ALTER it only when the field's type was
+                // changed to a different storage category (e.g. string→number).
+                // Same-category edits (length/precision, text↔json) are left
+                // alone so an unchanged sync issues no needless ALTER.
+                $current = $existingCategory[$column] ?? 'unknown';
+                if ($current !== 'unknown' && $current !== $type->storageCategory()) {
+                    $type->defineColumn($table, $field->key, (array) ($field->options ?? []), change: true);
                 }
             }
 

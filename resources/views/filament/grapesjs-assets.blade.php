@@ -939,7 +939,24 @@
                             // the theme font (var(--pb-font)) wins over GrapesJS's default
                             // — otherwise the editor previews in the wrong typeface.
                             s.innerHTML = 'html,body{font-family:var(--pb-font,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif)}body{margin:0}'
-                                + '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}';
+                                + '[x-cloak]{display:none !important}[data-pb-block]{position:relative}[data-pb-block]::after{content:"";position:absolute;inset:0;background:var(--pb-overlay,transparent);pointer-events:none;z-index:0}[data-pb-block]>*{position:relative;z-index:1}'
+                                // EDITOR-ONLY: reveal the authorable content of dialog /
+                                // disclosure blocks that are x-cloak/x-show-hidden on the
+                                // live page (Alpine is off in the canvas), so authors can
+                                // actually design what's inside. Higher specificity + the
+                                // fixed-position resets lay the content out IN FLOW here;
+                                // the published page (real Alpine) is unaffected. The
+                                // x-show="false" SAMPLES (tables/lists) are left hidden.
+                                + '[data-pb-block="modal"] .pb-modal__overlay{display:flex !important;position:static !important;inset:auto !important;background:transparent !important;padding:.75rem 0 !important;z-index:auto !important;}'
+                                + '[data-pb-block="drawer"] .pb-drawer__backdrop{display:none !important;}'
+                                + '[data-pb-block="drawer"] .pb-drawer__panel{display:flex !important;position:static !important;height:auto !important;width:100% !important;max-width:none !important;box-shadow:none !important;z-index:auto !important;}'
+                                + '[data-pb-block="tabs"] .pb-tabs__panel{display:block !important;}'
+                                + '[data-pb-block="accordion"] .pb-accordion__body{display:block !important;}'
+                                + '[data-pb-block="dropdown_menu"] .pb-dropdown__menu{display:block !important;position:static !important;box-shadow:none !important;z-index:auto !important;}'
+                                + '[data-pb-block="context_menu"] .pb-context__menu{display:block !important;position:static !important;box-shadow:none !important;z-index:auto !important;}'
+                                + '[data-pb-block="tooltip"] .pb-tooltip__bubble{display:inline-block !important;position:static !important;transform:none !important;white-space:normal !important;}'
+                                // a quiet marker so authors know these are open only for editing
+                                + '[data-pb-block="modal"] .pb-modal__overlay,[data-pb-block="drawer"] .pb-drawer__panel,[data-pb-block="dropdown_menu"] .pb-dropdown__menu,[data-pb-block="context_menu"] .pb-context__menu,[data-pb-block="tabs"] .pb-tabs__panel,[data-pb-block="accordion"] .pb-accordion__body{outline:1px dashed #c7d2fe;outline-offset:3px;}';
                             doc.head.appendChild(s);
                             // Inject the page's custom_css into the canvas so the
                             // visual editor matches the real rendered page (WYSIWYG).
@@ -1094,6 +1111,12 @@
                                 cmp.addTrait({ type: 'text', name: 'pattern', category: 'Validation', label: 'Pattern (regex)' });
                                 cmp.addTrait({ type: 'number', name: 'maxlength', category: 'Validation', label: 'Max length' });
                             }
+                        }
+
+                        // Dialog blocks get an ID trait so a flow's "modal" result
+                        // action can target this exact modal by #id (no-code).
+                        if ((cmp.getAttributes()['data-pb-block'] === 'modal' || cmp.getAttributes()['data-pb-block'] === 'drawer') && ! names.includes('id')) {
+                            cmp.addTrait({ type: 'text', name: 'id', category: 'Settings', label: 'ID', placeholder: 'e.g. promo', });
                         }
 
                         // Author-declared component settings (extensible: a

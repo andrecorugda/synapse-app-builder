@@ -18,6 +18,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -495,7 +496,7 @@ class RecordQuery
 
         $before = $record->toArray();
 
-        $clean = $this->validate($model, $data, partial: true);
+        $clean = $this->validate($model, $data, partial: true, ignoreId: $record->getKey());
         $record->fill($clean)->save();
 
         $this->recordRevision($model, RecordRevision::OP_UPDATED, $record->getKey(), $before, $record->toArray());
@@ -532,10 +533,14 @@ class RecordQuery
      *
      * @throws ValidationException
      */
-    public function validate(PbModel $model, array $data, bool $partial = false): array
+    public function validate(PbModel $model, array $data, bool $partial = false, int|string|null $ignoreId = null): array
     {
         $rules = [];
         $mapped = [];
+
+        // The physical records table (+ connection) backs any `unique` rule.
+        $recordProto = Record::for($model);
+        $recordsTable = ($recordProto->getConnectionName() ? $recordProto->getConnectionName().'.' : '').$recordProto->getTable();
 
         foreach ($model->fields()->get() as $field) {
             $type = $field->fieldType();
@@ -550,6 +555,18 @@ class RecordQuery
             $mapped[$column] = $value;
 
             $fieldRules = $type->validationRules((array) ($field->options ?? []));
+
+            // A `unique` field option is enforced by the DB index only — without
+            // a validation rule a duplicate throws a raw QueryException (HTTP 500)
+            // instead of a clean 422. Add the rule (ignoring the current row on
+            // update) so the user gets a field-level "already taken" message.
+            if (! empty($field->options['unique'])) {
+                $unique = Rule::unique($recordsTable, $column);
+                if ($ignoreId !== null) {
+                    $unique->ignore($ignoreId);
+                }
+                $fieldRules[] = $unique;
+            }
 
             // Referential integrity: a relation value must reference a real row
             // in the related collection's table.
@@ -598,12 +615,22 @@ class RecordQuery
 
     private function applyCondition(Builder $query, string $column, string $op, mixed $value): void
     {
+        // `between` needs EXACTLY two bounds — a malformed `filter[x][between]=5`
+        // (one value) must be ignored, not crash with a bound-count mismatch.
+        if ($op === 'between') {
+            $bounds = array_slice($this->toList($value), 0, 2);
+            if (count($bounds) === 2) {
+                $query->whereBetween($column, $bounds);
+            }
+
+            return;
+        }
+
         match ($op) {
             'in' => $query->whereIn($column, $this->toList($value)),
             'nin' => $query->whereNotIn($column, $this->toList($value)),
             'null' => $query->whereNull($column),
             'nnull' => $query->whereNotNull($column),
-            'between' => $query->whereBetween($column, array_slice($this->toList($value), 0, 2)),
             'like' => $query->where($column, 'like', '%'.$value.'%'),
             default => isset(self::OPERATORS[$op])
                 ? $query->where($column, self::OPERATORS[$op], $value)

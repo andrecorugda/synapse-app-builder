@@ -5,7 +5,155 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-07-03
+
+### Security
+
+- **HTTP Request node SSRF guard closes host-spelling bypasses.** The guard
+  resolved hosts with `dns_get_record()`, which ignores `/etc/hosts` and doesn't
+  understand every spelling cURL dials — so `localhost`, an IPv6 loopback
+  literal `[::1]`, and a decimal/dotless IPv4 (`2130706433` = `127.0.0.1`) all
+  slipped through to loopback. Hosts are now normalized (brackets stripped,
+  decimal IPs expanded), `localhost` is refused outright, and name resolution
+  also goes through the libc resolver (`gethostbynamel`, matching cURL and
+  consulting `/etc/hosts`) in addition to DNS, so a name mapped to an internal
+  address is caught.
+
+### Fixed
+
+- **Boolean variables parse textual values by meaning.** A `boolean` variable
+  (or Set Variable node) set to the string `"false"` stored `true` — a plain
+  truthiness test treats any non-empty string as true. `"false"`/`"no"`/`"off"`/
+  `"0"` now store `false`; `"true"`/`"yes"`/`"on"`/`"1"` store `true`.
+- **A handled transaction rollback records as `ok`, not `ok`-with-an-error.** A
+  transaction that rolled back and followed its `rolled_back` branch left the
+  run-level error populated, so telemetry showed a successful run carrying a
+  stray error message. The reason is still exposed to the branch as
+  `vars.error`; the run-level error is cleared. (A rollback with no
+  `rolled_back` branch still fails the run, with the original message.)
+- **HTTP Request node has a request timeout.** Added a configurable per-request
+  timeout (`flow.http_timeout`, default 15s) so a slow/hung host can't tie up a
+  worker indefinitely.
+- **Editing a collection field's type now ALTERs the column.** The synchronizer
+  only ever *added* columns, so changing an existing field's type (e.g.
+  string → number) in the admin left the physical column at its old type — the
+  edit silently didn't take. Sync now ALTERs a column when the field's storage
+  category changes; a no-op edit (relabel, length tweak, text↔json) issues no
+  needless ALTER. (Renames and index changes remain create/destructive-sync
+  concerns.)
+- **Set Variable applies the chosen type everywhere.** Only the persisted State
+  was cast; the live `setState` action pushed to the page and the downstream
+  `output` var kept the raw interpolated string — so a `number`/`boolean` State
+  displayed and read downstream as text. The value is now cast once, up-front.
+- **A loop/transaction that overruns the step budget now fails, not silently
+  half-commits.** When a Loop's cumulative steps crossed `flow.max_steps`
+  mid-iteration the walk exited silently without flagging failure — the Loop
+  kept counting un-run iterations and reported the full count, and a wrapping
+  Transaction *committed* the partial writes and followed the `committed`
+  branch. Budget exhaustion is now a run failure (a Transaction rolls back). The
+  default `max_steps` is also raised (1000 → 100000) so a Loop at its
+  10k-iteration ceiling with a small body no longer trips the cap.
+- **An unknown node type fails the run instead of silently truncating it.** A
+  node whose `type` had no handler was logged and skipped, its `next` never
+  enqueued — every downstream node vanished and the run was recorded `ok`. A
+  typo'd/removed node type is now a run failure.
+- **A flow that calls itself is caught at the first level.** The running flow's
+  slug was not seeded onto the call stack, so a top-level `call_flow` back to
+  the same flow ran its whole body one extra pass (side effects fired twice)
+  before the cycle guard tripped one level deeper. The entry slug is now seeded.
+- **Boolean state watcher fires when a flag turns off.** A state watcher with
+  `to: false` (stored by the form as the string `"false"`) never fired: PHP's
+  loose `==` treats the non-empty string `"false"` as truthy, so `false ==
+  "false"` was false. `from`/`to` now compare on boolean meaning when the state
+  value is a real boolean.
+- **A bad schedule timezone no longer aborts the whole tick.** `setTimezone()`
+  ran outside the cron guard, so one schedule with a typo'd IANA name threw and
+  every schedule after it silently never ran. A bad timezone is now logged and
+  treated as not-due, exactly like a bad cron expression.
+- **Export/import carries partials.** `export-app` omitted the `partials`
+  section, so a re-imported site lost its shared chrome — the nav/header/footer
+  embedded via `data-pb-partial` vanished (a flow-opened modal showing a partial
+  went blank; every page's nav disappeared). Partials now round-trip.
+- **Duplicate `unique` value → a clean 422, not a 500.** A `unique` field was
+  enforced only by the DB index, so a duplicate write threw a raw query
+  exception (HTTP 500, leaking DB details under debug) instead of a field-level
+  "already taken" validation error. A `unique` rule is now added on validate
+  (ignoring the current row on update).
+- **Malformed `between` filter no longer 500s.** `filter[x][between]=5` (a
+  single bound) crashed with a bound-count mismatch; it's now ignored (a valid
+  two-value `between` still filters).
+- **Maintenance-mode admin bypass works.** An admin end-user could not preview
+  the live site during maintenance — the bypass checked a non-existent
+  `user.is_admin` attribute instead of the role flag (`isAdmin()`), so admins
+  got the 503 like everyone else. Now admins bypass; non-admins still get the
+  maintenance page.
+- **Reference fields get their pickers inside transaction/loop bodies.** A
+  node used as a body step rendered `integration` / `credential` / email
+  `template` / `function` / `flow` as free-typed text (the top-level canvas
+  showed dropdowns); body steps now render the same dropdowns from the live
+  lists.
+- **`context_menu` content is now editable in the editor** — it was missing from
+  the dialog/disclosure reveal set, so its menu items stayed hidden in the canvas.
+- **KPI / chart no longer show a fake "0" on a failed data load.** A denied
+  (403) or failed aggregate now renders "—" (KPI) or a "Could not load … you may
+  not have access" note (chart) instead of a misleading zero / empty canvas —
+  matching how `data_table` already surfaces the error.
+- **Inventory demo "Sign out" works (was a 419).** The demo shipped a raw
+  `<form action="/pb-logout">` with no CSRF token → every logout hit 419 and the
+  user was stranded, still signed in. It now uses the token-aware
+  `data-pb-logout` runtime control (the built-in no-code logout mechanism).
+- **The Embed block works again.** Its `<iframe>` was stripped on every save
+  (the HTML sanitizer removed all iframes, and it runs on owner saves too), so
+  the block never rendered. The sanitizer now keeps the **Embed block's** iframe
+  — hardened: `srcdoc` dropped, a `sandbox` forced (permits YouTube/Vimeo/Maps,
+  blocks top-window navigation), and the embed URL scheme-checked — while any
+  stray/AI-injected iframe is still removed.
+- **Flow Result-action builder now uses the real catalog.** The builder fell
+  back to a stale inline list because `window.__pbActionCatalog` was never
+  injected — so it offered `setState`/`setText` actions the node silently
+  discards, and hid the real catalog's Modal **Partial** picker, Redirect
+  **new-tab** option, and target-field help. The canonical `ResultActionCatalog`
+  is now injected and used (and the dead inline fallback no longer lists the
+  discarded types).
+- **`data_table` and `list` now render when built as prescribed.** A bare
+  `<div data-pb-block="data_table" data-pb-collection="…">` (the form the docs +
+  AI emit) was never expanded — those blocks are category *Data*, but the
+  renderer only expanded *Interactive* blocks + `kpi`/`chart` — so they got no
+  `x-data`, never fetched, and showed an empty div. Both are now expanded;
+  `data_table` binds its collection, and a bare `list` rebinds `x-for` to its
+  `data-pb-state` key. (The single most user-visible data defect.)
+
+### Flows
+
+- **A flow can open the modal the author designed** — the Result `modal` action
+  now flips the designed modal's Alpine `open` state (falling back to
+  class/display for custom markup), so targeting a Modal block by `#id`
+  opens/closes it exactly like a click; content swaps go into the dialog body,
+  never the Alpine root. Modal (and Drawer) blocks gained an **ID** trait for
+  no-code targeting.
+- **Designed content in a flow's modal** — the Result `modal` action can pick a
+  **Partial** to show as the dialog body; the partial's (sanitized) html is
+  resolved and interpolated against the flow context. So "show a dialog with
+  something I designed" is now a no-code path (design a Partial → point the flow
+  at it).
+
+### Editor
+
+- **Design inside dialog / disclosure blocks** — the editor canvas now reveals
+  the content of `modal`, `drawer`, `tabs`, `accordion`, `dropdown_menu` and
+  `tooltip` blocks (previously hidden by `x-cloak`/`x-show` because Alpine is off
+  in the canvas), so authors can actually edit and fill what's inside them. A
+  dashed marker shows they're open only for editing; the published page is
+  unchanged (closed by default, opens on interaction).
+
+### AI
+
+- **Prompt/validator accuracy.** The generator now gets a real `call_flow` node
+  hint (was generic); the Result-node hint no longer advertises `setState`/
+  `setStates`/`setText` (which the node drops — state writes go through Set
+  Variable); the offline validator's fallback node list now includes
+  `loop`/`transaction`/`call_flow` (its own canonical example uses them); and
+  the example email page uses `custom_css` (the real channel) not `css`.
 
 ## [1.2.0] - 2026-07-02
 
