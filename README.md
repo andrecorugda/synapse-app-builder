@@ -160,6 +160,13 @@ composer lint       # Pint
 composer analyse    # PHPStan (larastan)
 ```
 
+## Support
+
+Synapse is free and MIT-licensed. If it's useful to you, you can support its
+development:
+
+<a href="https://ko-fi.com/G7S722N0L8" target="_blank"><img height="36" style="border:0px;height:36px;" src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" border="0" alt="Buy Me a Coffee at ko-fi.com" /></a>
+
 ## License
 
 MIT © Andre Corugda. See [LICENSE](LICENSE).
