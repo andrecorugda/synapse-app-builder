@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Auth\SocialProviders;
 use Andre\AiPageBuilder\Auth\TwoFactorService;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbRole;
+use Andre\AiPageBuilder\Services\MediaStorage;
 use Andre\AiPageBuilder\Services\PageBuilderMailer;
 use Andre\AiPageBuilder\Services\Settings;
 use Filament\Actions\Action;
@@ -144,6 +145,23 @@ class PageBuilderSettings extends FilamentPage
                 'auth.two_factor.methods',
                 config('ai-page-builder.auth.two_factor.methods', ['totp', 'email']),
             ),
+            // Media storage — cloud driver + credentials. Secrets are never
+            // echoed back — leave blank to keep the stored one (see save()).
+            'storage_driver' => $settings->get('storage.driver', 'local'),
+            's3_key' => $settings->get('storage.s3.key'),
+            's3_secret' => '',
+            's3_region' => $settings->get('storage.s3.region'),
+            's3_bucket' => $settings->get('storage.s3.bucket'),
+            's3_endpoint' => $settings->get('storage.s3.endpoint'),
+            's3_path_style' => filter_var($settings->get('storage.s3.path_style', false), FILTER_VALIDATE_BOOLEAN),
+            's3_url' => $settings->get('storage.s3.url'),
+            'azure_connection_string' => '',
+            'azure_container' => $settings->get('storage.azure.container'),
+            'azure_url' => $settings->get('storage.azure.url'),
+            'gcs_key_json' => '',
+            'gcs_bucket' => $settings->get('storage.gcs.bucket'),
+            'gcs_uniform_acl' => filter_var($settings->get('storage.gcs.uniform_acl', true), FILTER_VALIDATE_BOOLEAN),
+            'gcs_url' => $settings->get('storage.gcs.url'),
         ]);
     }
 
@@ -345,6 +363,107 @@ class PageBuilderSettings extends FilamentPage
                                             ->columnSpanFull(),
                                     ]),
                             ]),
+
+                        Tabs\Tab::make('Storage')
+                            ->schema([
+                                Section::make('Media storage')
+                                    ->description('Where uploaded media lives. Local keeps files on the host app\'s disk; a cloud driver offloads them to your own bucket. Credentials are stored encrypted.')
+                                    ->compact()
+                                    ->schema([
+                                        Forms\Components\Select::make('storage_driver')
+                                            ->label('Driver')
+                                            ->options(fn (): array => $this->storageDriverOptions())
+                                            ->disableOptionWhen(fn (string $value): bool => $value !== 'local'
+                                                && ! app(MediaStorage::class)->installed($value))
+                                            ->native(false)
+                                            ->live(),
+                                        Forms\Components\Placeholder::make('storage_adapter_status')
+                                            ->label('Adapter')
+                                            ->content(fn (Get $get): string => $this->storageAdapterStatus((string) $get('storage_driver')))
+                                            ->visible(fn (Get $get): bool => in_array($get('storage_driver'), MediaStorage::DRIVERS, true)),
+                                    ]),
+
+                                Section::make('Amazon S3')
+                                    ->description('Also fits S3-compatible services (MinIO, Cloudflare R2, DigitalOcean Spaces) via a custom endpoint.')
+                                    ->compact()
+                                    ->columns(2)
+                                    ->visible(fn (Get $get): bool => $get('storage_driver') === 's3')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('s3_key')
+                                            ->label('Access key ID')
+                                            ->autocomplete('off'),
+                                        Forms\Components\TextInput::make('s3_secret')
+                                            ->label('Secret access key')
+                                            ->password()
+                                            ->revealable()
+                                            ->autocomplete('new-password')
+                                            ->placeholder(fn (): string => app(Settings::class)->has('storage.s3.secret') ? '•••••• (leave blank to keep)' : '')
+                                            ->helperText('Leave blank to keep the current secret.'),
+                                        Forms\Components\TextInput::make('s3_region')
+                                            ->label('Region')
+                                            ->placeholder('eu-west-1'),
+                                        Forms\Components\TextInput::make('s3_bucket')
+                                            ->label('Bucket'),
+                                        Forms\Components\TextInput::make('s3_endpoint')
+                                            ->label('Endpoint (optional)')
+                                            ->placeholder('https://minio.example.com')
+                                            ->helperText('Only for S3-compatible services — leave blank for AWS.'),
+                                        Forms\Components\Toggle::make('s3_path_style')
+                                            ->label('Use path-style endpoint')
+                                            ->helperText('Required by MinIO and most S3-compatibles.')
+                                            ->inline(false),
+                                        Forms\Components\TextInput::make('s3_url')
+                                            ->label('Public / CDN base URL (optional)')
+                                            ->placeholder('https://cdn.example.com')
+                                            ->helperText('Media URLs are built from this instead of the bucket endpoint — set it when serving through a CDN.')
+                                            ->columnSpanFull(),
+                                    ]),
+
+                                Section::make('Azure Blob Storage')
+                                    ->compact()
+                                    ->columns(2)
+                                    ->visible(fn (Get $get): bool => $get('storage_driver') === 'azure')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('azure_connection_string')
+                                            ->label('Connection string')
+                                            ->password()
+                                            ->revealable()
+                                            ->autocomplete('new-password')
+                                            ->placeholder(fn (): string => app(Settings::class)->has('storage.azure.connection_string') ? '•••••• (leave blank to keep)' : 'DefaultEndpointsProtocol=https;AccountName=…;AccountKey=…')
+                                            ->helperText('Storage account → Access keys → Connection string. Leave blank to keep the current one.')
+                                            ->columnSpanFull(),
+                                        Forms\Components\TextInput::make('azure_container')
+                                            ->label('Container'),
+                                        Forms\Components\TextInput::make('azure_url')
+                                            ->label('Public / CDN base URL (optional)')
+                                            ->placeholder('https://cdn.example.com')
+                                            ->helperText('Defaults to the container\'s blob endpoint. The container needs public (blob) access level for media to render.'),
+                                    ]),
+
+                                Section::make('Google Cloud Storage')
+                                    ->compact()
+                                    ->columns(2)
+                                    ->visible(fn (Get $get): bool => $get('storage_driver') === 'gcs')
+                                    ->schema([
+                                        Forms\Components\Textarea::make('gcs_key_json')
+                                            ->label('Service-account key (JSON)')
+                                            ->rows(5)
+                                            ->placeholder(fn (): string => app(Settings::class)->has('storage.gcs.key_json') ? '•••••• (leave blank to keep)' : '{ "type": "service_account", … }')
+                                            ->helperText('Paste the full key file. Leave blank to keep the current one.')
+                                            ->columnSpanFull(),
+                                        Forms\Components\TextInput::make('gcs_bucket')
+                                            ->label('Bucket'),
+                                        Forms\Components\Toggle::make('gcs_uniform_acl')
+                                            ->label('Uniform bucket-level access')
+                                            ->helperText('On for buckets with uniform access (the modern default); off for fine-grained per-object ACLs.')
+                                            ->inline(false),
+                                        Forms\Components\TextInput::make('gcs_url')
+                                            ->label('Public / CDN base URL (optional)')
+                                            ->placeholder('https://cdn.example.com')
+                                            ->helperText('Defaults to https://storage.googleapis.com/<bucket>. The bucket must allow public reads for media to render.')
+                                            ->columnSpanFull(),
+                                    ]),
+                            ]),
                     ]),
             ]);
     }
@@ -377,6 +496,20 @@ class PageBuilderSettings extends FilamentPage
                         Notification::make()->success()->title('Test email sent')->send();
                     } catch (Throwable $e) {
                         Notification::make()->danger()->title('Could not send')->body($e->getMessage())->send();
+                    }
+                }),
+
+            Action::make('testStorage')
+                ->label('Test storage connection')
+                ->icon('heroicon-o-cloud-arrow-up')
+                ->color('gray')
+                ->visible(fn (): bool => app(MediaStorage::class)->usable())
+                ->action(function (): void {
+                    try {
+                        app(MediaStorage::class)->testConnection();
+                        Notification::make()->success()->title('Storage connection works')->send();
+                    } catch (Throwable $e) {
+                        Notification::make()->danger()->title('Storage connection failed')->body($e->getMessage())->send();
                     }
                 }),
         ];
@@ -442,6 +575,41 @@ class PageBuilderSettings extends FilamentPage
         $settings->set('auth.two_factor.enabled', (bool) ($state['two_factor_enabled'] ?? true));
         $settings->set('auth.two_factor.methods', array_values((array) ($state['two_factor_methods'] ?? ['email'])));
 
+        // Media storage — driver + per-provider credentials.
+        $driver = $state['storage_driver'] ?? 'local';
+        $settings->set('storage.driver', is_string($driver) && $driver !== '' ? $driver : 'local');
+
+        foreach ([
+            's3_key' => 'storage.s3.key',
+            's3_region' => 'storage.s3.region',
+            's3_bucket' => 'storage.s3.bucket',
+            's3_endpoint' => 'storage.s3.endpoint',
+            's3_url' => 'storage.s3.url',
+            'azure_container' => 'storage.azure.container',
+            'azure_url' => 'storage.azure.url',
+            'gcs_bucket' => 'storage.gcs.bucket',
+            'gcs_url' => 'storage.gcs.url',
+        ] as $field => $key) {
+            $settings->set($key, isset($state[$field]) && $state[$field] !== '' ? (string) $state[$field] : null);
+        }
+        $settings->set('storage.s3.path_style', (bool) ($state['s3_path_style'] ?? false));
+        $settings->set('storage.gcs.uniform_acl', (bool) ($state['gcs_uniform_acl'] ?? true));
+
+        // Only overwrite secrets when a new value was entered (blank keeps them).
+        foreach ([
+            's3_secret' => 'storage.s3.secret',
+            'azure_connection_string' => 'storage.azure.connection_string',
+            'gcs_key_json' => 'storage.gcs.key_json',
+        ] as $field => $key) {
+            $secret = (string) ($state[$field] ?? '');
+            if ($secret !== '') {
+                $settings->setEncrypted($key, $secret);
+            }
+        }
+
+        // Re-register the runtime cloud disk so the change applies immediately.
+        app(MediaStorage::class)->registerDisk();
+
         Notification::make()
             ->success()
             ->title('Settings saved')
@@ -478,6 +646,43 @@ class PageBuilderSettings extends FilamentPage
         $model = config('ai-page-builder.models.role', PbRole::class);
 
         return $model::query()->pluck('name', 'slug')->all();
+    }
+
+    /**
+     * Driver choices for the media-storage picker. Cloud drivers whose
+     * adapter package is missing stay listed (with a hint) but are disabled
+     * via disableOptionWhen, mirroring the TOTP "not installed" pattern.
+     *
+     * @return array<string,string>
+     */
+    private function storageDriverOptions(): array
+    {
+        $storage = app(MediaStorage::class);
+
+        $options = ['local' => 'Local / host-app disk (default)'];
+        foreach (MediaStorage::DRIVERS as $driver) {
+            $options[$driver] = $storage->label($driver)
+                .($storage->installed($driver) ? '' : ' — adapter not installed');
+        }
+
+        return $options;
+    }
+
+    /**
+     * Human-readable adapter status for a cloud storage driver, including the
+     * composer package to require when it is missing.
+     */
+    private function storageAdapterStatus(string $driver): string
+    {
+        $storage = app(MediaStorage::class);
+
+        if (! in_array($driver, MediaStorage::DRIVERS, true)) {
+            return '—';
+        }
+
+        return $storage->installed($driver)
+            ? "Installed ({$storage->package($driver)})"
+            : "Not installed — composer require {$storage->package($driver)}";
     }
 
     /**
