@@ -48,6 +48,7 @@
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.17",
         "laravel/socialite": "^5.0",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "orchestra/testbench": "^9.0|^10.0|^11.0",
         "pestphp/pest": "^3.0",
         "pestphp/pest-plugin-laravel": "^3.0",
@@ -58,7 +59,10 @@
         "andrecorugda/ai-openrouter-gateway": "Optimized AI path — metered, versioned prompt, cost caps. Auto-detected when installed.",
         "laravel/socialite": "Enables SSO sign-in (Google, GitHub) for the built app's end-users. Auto-detected when installed.",
         "socialiteproviders/microsoft": "Adds Microsoft / Azure AD SSO (with tenant restriction) on top of Socialite.",
-        "pragmarx/google2fa": "Enables authenticator-app (TOTP) two-factor sign-in. Email OTP works without it."
+        "pragmarx/google2fa": "Enables authenticator-app (TOTP) two-factor sign-in. Email OTP works without it.",
+        "league/flysystem-aws-s3-v3": "Enables Amazon S3 (and S3-compatible, e.g. MinIO/R2) media storage. Auto-detected when installed.",
+        "azure-oss/storage-blob-flysystem": "Enables Azure Blob Storage media storage. Auto-detected when installed.",
+        "league/flysystem-google-cloud-storage": "Enables Google Cloud Storage media storage. Auto-detected when installed."
     },
     "autoload": {
         "psr-4": {
