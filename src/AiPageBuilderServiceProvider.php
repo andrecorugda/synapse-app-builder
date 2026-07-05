@@ -18,6 +18,7 @@ use Andre\AiPageBuilder\Console\ExportAppCommand;
 use Andre\AiPageBuilder\Console\ExportSiteCommand;
 use Andre\AiPageBuilder\Console\ImportAppCommand;
 use Andre\AiPageBuilder\Console\InstallDemoCommand;
+use Andre\AiPageBuilder\Console\MigrateMediaCommand;
 use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
@@ -130,6 +131,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->hasCommand(ExportSiteCommand::class)
             ->hasCommand(ExportAppCommand::class)
             ->hasCommand(ImportAppCommand::class)
+            ->hasCommand(MigrateMediaCommand::class)
             ->hasCommand(CapabilitiesCommand::class);
     }
 
