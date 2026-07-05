@@ -62,6 +62,7 @@ use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\MediaLibrary;
+use Andre\AiPageBuilder\Services\MediaStorage;
 use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\ScheduleRunner;
@@ -192,6 +193,9 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         // Builder configuration (home page, email/SMTP transport, …).
         $this->app->singleton(Settings::class);
 
+        // Cloud media storage (S3 / Azure Blob / GCS, tuned from Settings).
+        $this->app->singleton(MediaStorage::class);
+
         // End-user permission engine (built-app auth).
         $this->app->singleton(AccessControl::class);
 
@@ -215,8 +219,26 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         $this->registerWatcherCacheFlush();
         $this->registerPublishableAssets();
         $this->registerScheduledCommands();
+        $this->registerCloudMediaStorage();
         $this->ensureSystemPages();
         $this->raiseLivewireNestingDepth();
+    }
+
+    /**
+     * Register the cloud media storage drivers + the runtime `pb-cloud` disk
+     * when one is configured on the Settings screen. Fully guarded — missing
+     * adapter packages, an un-migrated settings table, or bad credentials
+     * must never break boot (media then falls back to the config disk).
+     */
+    private function registerCloudMediaStorage(): void
+    {
+        try {
+            $storage = $this->app->make(MediaStorage::class);
+            $storage->registerDrivers();
+            $storage->registerDisk();
+        } catch (\Throwable $e) {
+            Log::warning('[ai-page-builder] cloud media disk registration skipped: '.$e->getMessage());
+        }
     }
 
     /**
