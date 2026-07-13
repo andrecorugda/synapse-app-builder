@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--dry-run`, `--delete-source`, `--chunk`; idempotent and resumable. See
   [docs/cloud-storage.md](docs/cloud-storage.md).
 
+### Fixed
+
+- Deleting a media item now also deletes the physical file from its storage
+  disk — previously only the DB row was removed and the file stayed on the
+  disk, still reachable at its URL. Cleanup is best-effort: a storage failure
+  is logged and never blocks deleting the row.
+
 ## [1.3.1] - 2026-07-03
 
 ### Added — component configuration

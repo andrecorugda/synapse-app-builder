@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Database\Factories\MediaItemFactory;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -45,6 +46,25 @@ class MediaItem extends Model
     public function getTable(): string
     {
         return Schema::table('media');
+    }
+
+    protected static function booted(): void
+    {
+        // Deleting the row must also delete the physical file — otherwise it
+        // stays on the (possibly cloud) disk forever, still reachable by URL.
+        // Best-effort: a storage failure (disk gone, adapter uninstalled,
+        // network) must never block deleting the row itself.
+        static::deleted(static function (self $item): void {
+            try {
+                Storage::disk($item->disk)->delete($item->path());
+            } catch (\Throwable $e) {
+                Log::warning('[ai-page-builder] Could not delete media file after row deletion.', [
+                    'disk' => $item->disk,
+                    'path' => $item->path(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     public function path(): string

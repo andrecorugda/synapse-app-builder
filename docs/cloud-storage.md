@@ -89,6 +89,7 @@ Safety properties:
 - Content rewriting only includes files that actually made it — a failed copy never leaves a page pointing at a missing file.
 - Selection is `disk != target`, so the command is **idempotent and resumable**: rerun it after a partial failure and it picks up where it left off. Per-file failures are warned and counted; the command exits non-zero if any occurred.
 - It also works in reverse (cloud → local): `--disk=public` migrates everything back.
+- Deleting a media item in the admin removes the file from **the item's current disk**. A local original kept by migrating without `--delete-source` is untouched — it was preserved as a backup on purpose.
 
 ### Known limitations
 
