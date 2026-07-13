@@ -7,6 +7,7 @@ namespace Andre\AiPageBuilder\Filament\Resources;
 use Andre\AiPageBuilder\Filament\Resources\MediaResource\Pages;
 use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Services\MediaLibrary;
+use Andre\AiPageBuilder\Services\MediaStorage;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -97,7 +98,7 @@ class MediaResource extends Resource
                             ->label('Files')
                             ->multiple()
                             ->image()
-                            ->disk((string) config('ai-page-builder.media.disk', 'public'))
+                            ->disk(fn (): string => app(MediaStorage::class)->diskName())
                             ->directory((string) config('ai-page-builder.media.directory', 'page-builder'))
                             ->maxSize((int) config('ai-page-builder.media.max_kb', 8192))
                             ->storeFiles(false)

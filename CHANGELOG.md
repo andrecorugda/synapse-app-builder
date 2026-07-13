@@ -5,6 +5,32 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — cloud media storage
+
+- **Media can live in your own bucket** — Amazon S3 (and S3-compatibles:
+  MinIO, Cloudflare R2, DO Spaces), Azure Blob Storage, or Google Cloud
+  Storage. Configured on the new **Settings → Storage** tab; credentials are
+  stored encrypted, a **Test storage connection** action verifies them with a
+  real write/read/URL probe, and the runtime `pb-cloud` disk never touches the
+  host app's filesystem config. The Flysystem adapters are optional suggested
+  packages, auto-detected when installed (like Socialite for SSO). With no
+  cloud driver selected, behaviour is unchanged (`media.disk`).
+- **`ai-page-builder:migrate-media`** — migrate existing media between disks
+  (filesystem → cloud or back): stream-copies with size verification, flips
+  each media row's `disk`, and rewrites the old URLs baked into saved pages,
+  email templates and partials (html/css/custom JS/project_data).
+  `--dry-run`, `--delete-source`, `--chunk`; idempotent and resumable. See
+  [docs/cloud-storage.md](docs/cloud-storage.md).
+
+### Fixed
+
+- Deleting a media item now also deletes the physical file from its storage
+  disk — previously only the DB row was removed and the file stayed on the
+  disk, still reachable at its URL. Cleanup is best-effort: a storage failure
+  is logged and never blocks deleting the row.
+
 ## [1.3.1] - 2026-07-03
 
 ### Added — component configuration
