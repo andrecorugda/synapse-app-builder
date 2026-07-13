@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
+use Andre\AiPageBuilder\Services\MediaStorage;
 use Andre\AiPageBuilder\Services\RecordCsv;
 use Filament\Actions;
 use Filament\Forms;
@@ -406,11 +407,18 @@ class RecordsRelationManager extends RelationManager
                 ->searchable()
                 ->native(false),
 
-            FieldType::Image => Forms\Components\FileUpload::make($name)
-                ->image()
-                ->disk($this->mediaDisk())
-                ->directory($this->mediaDirectory())
-                ->visibility('public'),
+            FieldType::Image => tap(
+                Forms\Components\FileUpload::make($name)
+                    ->image()
+                    ->disk($this->mediaDisk())
+                    ->directory($this->mediaDirectory()),
+                function (Forms\Components\FileUpload $upload): void {
+                    // Azure / uniform-ACL GCS disks reject per-file ACLs.
+                    if (app(MediaStorage::class)->supportsVisibility()) {
+                        $upload->visibility('public');
+                    }
+                },
+            ),
 
             default => Forms\Components\TextInput::make($name)
                 ->maxLength((int) ($options['length'] ?? 255)),
@@ -431,7 +439,7 @@ class RecordsRelationManager extends RelationManager
      */
     private function mediaDisk(): string
     {
-        return (string) config('ai-page-builder.media.disk', 'public');
+        return app(MediaStorage::class)->diskName();
     }
 
     /**

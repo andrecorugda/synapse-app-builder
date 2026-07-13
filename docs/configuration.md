@@ -99,6 +99,8 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 | `media.accept` | — | `[png, jpeg, gif, webp, svg+xml]` | Accepted MIME types |
 | `media.max_kb` | `AI_PAGE_BUILDER_MEDIA_MAX_KB` | `8192` | Max upload size (KB) |
 
+> `media.disk` is the **fallback** disk. When a cloud driver is configured on the Settings → Storage tab (S3 / Azure Blob / GCS), media goes to the runtime `pb-cloud` disk instead — see [Cloud media storage](cloud-storage.md).
+
 ## `cache` — render cache
 
 | Key | Env | Default | Meaning |

@@ -101,6 +101,18 @@ php artisan ai-page-builder:seed-integration
 
 Disable auto-seed with `AI_PAGE_BUILDER_AI_AUTO_SEED=false`. See [AI](ai.md) for the full picture.
 
+## 4b. Optional — cloud media storage
+
+Offload media uploads to Amazon S3 (or MinIO/R2/Spaces), Azure Blob Storage or Google Cloud Storage. Install the adapter for your provider — auto-detected when installed:
+
+```bash
+composer require league/flysystem-aws-s3-v3            # Amazon S3 & S3-compatibles
+composer require azure-oss/storage-blob-flysystem     # Azure Blob Storage
+composer require league/flysystem-google-cloud-storage # Google Cloud Storage
+```
+
+Then configure credentials on the admin **Settings → Storage** tab (stored encrypted), and migrate existing files with `php artisan ai-page-builder:migrate-media`. See [Cloud media storage](cloud-storage.md).
+
 ## 5. Schedule cron flows (optional)
 
 If you use `cron`-triggered flows, schedule the runner at your chosen interval (e.g. in `routes/console.php` or the app's scheduler):
@@ -152,6 +164,6 @@ Re-run the publish with `--force` after upgrading the package to refresh the ven
 | `AI_PAGE_BUILDER_DATA_API_PREFIX` | `api/pb` | Auto REST API prefix |
 | `AI_PAGE_BUILDER_AUTH` | `true` | Enable the built app's auth guard |
 | `AI_PAGE_BUILDER_AI_DRIVER` | `auto` | `auto` \| `gateway` \| `openrouter` |
-| `AI_PAGE_BUILDER_MEDIA_DISK` | `public` | Filesystem disk for uploads |
+| `AI_PAGE_BUILDER_MEDIA_DISK` | `public` | Filesystem disk for uploads (fallback — see [Cloud media storage](cloud-storage.md)) |
 
 The full list is in [Configuration](configuration.md).

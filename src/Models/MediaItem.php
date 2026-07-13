@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Database\Factories\MediaItemFactory;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -47,6 +48,25 @@ class MediaItem extends Model
         return Schema::table('media');
     }
 
+    protected static function booted(): void
+    {
+        // Deleting the row must also delete the physical file — otherwise it
+        // stays on the (possibly cloud) disk forever, still reachable by URL.
+        // Best-effort: a storage failure (disk gone, adapter uninstalled,
+        // network) must never block deleting the row itself.
+        static::deleted(static function (self $item): void {
+            try {
+                Storage::disk($item->disk)->delete($item->path());
+            } catch (\Throwable $e) {
+                Log::warning('[ai-page-builder] Could not delete media file after row deletion.', [
+                    'disk' => $item->disk,
+                    'path' => $item->path(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
+    }
+
     public function path(): string
     {
         return trim($this->directory, '/').'/'.$this->filename;
@@ -59,12 +79,16 @@ class MediaItem extends Model
         // Local disks build their URL from APP_URL, which is frequently wrong in
         // development (e.g. missing the dev server port). Return a root-relative
         // URL in that case so the browser resolves it against the current origin
-        // (correct host:port). Genuinely remote URLs (S3 / CDN) are left intact.
-        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
-        $rawHost = parse_url($raw, PHP_URL_HOST);
+        // (correct host:port). Genuinely remote URLs (S3 / CDN) are left intact —
+        // including a different PORT on the same host (e.g. MinIO on :9000 next
+        // to the app), which must not be stripped to the app origin.
+        $app = parse_url((string) config('app.url'));
+        $url = parse_url($raw);
+        $sameOrigin = ($url['host'] ?? null) === ($app['host'] ?? null)
+            && ($url['port'] ?? null) === ($app['port'] ?? null);
 
-        if ($rawHost === null || $rawHost === $appHost) {
-            return parse_url($raw, PHP_URL_PATH) ?: $raw;
+        if (! isset($url['host']) || $sameOrigin) {
+            return $url['path'] ?? $raw;
         }
 
         return $raw;

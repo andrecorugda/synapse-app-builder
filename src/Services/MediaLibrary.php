@@ -24,7 +24,7 @@ class MediaLibrary
 
     public function store(UploadedFile $file, ?int $userId = null): MediaItem
     {
-        $disk = (string) config('ai-page-builder.media.disk', 'public');
+        $disk = app(MediaStorage::class)->diskName();
         $dir = trim((string) config('ai-page-builder.media.directory', 'page-builder'), '/');
 
         $ext = $file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'bin';

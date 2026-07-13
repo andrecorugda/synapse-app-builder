@@ -38,6 +38,7 @@ These docs are the reference: how it installs, how each subsystem works, the exa
 | [functions-and-states.md](functions-and-states.md) | Functions (expression / callable / PHP) and the eval-free `db.* / ui.* / auth.* / util.*` helper library; States (the persistent reactive store). |
 | [authentication-and-permissions.md](authentication-and-permissions.md) | The built app's users/roles/permissions, the `pb` guard, opt-in gating, row-level rules, component visibility. |
 | [email.md](email.md) | SMTP settings, the isolated transport, email-template pages, the `send_email` node, mustache interpolation, send-test. |
+| [cloud-storage.md](cloud-storage.md) | Offload media to S3 / Azure Blob / GCS: the Settings → Storage tab, encrypted credentials, the `pb-cloud` runtime disk, and the `migrate-media` command (filesystem → cloud, with content URL rewriting). |
 | [ai.md](ai.md) | The Build Plan contract, "Build with AI," the floating chat, idempotent apply, the code-generated system prompt, safety. |
 | [configuration.md](configuration.md) | A table of **every** key in `config/ai-page-builder.php`, with env var, default and meaning. |
 | [extending.md](extending.md) | Extending **overview**: the capability-registry model, the `PageBuilder` facade, swapping models, the `AiInvoker` contract, events/observers. |

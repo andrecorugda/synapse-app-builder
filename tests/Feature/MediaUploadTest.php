@@ -43,6 +43,33 @@ it('rejects the upload endpoint without authentication', function (): void {
     expect(MediaItem::count())->toBe(0);
 });
 
+it('deletes the physical file when the row is deleted', function (): void {
+    $item = MediaItem::factory()->create(['disk' => 'public']);
+    Storage::disk('public')->put($item->path(), 'x');
+
+    $item->delete();
+
+    Storage::disk('public')->assertMissing($item->path());
+});
+
+it('deletes the file from the item own disk, not the default one', function (): void {
+    Storage::fake('pb-cloud');
+    $item = MediaItem::factory()->create(['disk' => 'pb-cloud']);
+    Storage::disk('pb-cloud')->put($item->path(), 'x');
+
+    $item->delete();
+
+    Storage::disk('pb-cloud')->assertMissing($item->path());
+});
+
+it('still deletes the row when the file cleanup fails', function (): void {
+    $item = MediaItem::factory()->create(['disk' => 'missing-disk']);
+
+    $item->delete();
+
+    expect(MediaItem::count())->toBe(0);
+});
+
 it('exposes the library as asset-manager entries', function (): void {
     MediaItem::factory()->count(3)->create();
 

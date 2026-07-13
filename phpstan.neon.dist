@@ -15,6 +15,12 @@ parameters:
         - src/Seeders/*
     treatPhpDocTypesAsCertain: false
     ignoreErrors:
+        # MediaStorage instantiates the OPTIONAL Azure/GCS Flysystem adapters via
+        # string-literal class names (guarded by class_exists / installed()) —
+        # same pattern as src/Seeders. The packages are deliberately not in
+        # require-dev, so larastan can't resolve them; exercised by MediaStorageTest.
+        - identifier: class.notFound
+          path: src/Services/MediaStorage.php
         # larastan can't resolve the package's namespaced Blade views
         # (ai-page-builder::*) at analysis time; they exist at runtime.
         - message: '#expects view-string\|null, string given#'

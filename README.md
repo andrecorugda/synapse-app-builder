@@ -43,6 +43,7 @@ Nothing leaves your server. There's no SaaS, no per-seat pricing, no lock-in. It
 | ƒ **Functions & States** | Reusable logic (expression / callable / PHP) and a persistent, app-wide **reactive store** that components bind to and flows update live. Factor a one-liner into a Function; a multi-step process into a reusable Flow via `call_flow`. |
 | 🔐 **Auth & permissions** | The built app's **own** users, roles and permissions — sign in once, every gated page just works. Password / **SSO** (Google · Microsoft · GitHub, org-restricted) / **2FA** (email-OTP + authenticator), self-registration + email **invites**, per-page gating, opt-in CRUD rules, **row-/field-level security** and record ownership. Optional: a public site ignores it entirely. |
 | ✉️ **Email** | An isolated SMTP transport (configured in Settings) + a `send_email` flow node that uses any page as an interpolated **email template**. |
+| ☁️ **Cloud media storage** | Offload media to **Amazon S3** (or MinIO/R2/Spaces), **Azure Blob Storage** or **Google Cloud Storage** — credentials configured in Settings (encrypted), adapters optional and auto-detected, host-app disks untouched. `ai-page-builder:migrate-media` moves existing files over and rewrites the URLs baked into saved pages. |
 | ✦ **AI generation** | Describe an app in plain language → review a validated plan → apply it. The generator composes reusable functions and flows instead of repeating logic. A **floating chat** follows you across the admin to refine what you've built. Backed by a **generation quality harness** that asserts every layer of a generated app. Powered by the [AI OpenRouter Gateway](https://github.com/andrecorugda/ai-openrouter-gateway). |
 
 ---
@@ -159,6 +160,13 @@ composer test       # Pest
 composer lint       # Pint
 composer analyse    # PHPStan (larastan)
 ```
+
+## Support
+
+Synapse is free and MIT-licensed. If it's useful to you, you can support its
+development:
+
+<a href="https://ko-fi.com/G7S722N0L8" target="_blank"><img height="36" style="border:0px;height:36px;" src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" border="0" alt="Buy Me a Coffee at ko-fi.com" /></a>
 
 ## License
 
