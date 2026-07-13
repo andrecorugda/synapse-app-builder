@@ -59,12 +59,16 @@ class MediaItem extends Model
         // Local disks build their URL from APP_URL, which is frequently wrong in
         // development (e.g. missing the dev server port). Return a root-relative
         // URL in that case so the browser resolves it against the current origin
-        // (correct host:port). Genuinely remote URLs (S3 / CDN) are left intact.
-        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
-        $rawHost = parse_url($raw, PHP_URL_HOST);
+        // (correct host:port). Genuinely remote URLs (S3 / CDN) are left intact —
+        // including a different PORT on the same host (e.g. MinIO on :9000 next
+        // to the app), which must not be stripped to the app origin.
+        $app = parse_url((string) config('app.url'));
+        $url = parse_url($raw);
+        $sameOrigin = ($url['host'] ?? null) === ($app['host'] ?? null)
+            && ($url['port'] ?? null) === ($app['port'] ?? null);
 
-        if ($rawHost === null || $rawHost === $appHost) {
-            return parse_url($raw, PHP_URL_PATH) ?: $raw;
+        if (! isset($url['host']) || $sameOrigin) {
+            return $url['path'] ?? $raw;
         }
 
         return $raw;

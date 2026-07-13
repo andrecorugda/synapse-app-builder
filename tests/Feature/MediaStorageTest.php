@@ -148,6 +148,21 @@ it('returns absolute urls for media on a remote cloud disk', function (): void {
         ->and($item->toAsset()['src'])->toStartWith('https://cdn.example.com/');
 });
 
+it('keeps urls absolute for a same-host different-port disk (e.g. local MinIO)', function (): void {
+    // app.url host is `localhost` — a MinIO bucket on localhost:9000 is a
+    // DIFFERENT origin and must not be host-stripped to the app origin.
+    config(['app.url' => 'http://localhost']);
+    config(['filesystems.disks.'.MediaStorage::DISK => [
+        'driver' => 'local',
+        'root' => storage_path('framework/testing/pb-cloud'),
+        'url' => 'http://localhost:9000/synapse-media',
+    ]]);
+
+    $item = MediaItem::factory()->create(['disk' => MediaStorage::DISK]);
+
+    expect($item->url())->toBe('http://localhost:9000/synapse-media/'.$item->path());
+});
+
 it('reports per-driver visibility support', function (): void {
     $settings = app(Settings::class);
     $storage = app(MediaStorage::class);
