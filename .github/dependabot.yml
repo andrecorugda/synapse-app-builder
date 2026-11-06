@@ -1,0 +1,22 @@
+# Keeps the CI actions and the Composer constraints current.
+# A 7-day cooldown lets a new release settle (and any bad or hijacked
+# release get pulled) before a PR is opened for it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: composer
+    directory: /
+    versioning-strategy: widen
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
