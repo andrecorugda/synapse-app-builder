@@ -1,0 +1,17 @@
+# Keep the Composer dist archive lean: only what runs in an app ships.
+/.github                 export-ignore
+/tests                   export-ignore
+/art                     export-ignore
+/screenshots             export-ignore
+/docs                    export-ignore
+/.claude                 export-ignore
+/.gitattributes          export-ignore
+/.gitignore              export-ignore
+/phpstan.neon.dist       export-ignore
+/phpunit.xml.dist        export-ignore
+/pint.json               export-ignore
+/BRANCHING_STRATEGY.md   export-ignore
+/CONTRIBUTING.md         export-ignore
+/ROADMAP.md              export-ignore
+/SECURITY.md             export-ignore
+/.editorconfig           export-ignore
