@@ -2,7 +2,7 @@
 
 ## Upgrading to 2.0
 
-2.0 is a security release (advisory GHSA-hj3q-8gc4-6mpw). It has **one breaking change**: Synapse is now closed until you grant access.
+2.0 is a security release (advisory GHSA-hj3q-8gc4-6mpw). The main breaking change: **Synapse is now closed until you grant access.** The built app's pages, flows, States and data API also got stricter defaults, listed under [Runtime changes](#runtime-changes-pages-flows-states-data-api). Run `php artisan migrate` after upgrading.
 
 ### What changes for you
 
@@ -52,3 +52,33 @@ You don't need to change it. An older published `config/ai-page-builder.php` sti
 - Turning off two-factor authentication now asks for the current password (or, for accounts that sign in only with SSO, a current authenticator or recovery code).
 - SSO sign-in now goes through the two-factor challenge when the user has two-factor turned on, like a password sign-in.
 - Creating an API token on Filament 5 works again and shows the token once.
+
+### Runtime changes (pages, flows, States, data API)
+
+Run `php artisan migrate`. The new migration also clears the page cache.
+
+1. **States are server-only by default.** Only States marked **Visible to visitors** are sent to pages (`$store.app`). After migrating, every existing State is server-only, so a component bound to one shows nothing until you mark it:
+   - `php artisan ai-page-builder:states` lists the States your pages use.
+   - `php artisan ai-page-builder:states --referenced` marks every State your pages reference (`$store.app.<key>`, `data-pb-state`, `data-pb-target`); `--public=a,b` marks them by name. You can also use the toggle on the States screen.
+   - Never make a secret visible. Move API keys to **Credentials** and use `credential:` on the HTTP Request node.
+   - In build plans and exports the flag is `"public": true`; `VariableStore::set()` takes a fourth argument, `?bool $public`.
+2. **Visitors can no longer change server-only States in a flow.** A page's live values only replace visible States and page-only keys (cart, form values). `{{ states.x }}`, `state('x')`, dynamic values and a Function's `states` now all return the same value.
+3. **Private flows need a signed-in app user.** A flow that isn't **Public** runs only for a signed-in app user whose role may run it, called from your own site; anyone else gets a 404.
+   - Switch any flow that anonymous visitors trigger (contact forms, newsletter sign-ups, state watchers on public pages) to **Public**.
+   - New permission: resource type `flow`, action `run`. With no permission rows for a flow, any signed-in app user may run it; admins always may.
+   - With `auth.enabled = false`, private flows can't be run over HTTP. The flow route now starts the session (`flow.middleware`).
+4. **Page view permissions are enforced.** A page with a `page` / `view` permission is served only to roles that have it, and to admins. Guests are sent to sign in; others get the 404 page. This also applies to signed preview links and to the pages used as the 404 or maintenance page. Restricted and sign-in-only pages are left out of `sitemap.xml`.
+5. **Flow output is escaped in HTML.** `{{ token }}` values in `setHtml`, modal `html` and `send_email` bodies are HTML-escaped. Use `{{{ token }}}` only for HTML your flow built itself; a flow that puts AI output into `setHtml` needs it, so weigh the risk. `redirect` and `logout` URLs must be `http(s)` or a relative path; anything else is dropped, and `data-pb-redirect` follows the same rule.
+6. **send_email:** a recipient the visitor controls contributes only its first address, which must be valid, or nothing is sent.
+7. **Data API:**
+   - Expanding a user relation returns only `id` and `name` (`data.user_expand_fields`).
+   - `PbUser` no longer includes email, `role_id`, two-factor or SSO columns when serialized. `auth_user()` still returns the signed-in user's own email and `role_id`.
+   - Field-level read restrictions now also apply to `filter`, `search`, `sort`, `fields` and the aggregate `field` / `group_by`.
+   - Row rules may name a relation by its field key or its column. A rule naming an unknown field now **fails closed**: no rows, and a 403 on create.
+   - A default limit of 120 requests per minute applies (`data.rate_limit_per_minute`, env `AI_PAGE_BUILDER_DATA_RATE`; `0` turns it off).
+8. **API tokens** of suspended, deactivated, pending or deleted users return 401, and suspending, deactivating or deleting a user revokes their tokens. A token whose owner was deleted no longer acts as a full-access token.
+9. **Media:** a stored file's extension comes from its real content type. Only images, PDF, MP4/WebM and MP3/OGG/WAV are stored, and only if they are also in `media.accept`; other files get a validation error.
+10. **HTTP Request node:** host names that don't resolve are refused, the connection is pinned to the checked addresses, and 100.64.0.0/10, NAT64 and IPv4-mapped IPv6 are blocked too.
+11. **New `Content-Security-Policy` header** on rendered pages: `render.content_security_policy`, default `base-uri 'self'; object-src 'none'`.
+12. **If you published the config,** the new keys `data.user_expand_fields`, `data.rate_limit_per_minute`, `flow.middleware` and `render.content_security_policy` use their defaults when missing; add them only to change them.
+

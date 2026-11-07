@@ -84,7 +84,7 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 | `routes.render_middleware` | — | `['web']` | Middleware for render + auth routes |
 | `routes.home_at_root` | `AI_PAGE_BUILDER_HOME_AT_ROOT` | `false` | Also serve the home page at `/` (only if the host has no `/` route) |
 | `routes.panel_prefix` | `AI_PAGE_BUILDER_PANEL_PREFIX` | `ai-page-builder` | Authenticated in-panel endpoints (media, lint, ai-chat) |
-| `routes.panel_middleware` | — | `['web', 'auth']` | Middleware for panel endpoints |
+| `routes.panel_middleware` | — | `['web', 'auth', EnsureSynapseAdmin::class]` | Middleware for panel endpoints. The Synapse access check is always added, even if an older published config leaves it out |
 | `routes.flow_prefix` | `AI_PAGE_BUILDER_FLOW_PREFIX` | `pb-flow` | Flow-run prefix (`/pb-flow/{slug}`) |
 
 ## `render` — rendered pages
