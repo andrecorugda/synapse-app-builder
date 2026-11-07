@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources\PbRoleResource\RelationManagers;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseRelationManager;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -22,6 +24,13 @@ use Filament\Tables\Table;
  */
 class PermissionsRelationManager extends RelationManager
 {
+    use AuthorizesSynapseRelationManager;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_USERS;
+    }
+
     protected static string $relationship = 'permissions';
 
     protected static ?string $title = 'Permissions';

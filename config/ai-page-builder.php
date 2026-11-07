@@ -421,6 +421,28 @@ return [
     |--------------------------------------------------------------------------
     */
     'filament' => [
+        // Who may use Synapse (its screens and in-panel endpoints). DENIED by
+        // default: grant it in your AuthServiceProvider/AppServiceProvider:
+        //
+        //     Gate::define('synapse.admin', fn ($user) => $user->is_admin);
+        //
+        // (or `AiPageBuilderPlugin::make()->authorize(fn ($user) => …)`).
+        // Rename the ability here to reuse one of your own.
+        'ability' => 'synapse.admin',
+
+        // Finer abilities for sensitive areas. Each falls back to the admin
+        // ability above unless you define it separately with Gate::define().
+        'abilities' => [
+            'manage-secrets' => 'synapse.manage-secrets',   // credentials, API tokens
+            'manage-users' => 'synapse.manage-users',       // app users, roles, invites
+            'manage-code' => 'synapse.manage-code',         // functions, app import, PHP in AI plans
+            'manage-settings' => 'synapse.manage-settings', // settings, theme, app export
+        ],
+
+        // Panel id the in-panel endpoints check against. null = every panel
+        // that registers AiPageBuilderPlugin.
+        'panel' => env('AI_PAGE_BUILDER_PANEL'),
+
         // Legacy single-group fallback (kept for backward compat).
         'navigation_group' => 'Content',
         'navigation_sort' => 10,

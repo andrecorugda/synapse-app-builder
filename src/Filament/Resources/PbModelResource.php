@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\Pages;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\FieldsRelationManager;
 use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\RecordsRelationManager;
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class PbModelResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-circle-stack';
 
     public static function getModel(): string

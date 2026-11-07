@@ -68,6 +68,7 @@ use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\ScheduleRunner;
 use Andre\AiPageBuilder\Services\Settings;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
@@ -208,6 +209,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        $this->registerAccessGates();
         $this->registerAuthGuard();
         $this->registerAuthRoutes();
         $this->registerRenderRoutes();
@@ -410,6 +412,17 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/panel.php');
         });
+    }
+
+    /**
+     * Grant nothing by default: define the `synapse.admin` ability (and the
+     * finer synapse.manage-* ones, which fall back to it) as DENY unless the
+     * host has already defined them. A host definition made later replaces
+     * ours. See Support\SynapseAccess.
+     */
+    private function registerAccessGates(): void
+    {
+        SynapseAccess::defineDefaultGates();
     }
 
     /**
