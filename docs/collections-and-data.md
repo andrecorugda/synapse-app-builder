@@ -160,6 +160,10 @@ Expanding a relation to **app users** (author, assignee, …) returns only the u
 
 Single-record verbs return `{ "data": { ... } }`. `store` returns `201`; `destroy` returns `204`. A failed validation returns `422` with Laravel's error bag; a denied permission returns `403`.
 
+> **A write reply shows only what you may read.** The record returned by `store` (`POST`) and `update` (`PUT`/`PATCH`) is the saved row *as the caller's role would read it*: limited to the fields on its **read** permission, and — when the role may not read the collection, or the saved row falls outside its read row rule (say, a triage role that may update the status of any ticket but read only its own) — just `{ "id": … }`. Write permission is not read permission, so an empty `PATCH` can't be used to read a row. A page that needs the full row after saving it must be allowed to read it.
+>
+> A role limited to some fields gets each readable field's own value, plus the `{key}_id` column for a readable **relation** field. Any other column stays hidden, even one whose name is a readable key plus `_id` (an `account_id` text field next to a readable `account`).
+
 ## Reading/writing from Flows, Functions and pages
 
 - **Flows** — the [`record` node](flows.md#record) does `list`/`get`/`create`/`update`/`delete` against a collection, going through `RecordQuery`.
