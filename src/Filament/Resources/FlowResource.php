@@ -85,7 +85,7 @@ class FlowResource extends Resource
                                 ->default('0')
                                 ->selectablePlaceholder(false)
                                 ->formatStateUsing(fn ($state): string => $state ? '1' : '0')
-                                ->helperText('Public allows unauthenticated trigger.'),
+                                ->helperText('Public: anyone may run it from a page. Private: only signed-in app users whose role may run it (Roles → Permissions → flow / run).'),
                         ]),
 
                         // Row 2 — rate limit · trigger label. A flow is a reusable

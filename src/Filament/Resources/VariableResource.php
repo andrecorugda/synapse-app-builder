@@ -98,6 +98,12 @@ class VariableResource extends Resource
                             ->inline(false)
                             ->helperText('Guard against casual edit/delete.'),
 
+                        Forms\Components\Toggle::make('is_public')
+                            ->label('Visible to visitors')
+                            ->inline(false)
+                            ->default(false)
+                            ->helperText('Only visible States are sent to pages. Never mark a secret visible — use Credentials for secrets.'),
+
                         // Scalar states keep a simple default-value input. Object
                         // states describe their default through the shape builder
                         // below (per-field defaults), so no raw-JSON box here.
@@ -282,6 +288,11 @@ class VariableResource extends Resource
 
                 Tables\Columns\IconColumn::make('is_protected')
                     ->label('Protected')
+                    ->boolean()
+                    ->sortable(),
+
+                Tables\Columns\IconColumn::make('is_public')
+                    ->label('Visible')
                     ->boolean()
                     ->sortable(),
 
