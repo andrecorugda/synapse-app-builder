@@ -82,6 +82,32 @@ class PbUser extends Authenticatable implements AuthenticatableContract
         'two_factor_confirmed_at' => 'datetime',
     ];
 
+    /**
+     * API tokens die with the owner's right to sign in: suspending,
+     * deactivating or deleting a user revokes every token they own, wherever
+     * the change is made (admin screen, flow, tinker). ResolveApiToken also
+     * refuses a token whose owner can't sign in, as a second line.
+     */
+    protected static function booted(): void
+    {
+        static::updated(static function (self $user): void {
+            // Re-read so DB defaults (status) count, not just what was set in memory.
+            if ($user->wasChanged(['is_active', 'status']) && ! ($user->fresh()?->canLogin() ?? false)) {
+                $user->revokeApiTokens();
+            }
+        });
+
+        static::deleted(static function (self $user): void {
+            $user->revokeApiTokens();
+        });
+    }
+
+    /** Delete every API token this user owns. */
+    public function revokeApiTokens(): int
+    {
+        return PbApiToken::query()->where('pb_user_id', $this->getKey())->delete();
+    }
+
     /** True when the account may sign in (active + not soft-deactivated). */
     public function canLogin(): bool
     {

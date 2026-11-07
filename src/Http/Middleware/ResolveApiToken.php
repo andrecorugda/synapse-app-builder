@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Http\Middleware;
 
 use Andre\AiPageBuilder\Models\PbApiToken;
+use Andre\AiPageBuilder\Models\PbUser;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,9 @@ use Symfony\Component\HttpFoundation\Response;
  *     no user set = full access) and bump last_used_at.
  *   - Bearer present but unknown/expired → 401 JSON (an explicit credential that
  *     fails must not silently fall through to public access).
+ *   - Token whose owner was deleted, suspended, deactivated or is still
+ *     pending approval → 401 JSON: a token can never outlive its owner's
+ *     right to sign in (and must not degrade to an ownerless, full-access one).
  */
 class ResolveApiToken
 {
@@ -42,14 +46,20 @@ class ResolveApiToken
             return new JsonResponse(['message' => 'Invalid API token.'], 401);
         }
 
-        $token->touchLastUsed();
-
         // Ownerless token = full access: don't set a user (AccessControl then
         // treats the caller like an unauthenticated client on open collections,
         // and a restricted collection still rejects writes that need a user).
-        if ($token->pb_user_id !== null && ($user = $token->user) !== null) {
+        if ($token->pb_user_id !== null) {
+            $user = $token->user;
+
+            if (! $user instanceof PbUser || ! $user->canLogin()) {
+                return new JsonResponse(['message' => 'Invalid API token.'], 401);
+            }
+
             Auth::guard((string) config('ai-page-builder.auth.guard', 'pb'))->setUser($user);
         }
+
+        $token->touchLastUsed();
 
         return $next($request);
     }
