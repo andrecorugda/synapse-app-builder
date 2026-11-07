@@ -72,6 +72,7 @@ use Andre\AiPageBuilder\Services\Settings;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -374,12 +375,21 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             return;
         }
 
+        $middleware = (array) config('ai-page-builder.data.api_middleware', ['api']);
+
+        // A per-visitor (or per-user) request budget, on top of whatever the
+        // host's middleware does. Configurable; 0 turns it off.
+        $perMinute = (int) config('ai-page-builder.data.rate_limit_per_minute', 120);
+        if ($perMinute > 0) {
+            $middleware[] = ThrottleRequests::with($perMinute, 1, 'pb-data');
+        }
+
         Route::group([
             'prefix' => $prefix,
             // ResolveApiToken runs last: a Bearer token authenticates the `pb`
             // guard for programmatic callers (AccessControl then scopes them);
             // no token → session auth still applies.
-            'middleware' => array_merge((array) config('ai-page-builder.data.api_middleware', ['api']), [ResolveApiToken::class]),
+            'middleware' => array_merge($middleware, [ResolveApiToken::class]),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
         });

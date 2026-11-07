@@ -14,6 +14,8 @@ use Andre\AiPageBuilder\Models\PbPermission;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\Route;
 
 function dataApiCollections(): void
 {
@@ -229,4 +231,12 @@ it('fails closed when a row rule names no field or column', function (): void {
     $this->actingAs($alice, 'pb')->getJson('/api/pb/notes')->assertOk()->assertJsonCount(0, 'data');
     expect($this->actingAs($alice, 'pb')->getJson('/api/pb/notes/aggregate')->json('total'))->toEqual(0);
     $this->actingAs($alice, 'pb')->postJson('/api/pb/notes', ['body' => 'x'])->assertForbidden();
+});
+
+// --- Rate limit -----------------------------------------------------------------
+
+it('throttles the data API by default', function (): void {
+    $middleware = Route::getRoutes()->getByName('ai-page-builder.records.index')->gatherMiddleware();
+
+    expect($middleware)->toContain(ThrottleRequests::with(120, 1, 'pb-data'));
 });

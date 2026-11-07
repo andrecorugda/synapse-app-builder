@@ -122,8 +122,8 @@ return [
         // user relation is expanded (`?expand=author`). Anything not listed is
         // left out — never add credentials or two-factor columns here.
         'user_expand_fields' => ['id', 'name'],
-        // Requests per minute per visitor (or per signed-in user) on the data
-        // API. 0 turns the limit off.
+        // Requests per minute each client (IP address, or signed-in host user)
+        // may make to the data API before getting HTTP 429. 0 turns it off.
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_DATA_RATE', 120),
     ],
 
