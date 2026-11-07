@@ -170,7 +170,7 @@ The bundled `flow-runtime.blade.php` wires up these attributes on the published 
 Flow runs `POST` to `/{flow_prefix}/{slug}` with `{ "input": {...} }` and apply the returned `actions[]` (`setHtml`, `setText`, `notify`, `redirect`, `addClass`, `removeClass`, `setState`, `setStates`). See [Flows](flows.md).
 
 - A button anonymous visitors use must call a **public** flow; a private flow only runs for a signed-in user whose role may run it ([Flows → the run endpoint](flows.md#the-run-endpoint)).
-- Values a flow puts into `setHtml` / modal HTML are escaped (shown as text) unless the flow uses `{{{ }}}`; `redirect` and `data-pb-redirect` only follow `http(s)` links or paths on your site.
+- Values a flow puts into `setHtml` / modal HTML are escaped (shown as text) unless the flow uses `{{{ }}}`, and the finished HTML is sanitised: no scripts or event handlers, links and images only `http(s)`, site paths, `mailto:` / `tel:` or inline images, and a token inside an event-handler or Alpine attribute removes that attribute ([details](flows.md#result)). `redirect` and `data-pb-redirect` only follow `http(s)` links or paths on your site.
 
 ## Data tables with `pbTable`
 

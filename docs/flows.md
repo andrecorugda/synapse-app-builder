@@ -305,6 +305,11 @@ Send an email via the [isolated mailer](email.md).
 Append actions returned to the page runtime. **All action fields are interpolated.**
 
 - **HTML is escaped.** In `setHtml` and `modal` `html`, every `{{ token }}` value is HTML-escaped: a visitor's input, an AI reply or an HTTP response shows as text and can't inject markup or script into your page. When a value *is* HTML you trust — markup your own flow assembled — write it with three braces, `{{{ vars.snippet }}}`, to insert it as-is. Never use `{{{ }}}` for anything a visitor or an outside service controls (AI replies included: a visitor can steer them).
+- **The finished HTML is sanitised.** Escaping alone can't protect a value placed *inside* a link or a script attribute, so after the tokens are filled in, `setHtml` and `modal` HTML (including a modal [Partial](pages-and-components.md)) goes through the same sanitiser as pages:
+  - `<script>`, event handlers (`onclick` …), `x-on:` / `@…` / `x-init` / `x-html`, and `srcdoc` are removed — also when you typed them yourself in the action;
+  - `href`, `src`, `action` and other URL attributes keep only `https://…`, `http://…`, a path on your site, `mailto:`, `tel:` or an inline image (`data:image/png|jpeg|gif|webp`); anything else (`javascript:` …) loses the attribute, the element stays;
+  - a `{{ token }}` inside an attribute that runs code — an event handler or any Alpine directive (`x-text="'Hi {{ input.name }}'"`, `:class="…"`) — removes that attribute. Put the value between tags instead (`<span>{{ input.name }}</span>`), or in a plain attribute (`class`, `title`, `data-*`). Alpine directives you write *without* tokens still work;
+  - a `{{{ raw }}}` value is sanitised on its own first and loses every Alpine directive, so trusted HTML can carry markup but not behaviour.
 - **Only safe links.** `redirect` (and `logout`'s optional `url`) accept `https://…`, `http://…` or a path on your site (`/p/thanks`, `thanks`, `#done`). Any other kind of URL — `javascript:`, `data:` … — is dropped: the redirect doesn't happen, and logout returns to the login page.
 
 The `result` node uses a **low-code actions builder** in the editor: a type dropdown selects the action type and the relevant fields for that type appear automatically. Supported types:
