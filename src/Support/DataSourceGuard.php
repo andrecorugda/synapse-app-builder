@@ -42,6 +42,9 @@ final class DataSourceGuard
         'oauth_refresh_tokens', 'oauth_personal_access_clients', 'oauth_device_codes',
         // spatie/laravel-permission defaults (configured names are added too).
         'roles', 'permissions', 'model_has_roles', 'model_has_permissions', 'role_has_permissions',
+        // Queue and cache stores: Laravel unserializes these rows, so writing one
+        // can run code (configured names are added too).
+        'jobs', 'failed_jobs', 'job_batches', 'cache', 'cache_locks',
     ];
 
     /**
@@ -184,6 +187,19 @@ final class DataSourceGuard
         foreach ((array) config('permission.table_names', []) as $name) {
             $names[] = $name;
         }
+        foreach ((array) config('queue.connections', []) as $queue) {
+            if (is_array($queue) && is_string($queue['table'] ?? null)) {
+                $names[] = $queue['table'];
+            }
+        }
+        $names[] = config('queue.failed.table');
+        $names[] = config('queue.batching.table');
+        foreach ((array) config('cache.stores', []) as $store) {
+            if (is_array($store)) {
+                $names[] = $store['table'] ?? null;
+                $names[] = $store['lock_table'] ?? null;
+            }
+        }
         foreach ((array) config('ai-page-builder.data.external.protected_tables', []) as $name) {
             $names[] = $name;
         }
@@ -231,7 +247,9 @@ final class DataSourceGuard
                     continue;
                 }
                 $allowed = strtolower(trim($allowed));
-                if ($allowed === '*' || $allowed === $whole || (! str_contains($allowed, '.') && $allowed === $wanted && ! str_contains($whole, '.'))) {
+                // `*` allows any plain table name, never a schema/database-qualified one
+                // (`mysql.user`, `information_schema.tables`): those must be listed in full.
+                if (($allowed === '*' && ! str_contains($whole, '.')) || $allowed === $whole || (! str_contains($allowed, '.') && $allowed === $wanted && ! str_contains($whole, '.'))) {
                     return true;
                 }
             }
