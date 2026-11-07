@@ -57,6 +57,7 @@ class EditPage extends EditRecord
                 ->label('Preview')
                 ->icon('heroicon-m-eye')
                 ->color('gray')
+                ->tooltip('A page with a login or role restriction only previews for a signed-in app user who may view it.')
                 ->url(
                     fn (): string => URL::temporarySignedRoute(
                         'ai-page-builder.preview',

@@ -38,7 +38,7 @@ Nothing leaves your server. There's no SaaS, no per-seat pricing, no lock-in. It
 | Pillar | What it gives you |
 |---|---|
 | 🧩 **Pages & components** | A GrapesJS visual builder + a real UI kit (cards, modals, drawers, tabs, forms, **data tables**), per-page CSS/JS, SEO, a cached public render route, and a pickable **home page**. **Management pages** give you an Add form + live data table + per-row Edit/Delete in one pattern. Image fields upload on select via a gated `/pb-upload` endpoint. |
-| 🗄️ **Collections (data)** | Define your own models → **real database tables** (`pb_<key>`, Directus-style) with typed fields, schema sync, an instant **REST API** (filter/sort/search/paginate/`expand=*`) and a records browser. `?expand=*` resolves belongs-to relations so lists show related record names instead of raw ids. Or map an **existing external table** as a read-through virtual collection — same API/blocks/flows, never schema-managed. |
+| 🗄️ **Collections (data)** | Define your own models → **real database tables** (`pb_<key>`, Directus-style) with typed fields, schema sync, an instant **REST API** (filter/sort/search/paginate/`expand=*`) and a records browser. `?expand=*` resolves belongs-to relations so lists show related record names instead of raw ids. Or map an **existing external table** you allow in config as a read-only virtual collection — same API/blocks/flows, never schema-managed. |
 | ⚡ **Flows (the brain)** | An n8n-style visual canvas. Transaction and Loop bodies are edited as an ordered, sortable **step list**. A **`call_flow`** node runs a saved flow as a sub-step, sharing context. One Trigger per flow (START-badged), enforced by the editor. **Colour-coded node types** (with a matching, colour-coded node drawer), **green / red true / false branch ports** on conditions, zoom controls + non-overlapping auto-layout. Nodes: CRUD, HTTP, AI invoke, functions, conditions, set-state, **send email**, page actions — with a low-code **Result** type-picker. |
 | ƒ **Functions & States** | Reusable logic (expression / callable / PHP) and a persistent, app-wide **reactive store** that components bind to and flows update live. Factor a one-liner into a Function; a multi-step process into a reusable Flow via `call_flow`. |
 | 🔐 **Auth & permissions** | The built app's **own** users, roles and permissions — sign in once, every gated page just works. Password / **SSO** (Google · Microsoft · GitHub, org-restricted) / **2FA** (email-OTP + authenticator), self-registration + email **invites**, per-page gating, opt-in CRUD rules, **row-/field-level security** and record ownership. Optional: a public site ignores it entirely. |
@@ -107,7 +107,17 @@ public function panel(Panel $panel): Panel
 }
 ```
 
+Then say who may build apps — **Synapse is closed to everyone until you do**. In your `AppServiceProvider::boot()`:
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('synapse.admin', fn ($user) => $user->is_admin);
+```
+
 A **Content** group appears with Pages, Media, Flows, Functions, Collections, States, App Users, Roles and Settings. Create a collection, build a page, wire a flow, publish.
+
+> **Access control.** Only users who pass `synapse.admin` see the Synapse screens and can use the AI chat, media upload and lint endpoints. Credentials, users, code, settings and external data sources have finer abilities that follow a `Gate::define`d `synapse.admin` unless you define them (with spatie/laravel-permission, grant each one as a permission). See [Builder admins — who can open Synapse](docs/authentication-and-permissions.md#builder-admins--who-can-open-synapse). Upgrading from 1.x? Read [UPGRADE.md](UPGRADE.md).
 
 **To unlock AI generation**, install the gateway and add your OpenRouter key — the `app_builder` integration self-seeds:
 

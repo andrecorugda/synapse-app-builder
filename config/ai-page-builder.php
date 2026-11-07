@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Http\Middleware\EnsureDataApiSameOrigin;
+use Andre\AiPageBuilder\Http\Middleware\EnsureSynapseAdmin;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\FlowRun;
@@ -118,6 +119,33 @@ return [
         // snapshotted (the package doesn't own their writes). Turn off to skip
         // history entirely. A revision-write failure never blocks the real write.
         'record_history' => (bool) env('AI_PAGE_BUILDER_RECORD_HISTORY', true),
+        // Columns of an app user that the data API may return when a record's
+        // user relation is expanded (`?expand=author`). Anything not listed is
+        // left out — never add credentials or two-factor columns here.
+        'user_expand_fields' => ['id', 'name'],
+        // Requests per minute each client (IP address, or signed-in host user)
+        // may make to the data API before getting HTTP 429. 0 turns it off.
+        'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_DATA_RATE', 120),
+
+        // External collections map a table Synapse does not own. Off until you
+        // list what builders may map (and they also need the
+        // synapse.manage-data-sources ability to create or edit one).
+        'external' => [
+            // Connection names from config/database.php builders may read from.
+            'connections' => [],
+            // Tables they may map. A plain list applies to every listed
+            // connection; key it by connection to narrow it:
+            //   ['orders', 'reporting' => ['customers', 'invoices']]
+            // '*' allows any table. Synapse's own tables and your auth tables
+            // (users, password resets, sessions, personal access tokens,
+            // Passport and spatie/laravel-permission tables) are ALWAYS refused.
+            'tables' => [],
+            // Extra tables to always refuse, on top of the built-in list.
+            'protected_tables' => [],
+            // External collections are read-only unless this is true AND the
+            // collection's own Read-only toggle is off.
+            'writable' => (bool) env('AI_PAGE_BUILDER_EXTERNAL_WRITABLE', false),
+        ],
     ],
 
     /*
@@ -129,6 +157,14 @@ return [
     */
     'flow' => [
         'run_route_enabled' => env('AI_PAGE_BUILDER_FLOW_ROUTE', true),
+        // Middleware of the flow-run endpoint. Cookies + session let a private
+        // flow see the signed-in app user (private flows need one); public
+        // flows ignore it.
+        'middleware' => [
+            EncryptCookies::class,
+            StartSession::class,
+            'api',
+        ],
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_FLOW_RATE', 30),
         // Global executed-node budget for a single flow run, shared across nested
         // loop/transaction bodies — bounds runaway loops. The default comfortably
@@ -161,6 +197,11 @@ return [
         // Per-request timeout (seconds) for the HTTP Request node, so a slow or
         // hung host can't tie up a worker indefinitely.
         'http_timeout' => (int) env('AI_PAGE_BUILDER_HTTP_TIMEOUT', 15),
+
+        // Most recipients (To + CC + BCC together) one Send Email node may mail
+        // at once. A larger list refuses the send, so a flow can't be turned
+        // into a mass-mailer.
+        'email_max_recipients' => (int) env('AI_PAGE_BUILDER_EMAIL_MAX_RECIPIENTS', 10),
     ],
 
     /*
@@ -188,13 +229,31 @@ return [
         // The WHICH page is home is chosen in the Settings screen, not here.
         'home_at_root' => (bool) env('AI_PAGE_BUILDER_HOME_AT_ROOT', false),
 
-        // Authenticated, in-panel endpoints (media upload, etc.). Use the same
-        // guard/middleware your Filament panel uses.
+        // Authenticated, in-panel endpoints (AI chat, media upload, PHP lint).
+        // Use the same guard/middleware your Filament panel uses.
+        // EnsureSynapseAdmin requires a user allowed into the Synapse panel
+        // who passes the `synapse.admin` ability. It is always enforced, even
+        // when you remove it from this list (e.g. a config published pre-2.0).
         'panel_prefix' => env('AI_PAGE_BUILDER_PANEL_PREFIX', 'ai-page-builder'),
-        'panel_middleware' => ['web', 'auth'],
+        'panel_middleware' => ['web', 'auth', EnsureSynapseAdmin::class],
 
         // Public flow-run endpoint prefix (stateless, rate-limited).
         'flow_prefix' => env('AI_PAGE_BUILDER_FLOW_PREFIX', 'pb-flow'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rendered pages
+    |--------------------------------------------------------------------------
+    | content_security_policy — sent as the Content-Security-Policy header on
+    | every rendered page (live, preview, 404 and maintenance). The default
+    | only blocks plugins and <base> hijacking, which never affects a page the
+    | builder produces. A stricter script-src policy is possible but must allow
+    | the page's inline runtime and Alpine ('unsafe-inline' 'unsafe-eval') plus
+    | any CDN you load assets from. Set to null or '' to send no header.
+    */
+    'render' => [
+        'content_security_policy' => env('AI_PAGE_BUILDER_CSP', "base-uri 'self'; object-src 'none'"),
     ],
 
     /*
@@ -421,6 +480,36 @@ return [
     |--------------------------------------------------------------------------
     */
     'filament' => [
+        // Who may use Synapse (its screens and in-panel endpoints). DENIED by
+        // default: grant it in your AuthServiceProvider/AppServiceProvider:
+        //
+        //     Gate::define('synapse.admin', fn ($user) => $user->is_admin);
+        //
+        // (or `AiPageBuilderPlugin::make()->authorize(fn ($user) => …)`).
+        // Rename the ability here to reuse one of your own.
+        'ability' => 'synapse.admin',
+
+        // Finer abilities for sensitive areas. Each falls back to the admin
+        // ability above unless you define it separately with Gate::define().
+        'abilities' => [
+            'manage-secrets' => 'synapse.manage-secrets',   // credentials, API tokens
+            'manage-users' => 'synapse.manage-users',       // app users, roles, invites
+            'manage-code' => 'synapse.manage-code',         // functions, app import, PHP in AI plans
+            'manage-settings' => 'synapse.manage-settings', // settings, theme, app export
+            'manage-data-sources' => 'synapse.manage-data-sources', // external (existing-table) collections
+        ],
+
+        // What a finer ability you did NOT define with Gate::define() does:
+        // 'admin' = follow the admin decision above; 'deny' = refuse.
+        // Even on 'admin' it refuses when spatie/laravel-permission has a
+        // permission of that name, or when synapse.admin itself is granted by
+        // a Gate::before hook (a permission system) rather than Gate::define().
+        'fine_abilities_fallback' => env('AI_PAGE_BUILDER_FINE_ABILITIES_FALLBACK', 'admin'),
+
+        // Panel id the in-panel endpoints check against. null = every panel
+        // that registers AiPageBuilderPlugin.
+        'panel' => env('AI_PAGE_BUILDER_PANEL'),
+
         // Legacy single-group fallback (kept for backward compat).
         'navigation_group' => 'Content',
         'navigation_sort' => 10,

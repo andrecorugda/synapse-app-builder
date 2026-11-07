@@ -8,7 +8,6 @@ use Andre\AiPageBuilder\Filament\Resources\PbApiTokenResource;
 use Andre\AiPageBuilder\Models\PbApiToken;
 use Filament\Actions\Action;
 use Filament\Forms;
-use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 
@@ -22,6 +21,8 @@ class ListPbApiTokens extends ListRecords
             Action::make('create')
                 ->label('Create token')
                 ->icon('heroicon-m-plus')
+                // A custom action is not covered by the resource's policy checks.
+                ->authorize(fn (): bool => PbApiTokenResource::canCreate())
                 ->modalSubmitActionLabel('Create')
                 ->schema([
                     Forms\Components\TextInput::make('name')
@@ -93,7 +94,7 @@ class ListPbApiTokens extends ListRecords
                 // Render as a link (url '#') so Filament does NOT wire it to a
                 // server-side mountAction — the copy is purely client-side, via a
                 // delegated listener keyed off the data-pb-token-copy attribute.
-                NotificationAction::make('copy')
+                Action::make('copy')
                     ->label('Copy to clipboard')
                     ->icon('heroicon-m-clipboard-document')
                     ->button()

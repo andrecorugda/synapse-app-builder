@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder\Services\Data;
 
 use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Support\DataSourceGuard;
 use Andre\AiPageBuilder\Support\Schema as PbSchema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
@@ -31,6 +32,10 @@ class SchemaSynchronizer
         if ($model->isExternal()) {
             return;
         }
+
+        // Never create or alter Synapse's own / the host's auth tables, even for
+        // a collection row that reached the database without PbModel's check.
+        DataSourceGuard::assertAllowed($model);
 
         $builder = $this->builder();
         $fields = $model->fields()->get();
@@ -132,7 +137,7 @@ class SchemaSynchronizer
      */
     public function dropColumnFor(PbModel $model, string $columnName): void
     {
-        if ($model->isExternal() || $columnName === '') {
+        if ($model->isExternal() || $columnName === '' || DataSourceGuard::refusal($model) !== null) {
             return;
         }
         if (in_array($columnName, ['id', 'created_at', 'updated_at', 'deleted_at'], true)) {
@@ -151,8 +156,9 @@ class SchemaSynchronizer
 
     public function dropTable(PbModel $model): void
     {
-        // Never drop a table the package doesn't own.
-        if ($model->isExternal()) {
+        // Never drop a table the package doesn't own (an external one, or a
+        // protected table a tampered collection row points at).
+        if ($model->isExternal() || DataSourceGuard::refusal($model) !== null) {
             return;
         }
 

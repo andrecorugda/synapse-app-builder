@@ -110,6 +110,17 @@
             <div class="on">Two-factor is ON</div>
             <form method="POST" action="{{ url('/'.$loginPath.'/two-factor/disable') }}">
                 @csrf
+                @if (filled($user->getAuthPassword()))
+                    <div class="field">
+                        <label for="current_password">Confirm your password to turn it off</label>
+                        <input id="current_password" type="password" name="current_password" autocomplete="current-password" required>
+                    </div>
+                @else
+                    <div class="field">
+                        <label for="code">Enter a current code (or a recovery code) to turn it off</label>
+                        <input id="code" type="text" name="code" autocomplete="one-time-code" required>
+                    </div>
+                @endif
                 <button type="submit" class="danger">Turn off two-factor</button>
             </form>
         @elseif ($pendingMethod === 'totp')

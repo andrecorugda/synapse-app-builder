@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\CredentialResource\Pages;
 use Andre\AiPageBuilder\Models\Credential;
+use Andre\AiPageBuilder\Services\CredentialHosts;
+use Andre\AiPageBuilder\Support\SynapseAccess;
+use Closure;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -14,10 +18,18 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Model;
 
 class CredentialResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_SECRETS;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-key';
 
     public static function getModel(): string
@@ -107,10 +119,32 @@ class CredentialResource extends Resource
                             ->password()
                             ->revealable()
                             ->autocomplete('new-password')
+                            // Never send the stored (decrypted) secret to the
+                            // browser: the field always starts empty, and a
+                            // blank value keeps the current secret on save.
+                            ->formatStateUsing(fn (): ?string => null)
                             ->required(fn (?Model $record): bool => $record === null)
                             ->dehydrated(fn (?string $state): bool => filled($state))
                             ->placeholder(fn (?Model $record): string => $record !== null ? '•••••• (leave blank to keep)' : '')
                             ->helperText('Leave blank to keep the current secret.')
+                            ->columnSpanFull(),
+
+                        Forms\Components\TagsInput::make('allowed_hosts')
+                            ->label('Allowed hosts')
+                            ->placeholder('api.example.com')
+                            ->splitKeys(['Tab', ',', ' '])
+                            ->nestedRecursiveRules([
+                                new class implements ValidationRule
+                                {
+                                    public function validate(string $attribute, mixed $value, Closure $fail): void
+                                    {
+                                        if (! is_string($value) || ! CredentialHosts::isValidPattern($value)) {
+                                            $fail('Enter a host such as api.example.com, or *.example.com for its subdomains.');
+                                        }
+                                    }
+                                },
+                            ])
+                            ->helperText('The secret is sent only to these hosts (exact, or *.example.com for any subdomain). With no host it is never sent: an HTTP Request node using it is refused. Only list hosts you trust with this secret.')
                             ->columnSpanFull(),
                     ]),
             ])
@@ -142,6 +176,12 @@ class CredentialResource extends Resource
                         'basic' => 'warning',
                         default => 'gray',
                     }),
+
+                Tables\Columns\TextColumn::make('allowed_hosts')
+                    ->label('Allowed hosts')
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('None (never sent)'),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()

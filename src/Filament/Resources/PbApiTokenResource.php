@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\PbApiTokenResource\Pages;
 use Andre\AiPageBuilder\Models\PbApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -21,6 +23,13 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PbApiTokenResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_SECRETS;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-key';
 
     public static function getModel(): string

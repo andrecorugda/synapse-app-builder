@@ -55,9 +55,10 @@ Mark a page as an email template by setting `kind` to `email` in the Pages form 
 } }
 ```
 
-- `to` — required; string (comma-separated) or array; interpolated.
+- `to` — required; string (comma-separated) or array; interpolated. Only a list **you type** adds several addresses (`"owner@shop.test, sales@shop.test"`, or several array entries). Every `{{ token }}` adds **one** address — the first in its value, which must be valid, or nothing is sent — whatever the token reads: `{{ input.email }}`, a State, or a `{{ vars.* }}` value an earlier step copied from the visitor. So a visitor can't make one form submission mail a whole list. To mail a list kept in a State, type the addresses into the node instead.
 - `template` — slug of a `kind=email` page used as the body. If omitted/not found, falls back to the inline `body`.
-- `cc` / `bcc` / `reply_to` — optional; interpolated; cc/bcc accept lists.
+- `cc` / `bcc` / `reply_to` — optional; interpolated; cc/bcc accept lists (the same one-address-per-token rule applies).
+- Every final address must be a single valid address: an entry with `;`, a line break, spaces or `<…>` refuses the send. To + CC + BCC together are capped by `flow.email_max_recipients` (default 10, env `AI_PAGE_BUILDER_EMAIL_MAX_RECIPIENTS`); a larger list refuses the send with `"error": "Too many recipients …"`.
 - `output` — context var that receives the result (default `email`).
 
 **Non-fatal by design:** a missing recipient, empty body, or unconfigured transport records `{ "sent": false, "error": "..." }` in the output var and the flow continues; a successful send records `{ "sent": true }`.
@@ -71,6 +72,8 @@ The body (template page HTML or inline `body`) is interpolated against the **flo
 | `{{ input.x }}` | The trigger input |
 | `{{ vars.x }}` | A var a prior node wrote |
 | `{{ states.x }}` | A persistent [State](functions-and-states.md) |
+
+Every value is **HTML-escaped**: if a visitor types `<a href="…">Reset your password</a>` into a form field, the mail shows that text, not a link. When a value is HTML you built yourself in the flow, insert it as-is with three braces: `{{{ vars.summary_html }}}`. Never use the three-brace form for something a visitor typed.
 
 For a **collection-triggered** flow the changed row is at `{{ input.record.<field> }}` (plus `{{ input.event }}` and `{{ input.collection }}`). A typical "email on signup" template:
 

@@ -26,6 +26,12 @@ class CreatePbModel extends CreateRecord
     {
         if (($data['source_type'] ?? PbModel::SOURCE_MANAGED) !== PbModel::SOURCE_EXTERNAL) {
             $data['table_name'] = PbModel::physicalTableName((string) $data['key']);
+            $data['source_type'] = PbModel::SOURCE_MANAGED;
+            $data['source_connection'] = null;
+        } else {
+            // Server-side, whatever the browser sent: mapping an existing table
+            // needs the finer ability (the allowlist is enforced by PbModel).
+            abort_unless(PbModelResource::canManageDataSources(), 403);
         }
 
         return $data;

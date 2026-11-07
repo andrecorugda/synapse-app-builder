@@ -20,7 +20,8 @@ use Throwable;
 class CredentialStore
 {
     /**
-     * The HTTP headers to apply for the credential stored under $key.
+     * The HTTP headers to apply for the credential stored under $key, without
+     * checking where they go. Outbound requests use {@see headersForHost()}.
      *
      * @return array<string,string>
      */
@@ -47,6 +48,29 @@ class CredentialStore
             'basic' => ['Authorization' => 'Basic '.base64_encode($this->basicUsername($meta).':'.$secret)],
             default => [],
         };
+    }
+
+    /**
+     * The headers for the credential under $key on a request to $host, or
+     * null when the credential exists but may not be sent there (its allowed
+     * hosts don't include $host, or the list is empty). An unknown key or an
+     * unreadable secret gives [] as {@see headers()} does.
+     *
+     * @return array<string,string>|null
+     */
+    public function headersForHost(string $key, string $host): ?array
+    {
+        $credential = $this->find($key);
+
+        if ($credential === null) {
+            return [];
+        }
+
+        if (! $credential->allowsHost($host)) {
+            return null;
+        }
+
+        return $this->headers($key);
     }
 
     private function find(string $key): ?Credential

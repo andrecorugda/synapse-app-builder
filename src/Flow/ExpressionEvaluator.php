@@ -28,10 +28,18 @@ class ExpressionEvaluator
     {
         $this->el = new ExpressionLanguage;
 
-        // `state('key')` reads a persistent app-wide State from the store,
-        // e.g. state('tax_rate'). Returns null for unknown keys. `global('key')`
-        // is kept as an identical alias for backward compatibility.
-        $reader = fn (array $arguments, string $key): mixed => app(VariableStore::class)->get($key);
+        // `state('key')` reads an app-wide State, e.g. state('tax_rate'). Returns
+        // null for unknown keys. `global('key')` is kept as an identical alias
+        // for backward compatibility. Inside a flow the caller passes the run's
+        // `states` view (persisted + the page's allowed overlay), so state('x')
+        // always agrees with {{ states.x }}; elsewhere it reads the store.
+        $reader = static function (array $arguments, string $key): mixed {
+            if (isset($arguments['states']) && is_array($arguments['states'])) {
+                return $arguments['states'][$key] ?? null;
+            }
+
+            return app(VariableStore::class)->get($key);
+        };
         $compiler = fn (string $key): string => sprintf('app(\Andre\AiPageBuilder\Services\Data\VariableStore::class)->get(%s)', $key);
 
         $this->el->register('state', $compiler, $reader);

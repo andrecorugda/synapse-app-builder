@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * One grant for a role: an action on a resource, with an optional row-level
  * rule. The whole access model is just rows of these — Directus-style.
  *
- *   resource_type: collection | page
+ *   resource_type: collection | page | flow (action `run`)
  *   resource_key:  <collection key> | <page slug> | '*'
  *   action:        create | read | update | delete (collections) · view (pages) · '*'
  *   rule:          { "<field>": "$CURRENT_USER" | <value> }  // null = unrestricted

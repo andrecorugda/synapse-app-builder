@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources\PageResource\RelationManagers;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseRelationManager;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PageRevision;
 use Filament\Actions;
@@ -21,6 +22,8 @@ use Filament\Tables\Table;
  */
 class RevisionsRelationManager extends RelationManager
 {
+    use AuthorizesSynapseRelationManager;
+
     protected static string $relationship = 'revisions';
 
     protected static ?string $title = 'Versions';

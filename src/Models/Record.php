@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Models;
 
+use Andre\AiPageBuilder\Exceptions\DataSourceRefusedException;
+use Andre\AiPageBuilder\Support\DataSourceGuard;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Model;
 
@@ -24,6 +26,21 @@ final class Record extends Model
     /** The collection key this record belongs to (for reference / events). */
     public ?string $pbModelKey = null;
 
+    /** True for an external collection that may not be written (see PbModel::externalWritesBlocked). */
+    public bool $writesBlocked = false;
+
+    protected static function booted(): void
+    {
+        $refuse = static function (Record $record): void {
+            if ($record->writesBlocked) {
+                throw new DataSourceRefusedException("The collection '{$record->pbModelKey}' is read-only.");
+            }
+        };
+
+        self::saving($refuse);
+        self::deleting($refuse);
+    }
+
     /**
      * Build a Record bound to a collection's physical table.
      */
@@ -33,6 +50,11 @@ final class Record extends Model
             ? $model
             : self::resolvePbModel($model);
 
+        // The table is re-checked on every use, so a collection row written
+        // around PbModel (raw SQL, an old import) still cannot reach a
+        // protected or unlisted table.
+        DataSourceGuard::assertAllowed($pb);
+
         $instance = new self;
         // External collections live on their own connection; managed ones on the
         // package's data connection.
@@ -40,6 +62,7 @@ final class Record extends Model
         $instance->setTable($pb->table_name);
         $instance->timestamps = (bool) $pb->has_timestamps;
         $instance->pbModelKey = $pb->key;
+        $instance->writesBlocked = $pb->externalWritesBlocked();
         $instance->mergeCasts($pb->fieldCasts());
 
         return $instance;
@@ -60,6 +83,7 @@ final class Record extends Model
         $model->setConnection($this->getConnectionName());
         $model->timestamps = $this->timestamps;
         $model->pbModelKey = $this->pbModelKey;
+        $model->writesBlocked = $this->writesBlocked;
         $model->mergeCasts($this->casts);
 
         return $model;

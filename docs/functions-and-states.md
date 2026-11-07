@@ -29,7 +29,7 @@ The expression sees these variables:
 - `args` — the node's `args`
 - `states` / `globals` — the persistent State map
 
-Plus `state('key')` / `global('key')` (alias) to read a persistent State, and every helper in the [helper library](#the-helper-library).
+Plus `state('key')` / `global('key')` (alias) to read a persistent State, and every helper in the [helper library](#the-helper-library). Inside a flow run, `states`, `state('key')` and `{{ states.key }}` always return the same value — including when a page sent its live values with the request (see [Who can see a State](#who-can-see-a-state)).
 
 ```text
 args["price"] * 1.2
@@ -90,7 +90,7 @@ The expression sandbox ships with a curated, **eval-free** set of callables — 
 | `ui_redirect` | UI & Feedback | Navigate the browser to a URL. | `ui_redirect('/p/order-confirmation')` |
 | `ui_logout` | Auth & Access | Sign the current end-user out and redirect to login. | `ui_logout()` |
 | `ui_set_state` | UI & Feedback | Push a value into the reactive store (`$store.app`) so bound components re-render. | `ui_set_state('cart_total', vars.total)` |
-| `auth_user` | Auth & Access | The signed-in end-user as an array (sensitive columns hidden), or null when a guest. | `auth_user()` |
+| `auth_user` | Auth & Access | The signed-in end-user as an array (with their own `email` and `role_id`; password and two-factor data are never included), or null when a guest. | `auth_user()` |
 | `auth_id` | Auth & Access | The signed-in end-user id, or null when a guest. | `auth_id()` |
 | `auth_check` | Auth & Access | True when an end-user is signed in. | `auth_check()` |
 | `util_now` | Utilities | The current date/time with a PHP date format (default `Y-m-d H:i:s`). | `util_now('Y-m-d')` |
@@ -119,6 +119,7 @@ A State is a persistent, app-wide variable in `page_builder_variables` (`src/Mod
 | `value` | Stored as a string; cast back on read per `type` |
 | `description` | Optional |
 | `is_protected` | Guards against casual edit/delete (advisory) |
+| `is_public` | **Client-visible**: sent to every visitor's browser and may be replaced by the page's live value in a flow run. Off by default (server-only). See below. |
 
 Type round-tripping: `number` → int/float, `boolean` → `1`/`0` ↔ bool, `json` → `json_encode`/`json_decode`, `string` → as-is.
 
@@ -132,6 +133,8 @@ $store = app(\Andre\AiPageBuilder\Services\Data\VariableStore::class);
 $store->get('tax_rate', 0.0);          // typed value, with default
 $store->set('tax_rate', 0.2);          // infers type when omitted
 $store->set('flags', ['beta' => true], 'json');
+$store->set('store_name', 'Corner Shop', public: true); // client-visible
+$store->publicAll();                    // only the client-visible States
 $store->has('tax_rate');
 $store->forget('tax_rate');
 $store->all();                          // key => typed value
@@ -139,12 +142,34 @@ $store->all();                          // key => typed value
 
 From flows: the [`set_variable` node](flows.md#set_variable) writes a State; any `{{ states.x }}` token reads one. From expression functions: `state('x')`.
 
+### Who can see a State
+
+Every State is either **server-only** (the default) or **client-visible** (`is_public`).
+
+- **Server-only** — read and written by flows, functions and the admin, and *never* sent to a browser. A visitor can't read it from the page source and can't change it: when a page runs a flow and sends a value under the same name, the flow still sees the stored value. Use it for settings such as a tax rate, a discount threshold or a webhook URL. (Never store passwords or API keys in a State at all — use a **Credential**, which is encrypted and only attached to outgoing HTTP calls.)
+- **Client-visible** — sent to every visitor's browser with each page (`$store.app.<key>`), so components can show it and bind to it. When a page runs a flow, the page's live value of the State is what the flow sees for that run. Use it for anything the page displays: a store name, an announcement, a counter.
+
+Keys a page holds that are not stored States at all (a cart, the selected tab, form values) are page-only; a flow run triggered by the page sees the page's values for them, exactly as before.
+
+When a flow's [`set_variable`](flows.md#set_variable) node writes a State, the page that ran the flow gets the new value live (`setState`) **only if the State is client-visible**. A server-only State's new value stays on the server; a State the node creates starts server-only, so mark it visible if the page should show it.
+
+**Choosing.** From the command line:
+
+```bash
+php artisan ai-page-builder:states                               # list States, visibility, and which ones pages use
+php artisan ai-page-builder:states --public=store_name,promo     # make client-visible
+php artisan ai-page-builder:states --private=tax_rate            # make server-only
+php artisan ai-page-builder:states --referenced                  # make every State a page binds to client-visible
+```
+
+`--referenced` looks for `$store.app.<key>`, `data-pb-state="<key>"` and `data-pb-target="<key>"` in your pages and partials. Review the list before running it, and never make a secret client-visible. In a build plan or an exported app the flag is `"public": true` on the state. Changing visibility clears the page cache, so the change is live immediately.
+
 ### The reactive Store (data binding on pages)
 
-When a page renders, all States are serialized and seeded into an Alpine store named `app`:
+When a page renders, the **client-visible** States are serialized and seeded into an Alpine store named `app`:
 
 ```js
-window.__pbState = { /* every State, key => value */ };
+window.__pbState = { /* client-visible States only, key => value */ };
 Alpine.store('app', { ...window.__pbState });
 ```
 

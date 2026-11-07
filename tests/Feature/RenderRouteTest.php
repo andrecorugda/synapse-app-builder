@@ -7,8 +7,8 @@ use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\Settings;
 
-it('boots the reactive Store seeded from State on the published page', function (): void {
-    app(VariableStore::class)->set('greeting', 'Hi there', 'string');
+it('boots the reactive Store seeded from a client-visible State on the published page', function (): void {
+    app(VariableStore::class)->set('greeting', 'Hi there', 'string', public: true);
 
     Page::factory()->published()->create([
         'slug' => 'reactive',

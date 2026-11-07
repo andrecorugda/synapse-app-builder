@@ -260,7 +260,10 @@ class BuildPlanApplier
 
             try {
                 $type = is_string($state['type'] ?? null) ? $state['type'] : null;
-                $this->variables->set($key, $state['value'] ?? null, $type);
+                // `public` = client-visible (sent to pages). Absent → an existing
+                // State keeps its visibility, a new one is server-only.
+                $public = array_key_exists('public', $state) ? (bool) $state['public'] : null;
+                $this->variables->set($key, $state['value'] ?? null, $type, $public);
                 $summary['created']['states'][] = $key;
             } catch (Throwable $e) {
                 $summary['errors'][] = "states[{$i}] ('{$key}'): ".$e->getMessage();

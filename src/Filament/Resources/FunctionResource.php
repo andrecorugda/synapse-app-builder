@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Forms\Components\CodeField;
 use Andre\AiPageBuilder\Filament\Resources\FunctionResource\Pages;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Models\FlowFunction;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -21,6 +23,13 @@ use Illuminate\Support\HtmlString;
 
 class FunctionResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_CODE;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-code-bracket';
 
     public static function getModel(): string

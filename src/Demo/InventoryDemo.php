@@ -111,8 +111,9 @@ class InventoryDemo
 
     private function statesAndFunction(): void
     {
-        $this->states->set('low_stock_count', 3, 'number');
-        $this->states->set('last_activity', 'Seeded 8 products', 'string');
+        // Both are shown on the dashboard page, so they are client-visible.
+        $this->states->set('low_stock_count', 3, 'number', public: true);
+        $this->states->set('last_activity', 'Seeded 8 products', 'string', public: true);
 
         FlowFunction::query()->updateOrCreate(
             ['slug' => 'line-value'],

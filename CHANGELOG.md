@@ -5,6 +5,49 @@ All notable changes to `andrecorugda/synapse` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-07
+
+**Security release** ([GHSA-hj3q-8gc4-6mpw](https://github.com/andrecorugda/synapse-app-builder/security/advisories/GHSA-hj3q-8gc4-6mpw), critical). Upgrade every install. Read [UPGRADE.md](UPGRADE.md) first: Synapse is now closed until you grant access.
+
+### Security — admin access
+- **The Synapse admin screens are denied by default.** Any user who could sign in to the host's Filament panel could open every Synapse screen, including Credentials, API Tokens, App Users, Roles, Settings and app export/import. Access now needs the `synapse.admin` ability (or the plugin's `->authorize()`), with finer `synapse.manage-secrets`, `-users`, `-code` and `-settings` abilities for the sensitive areas.
+- **The in-panel endpoints are protected.** The AI chat (send and apply), media upload and PHP lint routes only checked that someone was signed in, so any user of the host app could rewrite pages, add flows and functions, and, with PHP functions enabled, run code on the server. They now require a user the panel lets in **and** `synapse.admin`, and adding a PHP function also needs `synapse.manage-code`. The AI chat is rate-limited.
+- The credential edit form no longer sends the stored secret to the browser.
+- **External collections** can only map connections and tables the host allows (`data.external.*`), never Synapse's own or the host's sign-in tables, are read-only unless the host allows writes, and need the new `synapse.manage-data-sources` ability.
+- The finer abilities now narrow access on hosts that grant `synapse.admin` through spatie/laravel-permission or a `Gate::before` hook (`filament.fine_abilities_fallback`).
+- AI chat: applying site settings needs `manage-settings` (and `manage-users` for sign-up settings); the chat dock shows only to Synapse admins.
+
+### Security — built app, flows and data API
+- Expanding a user relation in the data API no longer returns email, two-factor secrets or recovery codes.
+- Page view permissions from the Roles screen are now enforced on every render path, including previews and the 404/maintenance pages.
+- Private flows can no longer be run by faking a browser `Origin` header; they need a signed-in app user allowed to run them.
+- States are no longer printed into every page; only States marked visible are, and visitors can't override server-only States in a flow.
+- Field-level read restrictions now also cover filters, search, sort and aggregates; a row rule that names a relation field is applied instead of silently skipped, and an unknown rule field fails closed.
+- Uploaded files are stored under the extension of their real type, so a disguised `.html` file can't be served from the app's domain.
+- Flow output is HTML-escaped and redirects accept only `http(s)` or relative URLs; `send_email` can't be turned into a mass mailer by a visitor.
+- API tokens stop working when their owner is suspended, deactivated or deleted.
+- Data API write replies (create/update) contain only fields and rows the caller may read.
+- Credentials are sent only to their **allowed hosts**, so a flow can't send a stored secret to a server of the builder's choice (`ai-page-builder:credential-hosts`).
+- `set_variable` no longer returns a server-only State's value to the visitor; `send_email` validates and caps the final recipient list (`flow.email_max_recipients`).
+- `setHtml` and modal HTML are sanitised after tokens are filled in, so `javascript:` links and event-handler or Alpine breakouts are refused.
+- Renaming a role-restricted page keeps it restricted.
+- HTTP Request URLs containing `{` or `}` are refused: the HTTP client expands them as URI templates, which let a URL pass the host checks and connect elsewhere.
+- Flow HTML drops `<style>`, `<svg>`, `<math>` and other tags browsers parse differently from the sanitiser; `ui_modal` html and `ui_redirect` URLs follow the flow output rules.
+- Queue and cache tables can never be mapped as collections; `tables => '*'` never reaches another schema or database.
+- The data API is rate-limited by default; the HTTP Request node pins connections to checked addresses and blocks more private ranges; rendered pages send a baseline `Content-Security-Policy`.
+
+### Security — sign-in
+- Signing out ends the whole session and issues a new CSRF token; turning off two-factor asks for the password (or a current code for SSO-only accounts); SSO sign-in goes through the two-factor challenge.
+
+### Added
+- States screen: a **Visible to visitors** toggle; `php artisan ai-page-builder:states` to list and mark the States pages use.
+- Roles: permission resource type `flow` with action `run`.
+- Credentials: **Allowed hosts**; `php artisan ai-page-builder:credential-hosts`.
+
+### Fixed
+- Creating an API token on Filament 5 works again and shows the token once.
+- The PHP lint endpoint no longer leaves an empty temp file behind on each call.
+
 ## [1.4.0] - 2026-07-13
 
 ### Added — cloud media storage

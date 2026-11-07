@@ -14,6 +14,7 @@ use Andre\AiPageBuilder\Capabilities\Helpers\DbHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\UiHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\UtilHelpers;
 use Andre\AiPageBuilder\Console\CapabilitiesCommand;
+use Andre\AiPageBuilder\Console\CredentialHostsCommand;
 use Andre\AiPageBuilder\Console\ExportAppCommand;
 use Andre\AiPageBuilder\Console\ExportSiteCommand;
 use Andre\AiPageBuilder\Console\ImportAppCommand;
@@ -23,6 +24,8 @@ use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Console\SeedSystemPagesCommand;
+use Andre\AiPageBuilder\Console\StatesVisibilityCommand;
+use Andre\AiPageBuilder\Filament\AiPageBuilderPlugin;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
@@ -51,6 +54,7 @@ use Andre\AiPageBuilder\Http\Controllers\RegistrationController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
 use Andre\AiPageBuilder\Http\Controllers\SocialAuthController;
 use Andre\AiPageBuilder\Http\Controllers\TwoFactorController;
+use Andre\AiPageBuilder\Http\Middleware\EnsureSynapseAdmin;
 use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
@@ -68,8 +72,13 @@ use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\ScheduleRunner;
 use Andre\AiPageBuilder\Services\Settings;
+use Andre\AiPageBuilder\Support\SynapseAccess;
+use Filament\Facades\Filament;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -122,6 +131,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'backfill_collection_flows_into_watchers',
                 'add_watcher_id_to_page_builder_flow_runs_table',
                 'backfill_cron_flows_into_schedules',
+                'add_is_public_to_page_builder_variables_table',
+                'add_allowed_hosts_to_page_builder_credentials_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -132,7 +143,9 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->hasCommand(ExportAppCommand::class)
             ->hasCommand(ImportAppCommand::class)
             ->hasCommand(MigrateMediaCommand::class)
-            ->hasCommand(CapabilitiesCommand::class);
+            ->hasCommand(CapabilitiesCommand::class)
+            ->hasCommand(StatesVisibilityCommand::class)
+            ->hasCommand(CredentialHostsCommand::class);
     }
 
     public function packageRegistered(): void
@@ -208,6 +221,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        $this->registerAccessGates();
         $this->registerAuthGuard();
         $this->registerAuthRoutes();
         $this->registerRenderRoutes();
@@ -369,20 +383,31 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             return;
         }
 
+        $middleware = (array) config('ai-page-builder.data.api_middleware', ['api']);
+
+        // A per-visitor (or per-user) request budget, on top of whatever the
+        // host's middleware does. Configurable; 0 turns it off.
+        $perMinute = (int) config('ai-page-builder.data.rate_limit_per_minute', 120);
+        if ($perMinute > 0) {
+            $middleware[] = ThrottleRequests::with($perMinute, 1, 'pb-data');
+        }
+
         Route::group([
             'prefix' => $prefix,
             // ResolveApiToken runs last: a Bearer token authenticates the `pb`
             // guard for programmatic callers (AccessControl then scopes them);
             // no token → session auth still applies.
-            'middleware' => array_merge((array) config('ai-page-builder.data.api_middleware', ['api']), [ResolveApiToken::class]),
+            'middleware' => array_merge($middleware, [ResolveApiToken::class]),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
         });
     }
 
     /**
-     * Public, stateless flow-run endpoint (opt-in per flow, rate-limited in the
-     * controller). No web/CSRF middleware — it's called from rendered pages.
+     * Flow-run endpoint (rate-limited in the controller). Public flows are open;
+     * private flows need the app user's session, so the default middleware
+     * starts the session (cookies + StartSession) without Laravel's CSRF token —
+     * the controller checks Origin for private flows instead.
      */
     private function registerFlowRoutes(): void
     {
@@ -392,7 +417,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
         Route::group([
             'prefix' => (string) config('ai-page-builder.routes.flow_prefix', 'pb-flow'),
-            'middleware' => ['api'],
+            'middleware' => (array) config('ai-page-builder.flow.middleware', [EncryptCookies::class, StartSession::class, 'api']),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/flow.php');
         });
@@ -406,10 +431,38 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     {
         Route::group([
             'prefix' => (string) config('ai-page-builder.routes.panel_prefix', 'ai-page-builder'),
-            'middleware' => (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
+            'middleware' => self::panelMiddleware(),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/panel.php');
         });
+    }
+
+    /**
+     * The panel-route middleware, with the Synapse admin check ALWAYS last: a
+     * host config published before 2.0 (`['web', 'auth']`) cannot drop it.
+     *
+     * @return list<string>
+     */
+    public static function panelMiddleware(): array
+    {
+        $middleware = array_values(array_filter(
+            (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
+            static fn (mixed $m): bool => is_string($m) && $m !== EnsureSynapseAdmin::class,
+        ));
+        $middleware[] = EnsureSynapseAdmin::class;
+
+        return $middleware;
+    }
+
+    /**
+     * Grant nothing by default: define the `synapse.admin` ability (and the
+     * finer synapse.manage-* ones, which fall back to it) as DENY unless the
+     * host has already defined them. A host definition made later replaces
+     * ours. See Support\SynapseAccess.
+     */
+    private function registerAccessGates(): void
+    {
+        SynapseAccess::defineDefaultGates();
     }
 
     /**
@@ -537,7 +590,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             Route::get($login.'/two-factor/setup', [TwoFactorController::class, 'setup'])->name('ai-page-builder.2fa.setup');
             Route::post($login.'/two-factor/setup', [TwoFactorController::class, 'start'])->middleware('throttle:10,1');
             Route::post($login.'/two-factor/setup/confirm', [TwoFactorController::class, 'confirm'])->middleware('throttle:10,1');
-            Route::post($login.'/two-factor/disable', [TwoFactorController::class, 'disable']);
+            Route::post($login.'/two-factor/disable', [TwoFactorController::class, 'disable'])->middleware('throttle:6,1');
         });
     }
 
@@ -602,10 +655,27 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         );
 
         // The dockable AI chat (floating "Build with AI" companion), available
-        // on every panel page so app-building + refinement follow you around.
+        // on every page of a panel that runs Synapse — but only for a user who
+        // passes synapse.admin there (its endpoints refuse everyone else).
         FilamentView::registerRenderHook(
             'panels::body.end',
-            static fn (): string => view('ai-page-builder::filament.ai-chat')->render(),
+            static fn (): string => self::showsAiChatDock()
+                ? view('ai-page-builder::filament.ai-chat')->render()
+                : '',
         );
+    }
+
+    /** The AI chat dock renders only on a Synapse panel, for a Synapse admin there. */
+    private static function showsAiChatDock(): bool
+    {
+        try {
+            $panel = Filament::getCurrentOrDefaultPanel();
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $panel !== null
+            && $panel->hasPlugin(AiPageBuilderPlugin::ID)
+            && SynapseAccess::check();
     }
 }

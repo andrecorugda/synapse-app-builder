@@ -6,7 +6,6 @@ use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Models\PbSetting;
 use Andre\AiPageBuilder\Services\MediaStorage;
 use Andre\AiPageBuilder\Services\Settings;
-use Andre\AiPageBuilder\Tests\Fixtures\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -120,7 +119,7 @@ it('uploads media onto the configured cloud disk', function (): void {
     app(MediaStorage::class)->registerDisk();
     Storage::fake(MediaStorage::DISK);
 
-    $this->actingAs(new User);
+    $this->actingAs(synapseAdmin());
 
     // ->create() not ->image(): the test host may lack GD (see PublicUploadTest).
     $res = $this->postJson('/ai-page-builder/media/upload', [

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\ScheduleResource\Pages;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ScheduleResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clock';
 
     public static function getModel(): string

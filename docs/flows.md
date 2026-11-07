@@ -14,7 +14,7 @@ A **flow** is the automation engine — an n8n-style graph of nodes that runs in
 | `name` | string | |
 | `trigger_type` | string | Advisory **label** only (`manual` \| `component` \| `form` \| `collection` \| `cron` \| `api`) — no longer gates execution; see [Triggers](#triggers) |
 | `is_active` | bool | Inactive flows never run |
-| `is_public` | bool | Required for the public run endpoint (unauthenticated trigger) |
+| `is_public` | bool | **Public**: anyone may run it through the [run endpoint](#the-run-endpoint), from any site. **Private** (default): only a signed-in app user allowed to run it, from your own pages |
 | `rate_limit_per_minute` | int\|null | Per-flow override of the global rate limit |
 | `trigger_config` | array (JSON) | Legacy trigger config; collection/state binding now lives on [Watchers](watchers.md) |
 | `definition` | array (JSON) | The node graph |
@@ -55,9 +55,12 @@ baked into the flow. `trigger_type` on the flow row is now only an advisory
 On a page, an element with `data-pb-flow="<slug>"` runs the flow on its
 `data-pb-flow-event` (default click/submit); the nearest `<form>`'s fields plus
 any `data-pb-flow-input` JSON, merged over the live `$store.app` state, become the
-flow `input`. External callers POST the same [public run endpoint](#the-public-run-endpoint).
-Both are governed by **Public/Private** (a private flow is same-origin only; a
-public flow is callable from anywhere). See [Pages → runtime attributes](pages-and-components.md#runtime-data-attributes).
+flow `input`. External callers POST the same [run endpoint](#the-run-endpoint).
+Both are governed by **Public/Private**: a public flow is callable by anyone from
+anywhere; a private flow only by a signed-in app user whose role may run it,
+from your own pages. A button that anonymous visitors click (a contact form, a
+newsletter sign-up) therefore needs a **public** flow. See
+[Pages → runtime attributes](pages-and-components.md#runtime-data-attributes).
 
 You can also run any flow from the admin with the **Run now** button on its edit
 page.
@@ -81,9 +84,9 @@ in [Installation](installation.md#5-schedule-cron-flows-optional). For finer
 control (per-flow cron expressions, function targets), prefer **Schedules** (see
 [Configuration](configuration.md)).
 
-## The public run endpoint
+## The run endpoint
 
-`POST /{flow_prefix}/{slug}` (default prefix `pb-flow`, so `POST /pb-flow/{slug}`). Stateless (`api` middleware, no CSRF). Enabled by `flow.run_route_enabled` (default true).
+`POST /{flow_prefix}/{slug}` (default prefix `pb-flow`, so `POST /pb-flow/{slug}`). Enabled by `flow.run_route_enabled` (default true). Its middleware is `flow.middleware` (default: cookies + session + `api`, so a private flow can see who is signed in).
 
 **Request:**
 
@@ -91,9 +94,18 @@ control (per-flow cron expressions, function targets), prefer **Schedules** (see
 { "input": { "email": "a@b.com" } }
 ```
 
-**Behavior** (`FlowController`):
+**Who may run a flow** (`FlowController`):
 
-- The flow must be `active()` **and** `is_public` — otherwise `404`.
+- The flow must be `active()` — otherwise `404`.
+- **Public flow** — anyone, from any website or tool (webhooks, external forms, scripts).
+- **Private flow** — only when all three hold, otherwise `404` (the response never reveals that the flow exists):
+  1. the request comes from a signed-in app user (the end-user login of your app — not an admin of the host panel);
+  2. that user's role may **run** the flow (see below);
+  3. the request comes from your own site (its `Origin`/`Referer` matches the app's host — this is protection against other websites making the visitor's browser call the flow, not a password: a script outside a browser can fake it, which is why 1 and 2 are required).
+
+  With app login turned off (`auth.enabled = false`) nobody is signed in, so private flows can't be run over HTTP at all — make the flows your pages call public.
+
+**Run permissions.** On a role, add a permission with resource type **flow**, the flow's slug as the resource key (or `*` for every flow) and action **run**. As with pages and collections the model is opt-in: while no role has a permission for a flow, every signed-in user may run it (when it is private); once any role has one, only the granted roles — and admin roles — may. A public flow ignores run permissions.
 - **Rate limited** per `slug` + client IP. Key: `pb-flow:{slug}:{ip}`. Limit: the flow's `rate_limit_per_minute`, else `flow.rate_limit_per_minute` (default 30), over a 60-second window. Over the limit → `429 {"error":"Too many requests"}`.
 - On success → `200 { "actions": [ ... ] }` (the page runtime applies them).
 - On failure → `500 {"error":"Flow failed"}` (the real error is logged, not leaked).
@@ -137,7 +149,7 @@ Read/write a collection through `RecordQuery`.
 
 ### `set_variable`
 
-Persist an app [State](functions-and-states.md) (global) and/or a context var.
+Persist an app [State](functions-and-states.md) (global) and/or a context var. Setting a State does not change whether it is [shown to visitors](functions-and-states.md#who-can-see-a-state); a State created here starts **server-only**.
 
 ```json
 { "type": "set_variable", "config": {
@@ -149,6 +161,8 @@ Persist an app [State](functions-and-states.md) (global) and/or a context var.
 ```
 
 `type` (optional cast): `string` \| `number` \| `boolean` \| `json`. Persists to `VariableStore` when `key` is set; also writes `vars[output]` when `output` is set.
+
+When the State is [visible to visitors](functions-and-states.md#who-can-see-a-state), the node also returns a `setState` action so the page that ran the flow updates `$store.app.<key>` live. A server-only State (including one this node just created) is **never** sent back to the browser: its new value stays on the server. To show a value to the visitor, mark the State visible, or return it explicitly from a `result` action.
 
 ### `condition`
 
@@ -208,13 +222,19 @@ Call an external endpoint.
 { "type": "http_request", "config": {
   "method": "post",
   "url": "https://api.example.com/hook",
-  "headers": { "Authorization": "Bearer {{ states.api_key }}" },
+  "credential": "partner_api",
   "body": { "name": "{{ input.name }}" },
   "output": "http"
 } }
 ```
 
 Writes the parsed JSON (or raw body) to `vars[output]` (default `http`) and the status code to `vars[output_status]`.
+
+**Keep API keys in Credentials, never in a State.** `credential` names a stored Credential (admin → Developer → Credentials); its secret is kept encrypted and its auth headers are added to the request only after the URL has passed the safety check below. A State is the wrong place for a secret: anything a page can see, a visitor can see.
+
+**A credential goes only to its allowed hosts.** Each Credential lists the hosts it may be sent to (**Allowed hosts** on the Credentials screen): an exact host such as `api.stripe.com`, or `*.example.com` for any subdomain of `example.com` (not `example.com` itself). Case, a trailing dot and the port are ignored. When the URL's host is not on the list — or the list is empty — the request is **not made**: the output var is `null`, `<output>_status` is `0` and a warning is logged. This stops someone who may edit flows, but not secrets, from pointing a node at a server they control and receiving the secret. Only list hosts you trust with that secret; a wildcard on a shared hosting domain (`*.herokuapp.com`, `*.ngrok.io` …) lets anyone with a site there receive it. Check the hosts from the console with `php artisan ai-page-builder:credential-hosts` (add `--from-flows` to allow the hosts your flows already call, or `<key> --add=host` / `--remove=host`).
+
+**Safety check (on by default, `flow.http_block_private_hosts`).** Only `http`/`https` URLs are called. The host name is looked up once and the call is refused if it doesn't resolve or if *any* address it resolves to is internal — loopback, private networks, link-local (incl. the cloud metadata address 169.254.169.254), shared address space (100.64.0.0/10), benchmarking (198.18.0.0/15), IETF protocol space (192.0.0.0/24), documentation, multicast and reserved ranges (0.0.0.0/8, 240.0.0.0/4), IPv6 unique-local and site-local (fc00::/7, fec0::/10), Teredo (2001::/32), NAT64 (64:ff9b::/96) and IPv4-mapped IPv6. A 6to4 address (2002::/16) is judged by the IPv4 address inside it. The connection is then pinned to the addresses that were checked, so a second DNS answer can't redirect it inside your network. Redirects are not followed. Optionally restrict calls to `flow.http_allowed_hosts`.
 
 ### `ai_invoke`
 
@@ -278,9 +298,21 @@ Send an email via the [isolated mailer](email.md).
 
 `to` accepts a string (comma-separated) or array. `template` is the slug of a `kind=email` page whose HTML is interpolated against the flow context (mustache, not Alpine); use inline `body` instead if no template. Writes `{ "sent": true }` or `{ "sent": false, "error": "..." }` to `vars[output]` (default `email`).
 
+- **Every token counts as one address.** When `to`, `cc`, `bcc` or `reply_to` uses a `{{ token }}` — `{{ input.* }}`, a State, or a `{{ vars.* }}` value an earlier step may have copied from the visitor — that token adds **one** address — the first one in it — and must be a valid address, otherwise nothing is sent (`"sent": false`). A visitor can't turn your "thank you" mail into a mailing to a list of strangers, even through a `set_variable` copy. Addresses you write yourself (`"owner@shop.test, sales@shop.test"`) still form a list.
+- **The final list is checked.** Each address must be a single valid address (no `;`, line breaks, spaces or `<…>`), and To + CC + BCC together may not exceed `flow.email_max_recipients` (default 10); otherwise nothing is sent.
+- **Values in the body are escaped.** `{{ token }}` values in the template or `body` are HTML-escaped, so a visitor who types a link or markup into a form field sees it as plain text in the mail, not as a clickable link. Use `{{{ token }}}` only for HTML your own flow built.
+
 ### `result`
 
 Append actions returned to the page runtime. **All action fields are interpolated.**
+
+- **HTML is escaped.** In `setHtml` and `modal` `html`, every `{{ token }}` value is HTML-escaped: a visitor's input, an AI reply or an HTTP response shows as text and can't inject markup or script into your page. When a value *is* HTML you trust — markup your own flow assembled — write it with three braces, `{{{ vars.snippet }}}`, to insert it as-is. Never use `{{{ }}}` for anything a visitor or an outside service controls (AI replies included: a visitor can steer them).
+- **The finished HTML is sanitised.** Escaping alone can't protect a value placed *inside* a link or a script attribute, so after the tokens are filled in, `setHtml` and `modal` HTML (including a modal [Partial](pages-and-components.md)) goes through the same sanitiser as pages:
+  - `<script>`, event handlers (`onclick` …), `x-on:` / `@…` / `x-init` / `x-html`, and `srcdoc` are removed — also when you typed them yourself in the action;
+  - `href`, `src`, `action` and other URL attributes keep only `https://…`, `http://…`, a path on your site, `mailto:`, `tel:` or an inline image (`data:image/png|jpeg|gif|webp`); anything else (`javascript:` …) loses the attribute, the element stays;
+  - a `{{ token }}` inside an attribute that runs code — an event handler or any Alpine directive (`x-text="'Hi {{ input.name }}'"`, `:class="…"`) — removes that attribute. Put the value between tags instead (`<span>{{ input.name }}</span>`), or in a plain attribute (`class`, `title`, `data-*`). Alpine directives you write *without* tokens still work;
+  - a `{{{ raw }}}` value is sanitised on its own first and loses every Alpine directive, so trusted HTML can carry markup but not behaviour.
+- **Only safe links.** `redirect` (and `logout`'s optional `url`) accept `https://…`, `http://…` or a path on your site (`/p/thanks`, `thanks`, `#done`). Any other kind of URL — `javascript:`, `data:` … — is dropped: the redirect doesn't happen, and logout returns to the login page.
 
 The `result` node uses a **low-code actions builder** in the editor: a type dropdown selects the action type and the relevant fields for that type appear automatically. Supported types:
 
@@ -289,18 +321,18 @@ The `result` node uses a **low-code actions builder** in the editor: a type drop
 | `notify` | `message`, `level` (success/error/warning/info) | Toast notification |
 | `alert` | `title`, `message` | Blocking alert dialog |
 | `modal` | `action` (open/close), `target` (CSS selector), `html` (optional) | Open or close a modal |
-| `redirect` | `url` | Navigate the browser |
+| `redirect` | `url` (http(s) or a path) | Navigate the browser |
 | `setState` | `key`, `value` | Update a reactive State in `$store.app` |
-| `setHtml` | `target` (CSS selector), `html` | Replace inner HTML of an element |
+| `setHtml` | `target` (CSS selector), `html` (`{{ }}` escaped, `{{{ }}}` raw) | Replace inner HTML of an element |
 | `setText` | `target` (CSS selector), `text` | Replace text content of an element |
 | `addClass` | `target` (CSS selector), `class` | Add a CSS class |
 | `removeClass` | `target` (CSS selector), `class` | Remove a CSS class |
-| `logout` | — | Sign the end-user out |
+| `logout` | `url` (optional, http(s) or a path) | Sign the end-user out |
 
 ```json
 { "type": "result", "config": { "actions": [
   { "type": "notify",  "message": "Saved!", "level": "success" },
-  { "type": "setHtml", "target": "#out", "html": "{{ vars.ai }}" },
+  { "type": "setHtml", "target": "#out", "html": "<p>{{ vars.ai }}</p>" },
   { "type": "setText", "target": ".count", "text": "{{ vars.count }}" },
   { "type": "redirect", "url": "/p/thanks" },
   { "type": "addClass", "target": "#box", "class": "done" },
@@ -412,7 +444,9 @@ Any string in a node config is interpolated with `{{ path }}` tokens (token patt
 | `{{ states.x }}` | A persistent [State](functions-and-states.md) (loaded lazily from `VariableStore`) |
 | `{{ globals.x }}` | Alias for `states` (backward compat) |
 
-Dotted paths drill into arrays (`{{ input.record.email }}`, `{{ vars.records.total }}`). Scalars stringify; arrays JSON-encode. `interpolateDeep()` walks an entire config recursively.
+Dotted paths drill into arrays (`{{ input.record.email }}`, `{{ vars.records.total }}`). Scalars stringify; arrays JSON-encode. `interpolateDeep()` walks an entire config recursively. `{{{ path }}}` resolves the same way; it only differs in HTML fields (`setHtml`, `modal`, email bodies), where it skips the escaping.
+
+**States during a page-triggered run.** When a page runs a flow it sends its live `$store.app` values along. For that run, a **client-visible** State — and any page-only key that isn't a stored State, like a cart — reads the page's value; a **server-only** State always reads its stored value, whatever the request says. `{{ states.x }}`, `state('x')` in an expression and `states` inside a Function all follow this same rule, so they always agree. See [Functions & States → Who can see a State](functions-and-states.md#who-can-see-a-state).
 
 ## Run telemetry
 

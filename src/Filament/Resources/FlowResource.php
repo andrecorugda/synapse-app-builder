@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Forms\Components\FlowCanvasField;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource\Pages;
 use Andre\AiPageBuilder\Flow\FlowManager;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class FlowResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-bolt';
 
     public static function getModel(): string
@@ -82,7 +85,7 @@ class FlowResource extends Resource
                                 ->default('0')
                                 ->selectablePlaceholder(false)
                                 ->formatStateUsing(fn ($state): string => $state ? '1' : '0')
-                                ->helperText('Public allows unauthenticated trigger.'),
+                                ->helperText('Public: anyone may run it from a page. Private: only signed-in app users whose role may run it (Roles → Permissions → flow / run).'),
                         ]),
 
                         // Row 2 — rate limit · trigger label. A flow is a reusable
