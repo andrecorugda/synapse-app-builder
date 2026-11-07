@@ -14,9 +14,7 @@ beforeEach(function (): void {
 it('lets an authenticated user upload a valid PNG and returns 201 with a url', function (): void {
     $this->actingAs(new User);
 
-    // Use fake()->create() instead of fake()->image() to avoid GD dependency
-    // (the host lacks GD — pre-existing 2 failures in MediaUploadTest confirm this).
-    $file = UploadedFile::fake()->create('photo.png', 10, 'image/png');
+    $file = UploadedFile::fake()->createWithContent('photo.png', publicUploadPng()); // real PNG bytes: the stored extension is sniffed from content
 
     $res = $this->postJson('/pb-upload', ['file' => $file]);
 
@@ -32,7 +30,7 @@ it('lets an authenticated user upload a valid PNG and returns 201 with a url', f
 it('rejects an anonymous upload when allow_anonymous is false (default)', function (): void {
     config(['ai-page-builder.uploads.allow_anonymous' => false]);
 
-    $file = UploadedFile::fake()->create('photo.png', 10, 'image/png');
+    $file = UploadedFile::fake()->createWithContent('photo.png', publicUploadPng()); // real PNG bytes: the stored extension is sniffed from content
 
     $res = $this->postJson('/pb-upload', ['file' => $file]);
 
@@ -44,7 +42,7 @@ it('rejects an anonymous upload when allow_anonymous is false (default)', functi
 it('allows an anonymous upload when allow_anonymous is true', function (): void {
     config(['ai-page-builder.uploads.allow_anonymous' => true]);
 
-    $file = UploadedFile::fake()->create('photo.png', 10, 'image/png');
+    $file = UploadedFile::fake()->createWithContent('photo.png', publicUploadPng()); // real PNG bytes: the stored extension is sniffed from content
 
     $res = $this->postJson('/pb-upload', ['file' => $file]);
 
@@ -79,3 +77,9 @@ it('rejects an oversize file with 422', function (): void {
 
     expect(MediaItem::count())->toBe(0);
 });
+
+/** A 1x1 PNG (no GD needed). */
+function publicUploadPng(): string
+{
+    return (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+}
