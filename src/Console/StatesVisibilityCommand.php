@@ -75,9 +75,11 @@ class StatesVisibilityCommand extends Command
      */
     private function referencedKeys(): array
     {
+        /** @var list<class-string<Model>> $classes */
+        $classes = [config('ai-page-builder.models.page', Page::class), config('ai-page-builder.models.partial', Partial::class)];
+
         $sources = [];
-        foreach ([config('ai-page-builder.models.page', Page::class), config('ai-page-builder.models.partial', Partial::class)] as $class) {
-            /** @var class-string<Model> $class */
+        foreach ($classes as $class) {
             foreach ($class::query()->get() as $row) {
                 $sources[] = (string) $row->getAttribute('html')."\n".(string) $row->getAttribute('custom_js');
             }
