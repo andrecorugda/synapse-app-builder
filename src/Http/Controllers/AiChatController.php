@@ -7,6 +7,7 @@ namespace Andre\AiPageBuilder\Http\Controllers;
 use Andre\AiPageBuilder\Ai\AppBuilderService;
 use Andre\AiPageBuilder\Ai\BuildPlan;
 use Andre\AiPageBuilder\Ai\BuildPlanApplier;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -120,6 +121,13 @@ class AiChatController extends Controller
             return response()->json(['message' => 'Nothing to apply.'], 422);
         }
 
+        /** @var array<string,mixed> $plan */
+        // A PHP-runtime function is server-side code: it needs the finer
+        // `synapse.manage-code` ability on top of the admin one.
+        if ($this->containsPhpFunctions($plan) && ! SynapseAccess::allowsPanelRoute(SynapseAccess::MANAGE_CODE)) {
+            return response()->json(['message' => 'You are not allowed to add PHP functions.'], 403);
+        }
+
         try {
             /** @var array<string,mixed> $plan */
             $result = app(BuildPlanApplier::class)->apply($plan);
@@ -128,6 +136,21 @@ class AiChatController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    /**
+     * @param  array<string,mixed>  $plan
+     */
+    private function containsPhpFunctions(array $plan): bool
+    {
+        foreach (BuildPlan::fromArray($plan)->functions() as $fn) {
+            $runtime = $fn['runtime'] ?? null;
+            if (is_string($runtime) && strtolower(trim($runtime)) === 'php') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

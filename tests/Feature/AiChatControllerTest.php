@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Models\Page;
-use Andre\AiPageBuilder\Tests\Fixtures\User;
 
 function bindChatAi(string $reply): void
 {
@@ -29,7 +28,7 @@ it('threads a chat turn and returns a plan + summary reply', function (): void {
         'pages' => [['slug' => 'home', 'title' => 'Home', 'status' => 'published', 'html' => '<h1>Hi</h1>']],
     ]));
 
-    $res = $this->actingAs(new User)->postJson('/ai-page-builder/ai-chat', [
+    $res = $this->actingAs(synapseAdmin())->postJson('/ai-page-builder/ai-chat', [
         'messages' => [
             ['role' => 'user', 'content' => 'Build a home page'],
         ],
@@ -43,7 +42,7 @@ it('threads a chat turn and returns a plan + summary reply', function (): void {
 });
 
 it('applies a plan from the chat', function (): void {
-    $res = $this->actingAs(new User)->postJson('/ai-page-builder/ai-chat/apply', [
+    $res = $this->actingAs(synapseAdmin())->postJson('/ai-page-builder/ai-chat/apply', [
         'plan' => ['pages' => [['slug' => 'about', 'title' => 'About', 'status' => 'published', 'html' => '<p>x</p>']]],
     ]);
 
@@ -52,7 +51,7 @@ it('applies a plan from the chat', function (): void {
 });
 
 it('422s when applying an empty plan', function (): void {
-    $this->actingAs(new User)
+    $this->actingAs(synapseAdmin())
         ->postJson('/ai-page-builder/ai-chat/apply', ['plan' => []])
         ->assertStatus(422);
 });

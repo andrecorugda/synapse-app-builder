@@ -51,6 +51,7 @@ use Andre\AiPageBuilder\Http\Controllers\RegistrationController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
 use Andre\AiPageBuilder\Http\Controllers\SocialAuthController;
 use Andre\AiPageBuilder\Http\Controllers\TwoFactorController;
+use Andre\AiPageBuilder\Http\Middleware\EnsureSynapseAdmin;
 use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
@@ -408,10 +409,27 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     {
         Route::group([
             'prefix' => (string) config('ai-page-builder.routes.panel_prefix', 'ai-page-builder'),
-            'middleware' => (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
+            'middleware' => self::panelMiddleware(),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/panel.php');
         });
+    }
+
+    /**
+     * The panel-route middleware, with the Synapse admin check ALWAYS last: a
+     * host config published before 2.0 (`['web', 'auth']`) cannot drop it.
+     *
+     * @return list<string>
+     */
+    public static function panelMiddleware(): array
+    {
+        $middleware = array_values(array_filter(
+            (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
+            static fn (mixed $m): bool => is_string($m) && $m !== EnsureSynapseAdmin::class,
+        ));
+        $middleware[] = EnsureSynapseAdmin::class;
+
+        return $middleware;
     }
 
     /**

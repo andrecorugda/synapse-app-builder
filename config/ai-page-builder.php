@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Http\Middleware\EnsureDataApiSameOrigin;
+use Andre\AiPageBuilder\Http\Middleware\EnsureSynapseAdmin;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\FlowRun;
@@ -188,10 +189,13 @@ return [
         // The WHICH page is home is chosen in the Settings screen, not here.
         'home_at_root' => (bool) env('AI_PAGE_BUILDER_HOME_AT_ROOT', false),
 
-        // Authenticated, in-panel endpoints (media upload, etc.). Use the same
-        // guard/middleware your Filament panel uses.
+        // Authenticated, in-panel endpoints (AI chat, media upload, PHP lint).
+        // Use the same guard/middleware your Filament panel uses.
+        // EnsureSynapseAdmin requires a user allowed into the Synapse panel
+        // who passes the `synapse.admin` ability. It is always enforced, even
+        // when you remove it from this list (e.g. a config published pre-2.0).
         'panel_prefix' => env('AI_PAGE_BUILDER_PANEL_PREFIX', 'ai-page-builder'),
-        'panel_middleware' => ['web', 'auth'],
+        'panel_middleware' => ['web', 'auth', EnsureSynapseAdmin::class],
 
         // Public flow-run endpoint prefix (stateless, rate-limited).
         'flow_prefix' => env('AI_PAGE_BUILDER_FLOW_PREFIX', 'pb-flow'),
