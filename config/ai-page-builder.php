@@ -126,6 +126,26 @@ return [
         // Requests per minute each client (IP address, or signed-in host user)
         // may make to the data API before getting HTTP 429. 0 turns it off.
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_DATA_RATE', 120),
+
+        // External collections map a table Synapse does not own. Off until you
+        // list what builders may map (and they also need the
+        // synapse.manage-data-sources ability to create or edit one).
+        'external' => [
+            // Connection names from config/database.php builders may read from.
+            'connections' => [],
+            // Tables they may map. A plain list applies to every listed
+            // connection; key it by connection to narrow it:
+            //   ['orders', 'reporting' => ['customers', 'invoices']]
+            // '*' allows any table. Synapse's own tables and your auth tables
+            // (users, password resets, sessions, personal access tokens,
+            // Passport and spatie/laravel-permission tables) are ALWAYS refused.
+            'tables' => [],
+            // Extra tables to always refuse, on top of the built-in list.
+            'protected_tables' => [],
+            // External collections are read-only unless this is true AND the
+            // collection's own Read-only toggle is off.
+            'writable' => (bool) env('AI_PAGE_BUILDER_EXTERNAL_WRITABLE', false),
+        ],
     ],
 
     /*
@@ -471,7 +491,15 @@ return [
             'manage-users' => 'synapse.manage-users',       // app users, roles, invites
             'manage-code' => 'synapse.manage-code',         // functions, app import, PHP in AI plans
             'manage-settings' => 'synapse.manage-settings', // settings, theme, app export
+            'manage-data-sources' => 'synapse.manage-data-sources', // external (existing-table) collections
         ],
+
+        // What a finer ability you did NOT define with Gate::define() does:
+        // 'admin' = follow the admin decision above; 'deny' = refuse.
+        // Even on 'admin' it refuses when spatie/laravel-permission has a
+        // permission of that name, or when synapse.admin itself is granted by
+        // a Gate::before hook (a permission system) rather than Gate::define().
+        'fine_abilities_fallback' => env('AI_PAGE_BUILDER_FINE_ABILITIES_FALLBACK', 'admin'),
 
         // Panel id the in-panel endpoints check against. null = every panel
         // that registers AiPageBuilderPlugin.

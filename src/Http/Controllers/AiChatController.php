@@ -128,6 +128,18 @@ class AiChatController extends Controller
             return response()->json(['message' => 'You are not allowed to add PHP functions.'], 403);
         }
 
+        // Site settings (home / 404 / maintenance pages, maintenance mode) need
+        // `synapse.manage-settings`; settings that open sign-up or pick the role
+        // new accounts get also need `synapse.manage-users`. Read the plan the
+        // way the applier does (BuildPlan::settings()).
+        $settings = BuildPlan::fromArray($plan)->settings();
+        if ($settings !== [] && ! SynapseAccess::allowsPanelRoute(SynapseAccess::MANAGE_SETTINGS)) {
+            return response()->json(['message' => 'You are not allowed to change site settings.'], 403);
+        }
+        if (self::touchesAccountSettings($settings) && ! SynapseAccess::allowsPanelRoute(SynapseAccess::MANAGE_USERS)) {
+            return response()->json(['message' => 'You are not allowed to change who can sign up.'], 403);
+        }
+
         try {
             /** @var array<string,mixed> $plan */
             $result = app(BuildPlanApplier::class)->apply($plan);
@@ -136,6 +148,29 @@ class AiChatController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    /**
+     * Does a plan's settings section touch self-registration or the default
+     * role (in any spelling: `registration_enabled`, `auth.default_role`,
+     * a nested `auth` array…)? Those effectively hand out app accounts.
+     *
+     * @param  array<mixed>  $settings
+     */
+    private static function touchesAccountSettings(array $settings, string $prefix = ''): bool
+    {
+        foreach ($settings as $key => $value) {
+            $name = strtolower($prefix.(string) $key);
+            if (str_contains($name, 'registration') || str_contains($name, 'default_role')
+                || str_contains($name, 'allowed_email_domains')) {
+                return true;
+            }
+            if (is_array($value) && self::touchesAccountSettings($value, $name.'.')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
