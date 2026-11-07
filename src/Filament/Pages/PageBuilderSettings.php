@@ -6,11 +6,13 @@ namespace Andre\AiPageBuilder\Filament\Pages;
 
 use Andre\AiPageBuilder\Auth\SocialProviders;
 use Andre\AiPageBuilder\Auth\TwoFactorService;
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapsePage;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Services\MediaStorage;
 use Andre\AiPageBuilder\Services\PageBuilderMailer;
 use Andre\AiPageBuilder\Services\Settings;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -28,6 +30,13 @@ use Throwable;
  */
 class PageBuilderSettings extends FilamentPage
 {
+    use AuthorizesSynapsePage;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_SETTINGS;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cog-6-tooth';
 
     protected string $view = 'ai-page-builder::filament.pages.settings';

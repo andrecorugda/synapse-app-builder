@@ -9,6 +9,7 @@ use Andre\AiPageBuilder\Models\PbUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 /**
@@ -138,6 +139,23 @@ class TwoFactorController
         $user = $this->currentUser();
         if (! $user instanceof PbUser) {
             return redirect($this->loginUrl());
+        }
+
+        // Re-authenticate before lowering the account's protection, so a
+        // borrowed/hijacked session cannot simply switch 2FA off. Users with a
+        // password confirm it; password-less (SSO-only) users confirm with a
+        // current authenticator code or a recovery code instead.
+        $password = $user->getAuthPassword();
+        if (is_string($password) && $password !== '') {
+            $data = $request->validate(['current_password' => ['required', 'string']]);
+            if (! Hash::check($data['current_password'], $password)) {
+                return back()->withErrors(['current_password' => 'That password is incorrect.']);
+            }
+        } else {
+            $data = $request->validate(['code' => ['required', 'string']]);
+            if (! $this->tfa->challenge($user, $data['code'])) {
+                return back()->withErrors(['code' => 'That code is incorrect or has expired.']);
+            }
         }
 
         $this->tfa->disable($user);

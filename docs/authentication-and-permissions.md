@@ -10,6 +10,84 @@ Synapse ships the **built app's own** identity layer — end-users, roles and pe
 | **Builder admins** | People who build apps in Filament | Filament panel guard |
 | **Built-app end-users** | The users of the app you publish | The **`pb`** guard (this page) |
 
+## Builder admins — who can open Synapse
+
+**Nobody, until you say so.** Since 2.0, every Synapse screen in your Filament panel (Pages, Flows, Functions, Collections, App Users, Credentials, API Tokens, Settings, …) and every in-panel endpoint (the AI chat, media upload, PHP lint) is **denied by default**. Being allowed into your Filament panel is not enough on its own: you decide who builds apps.
+
+### Grant access — one line
+
+Define the `synapse.admin` ability in your `AppServiceProvider` (or `AuthServiceProvider`) `boot()` method:
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('synapse.admin', fn ($user) => $user->is_admin);
+```
+
+Use whatever fits your app — a column, a role, a permission:
+
+```php
+Gate::define('synapse.admin', fn ($user) => $user->hasRole('developer'));      // spatie/laravel-permission
+Gate::define('synapse.admin', fn ($user) => in_array($user->email, ['me@acme.test'], true));
+```
+
+A `Gate::before()` callback you already have (for example "super admins can do everything") applies too.
+
+### Or decide on the plugin
+
+If you prefer to keep it next to the panel, pass a callback to the plugin instead. It replaces the `synapse.admin` check for that panel:
+
+```php
+$panel->plugin(
+    AiPageBuilderPlugin::make()->authorize(fn ($user) => $user->is_admin),
+);
+```
+
+### Finer abilities for sensitive areas
+
+Some areas can hand out secrets, user accounts or server-side code. Each has its own ability. **If you don't define one, it simply follows `synapse.admin`** — so the one line above is all most apps need. Define one when only some of your builders should have it:
+
+| Ability | Covers |
+|---|---|
+| `synapse.manage-secrets` | Credentials, API tokens |
+| `synapse.manage-users` | App users, roles and permissions, invites |
+| `synapse.manage-code` | Functions, app import, AI-chat plans that add a **PHP** function |
+| `synapse.manage-settings` | Settings, Theme, app export |
+
+```php
+Gate::define('synapse.admin', fn ($user) => $user->is_staff);
+Gate::define('synapse.manage-secrets', fn ($user) => $user->is_owner);
+```
+
+A finer ability can only **narrow** access: a user still needs `synapse.admin` (or the plugin callback) first.
+
+### Your own policies still apply
+
+The Synapse check comes first; then Filament runs your model policies as usual. If you register a policy for a Synapse model (for example `Page`), it can still deny actions for a granted builder.
+
+### Renaming the abilities
+
+Already have permission names you want to reuse? Map them in `config/ai-page-builder.php`:
+
+```php
+'filament' => [
+    'ability' => 'synapse.admin',                 // the main ability
+    'abilities' => [
+        'manage-secrets' => 'synapse.manage-secrets',
+        'manage-users' => 'synapse.manage-users',
+        'manage-code' => 'synapse.manage-code',
+        'manage-settings' => 'synapse.manage-settings',
+    ],
+    'panel' => null,                              // see below
+],
+```
+
+### The in-panel endpoints
+
+The AI chat (`/ai-page-builder/ai-chat`, `/ai-chat/apply`), media upload and PHP lint routes run behind the `EnsureSynapseAdmin` middleware. It answers **403** unless the signed-in user is a Filament user that your panel lets in (`FilamentUser::canAccessPanel()`) **and** passes `synapse.admin` (or the plugin callback). It checks the panel(s) that register `AiPageBuilderPlugin`; set `filament.panel` (or `AI_PAGE_BUILDER_PANEL`) to a panel id to pin one. Without Filament installed, these endpoints are always refused.
+
+The middleware is always added, even if your published config still lists only `['web', 'auth']` under `routes.panel_middleware`. The AI chat routes are also rate-limited (30 requests a minute).
+
 ## The `pb` guard
 
 When `auth.enabled` is true (default), the package registers — without disturbing host auth — a session guard named `pb` (configurable via `auth.guard`) backed by an Eloquent provider on `PbUser` (`page_builder_users`). It is registered idempotently: an existing guard/provider of the same name is left untouched (`registerAuthGuard()`).

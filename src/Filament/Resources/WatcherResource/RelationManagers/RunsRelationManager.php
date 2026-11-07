@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources\WatcherResource\RelationManagers;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseRelationManager;
 use Andre\AiPageBuilder\Models\FlowRun;
 use Filament\Actions;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -18,6 +19,8 @@ use Filament\Tables\Table;
  */
 class RunsRelationManager extends RelationManager
 {
+    use AuthorizesSynapseRelationManager;
+
     protected static string $relationship = 'runs';
 
     protected static ?string $title = 'Runs';

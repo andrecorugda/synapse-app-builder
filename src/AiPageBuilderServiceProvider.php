@@ -51,6 +51,7 @@ use Andre\AiPageBuilder\Http\Controllers\RegistrationController;
 use Andre\AiPageBuilder\Http\Controllers\RenderPageController;
 use Andre\AiPageBuilder\Http\Controllers\SocialAuthController;
 use Andre\AiPageBuilder\Http\Controllers\TwoFactorController;
+use Andre\AiPageBuilder\Http\Middleware\EnsureSynapseAdmin;
 use Andre\AiPageBuilder\Http\Middleware\ResolveApiToken;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Models\Record;
@@ -68,6 +69,7 @@ use Andre\AiPageBuilder\Services\PageBuilderManager;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\ScheduleRunner;
 use Andre\AiPageBuilder\Services\Settings;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
@@ -208,6 +210,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        $this->registerAccessGates();
         $this->registerAuthGuard();
         $this->registerAuthRoutes();
         $this->registerRenderRoutes();
@@ -406,10 +409,38 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     {
         Route::group([
             'prefix' => (string) config('ai-page-builder.routes.panel_prefix', 'ai-page-builder'),
-            'middleware' => (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
+            'middleware' => self::panelMiddleware(),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/panel.php');
         });
+    }
+
+    /**
+     * The panel-route middleware, with the Synapse admin check ALWAYS last: a
+     * host config published before 2.0 (`['web', 'auth']`) cannot drop it.
+     *
+     * @return list<string>
+     */
+    public static function panelMiddleware(): array
+    {
+        $middleware = array_values(array_filter(
+            (array) config('ai-page-builder.routes.panel_middleware', ['web', 'auth']),
+            static fn (mixed $m): bool => is_string($m) && $m !== EnsureSynapseAdmin::class,
+        ));
+        $middleware[] = EnsureSynapseAdmin::class;
+
+        return $middleware;
+    }
+
+    /**
+     * Grant nothing by default: define the `synapse.admin` ability (and the
+     * finer synapse.manage-* ones, which fall back to it) as DENY unless the
+     * host has already defined them. A host definition made later replaces
+     * ours. See Support\SynapseAccess.
+     */
+    private function registerAccessGates(): void
+    {
+        SynapseAccess::defineDefaultGates();
     }
 
     /**
@@ -537,7 +568,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             Route::get($login.'/two-factor/setup', [TwoFactorController::class, 'setup'])->name('ai-page-builder.2fa.setup');
             Route::post($login.'/two-factor/setup', [TwoFactorController::class, 'start'])->middleware('throttle:10,1');
             Route::post($login.'/two-factor/setup/confirm', [TwoFactorController::class, 'confirm'])->middleware('throttle:10,1');
-            Route::post($login.'/two-factor/disable', [TwoFactorController::class, 'disable']);
+            Route::post($login.'/two-factor/disable', [TwoFactorController::class, 'disable'])->middleware('throttle:6,1');
         });
     }
 

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Http\Middleware\EnsureDataApiSameOrigin;
+use Andre\AiPageBuilder\Http\Middleware\EnsureSynapseAdmin;
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\FlowFunction;
 use Andre\AiPageBuilder\Models\FlowRun;
@@ -188,10 +189,13 @@ return [
         // The WHICH page is home is chosen in the Settings screen, not here.
         'home_at_root' => (bool) env('AI_PAGE_BUILDER_HOME_AT_ROOT', false),
 
-        // Authenticated, in-panel endpoints (media upload, etc.). Use the same
-        // guard/middleware your Filament panel uses.
+        // Authenticated, in-panel endpoints (AI chat, media upload, PHP lint).
+        // Use the same guard/middleware your Filament panel uses.
+        // EnsureSynapseAdmin requires a user allowed into the Synapse panel
+        // who passes the `synapse.admin` ability. It is always enforced, even
+        // when you remove it from this list (e.g. a config published pre-2.0).
         'panel_prefix' => env('AI_PAGE_BUILDER_PANEL_PREFIX', 'ai-page-builder'),
-        'panel_middleware' => ['web', 'auth'],
+        'panel_middleware' => ['web', 'auth', EnsureSynapseAdmin::class],
 
         // Public flow-run endpoint prefix (stateless, rate-limited).
         'flow_prefix' => env('AI_PAGE_BUILDER_FLOW_PREFIX', 'pb-flow'),
@@ -421,6 +425,28 @@ return [
     |--------------------------------------------------------------------------
     */
     'filament' => [
+        // Who may use Synapse (its screens and in-panel endpoints). DENIED by
+        // default: grant it in your AuthServiceProvider/AppServiceProvider:
+        //
+        //     Gate::define('synapse.admin', fn ($user) => $user->is_admin);
+        //
+        // (or `AiPageBuilderPlugin::make()->authorize(fn ($user) => …)`).
+        // Rename the ability here to reuse one of your own.
+        'ability' => 'synapse.admin',
+
+        // Finer abilities for sensitive areas. Each falls back to the admin
+        // ability above unless you define it separately with Gate::define().
+        'abilities' => [
+            'manage-secrets' => 'synapse.manage-secrets',   // credentials, API tokens
+            'manage-users' => 'synapse.manage-users',       // app users, roles, invites
+            'manage-code' => 'synapse.manage-code',         // functions, app import, PHP in AI plans
+            'manage-settings' => 'synapse.manage-settings', // settings, theme, app export
+        ],
+
+        // Panel id the in-panel endpoints check against. null = every panel
+        // that registers AiPageBuilderPlugin.
+        'panel' => env('AI_PAGE_BUILDER_PANEL'),
+
         // Legacy single-group fallback (kept for backward compat).
         'navigation_group' => 'Content',
         'navigation_sort' => 10,

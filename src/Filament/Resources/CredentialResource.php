@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\CredentialResource\Pages;
 use Andre\AiPageBuilder\Models\Credential;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -18,6 +20,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class CredentialResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_SECRETS;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-key';
 
     public static function getModel(): string
@@ -107,6 +116,10 @@ class CredentialResource extends Resource
                             ->password()
                             ->revealable()
                             ->autocomplete('new-password')
+                            // Never send the stored (decrypted) secret to the
+                            // browser: the field always starts empty, and a
+                            // blank value keeps the current secret on save.
+                            ->formatStateUsing(fn (): ?string => null)
                             ->required(fn (?Model $record): bool => $record === null)
                             ->dehydrated(fn (?string $state): bool => filled($state))
                             ->placeholder(fn (?Model $record): string => $record !== null ? '•••••• (leave blank to keep)' : '')

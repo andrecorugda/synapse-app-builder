@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\VariableResource\Pages;
 use Andre\AiPageBuilder\Models\Variable;
 use Andre\AiPageBuilder\Services\State\StateShapeService;
@@ -21,6 +22,8 @@ use Illuminate\Support\Str;
 
 class VariableResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-variable';
 
     public static function getModel(): string

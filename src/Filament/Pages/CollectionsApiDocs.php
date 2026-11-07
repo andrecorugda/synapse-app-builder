@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Pages;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapsePage;
 use Andre\AiPageBuilder\Models\PbModel;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -16,6 +17,8 @@ use Illuminate\Support\Collection;
  */
 class CollectionsApiDocs extends Page
 {
+    use AuthorizesSynapsePage;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-book-open';
 
     protected string $view = 'ai-page-builder::filament.pages.collections-api-docs';

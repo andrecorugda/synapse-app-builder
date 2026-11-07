@@ -22,17 +22,26 @@ class CodeLintController
             return response()->json(['errors' => []]);
         }
 
-        $tmp = tempnam(sys_get_temp_dir(), 'pb_lint_').'.php';
-        // Prepend an opening tag on its own line; reported line numbers are then
-        // offset by 1 from the user's code (corrected below).
-        file_put_contents($tmp, "<?php\n".$code);
+        // tempnam() creates the (empty) reserved file; `php -l` gets a sibling
+        // with a .php suffix. BOTH are removed afterwards — the reserved one
+        // used to be left behind on every call.
+        $reserved = tempnam(sys_get_temp_dir(), 'pb_lint_');
+        if ($reserved === false) {
+            return response()->json(['errors' => []]);
+        }
+        $tmp = $reserved.'.php';
 
         try {
+            // Prepend an opening tag on its own line; reported line numbers are
+            // then offset by 1 from the user's code (corrected below).
+            file_put_contents($tmp, "<?php\n".$code);
+
             $process = new Process([PHP_BINARY, '-l', $tmp]);
             $process->run();
             $output = $process->getErrorOutput()."\n".$process->getOutput();
         } finally {
             @unlink($tmp);
+            @unlink($reserved);
         }
 
         $errors = [];

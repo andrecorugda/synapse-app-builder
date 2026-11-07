@@ -12,6 +12,20 @@ class EditCredential extends EditRecord
 {
     protected static string $resource = CredentialResource::class;
 
+    /**
+     * Drop the secret before the form is filled, so the decrypted value never
+     * reaches the Livewire snapshot (the form field also starts empty).
+     *
+     * @param  array<string,mixed>  $data
+     * @return array<string,mixed>
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        unset($data['secret']);
+
+        return $data;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

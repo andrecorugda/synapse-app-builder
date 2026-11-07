@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Pages;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapsePage;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\Settings;
 use Andre\AiPageBuilder\Services\Theme;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -22,6 +24,13 @@ use Filament\Schemas\Schema;
  */
 class ThemeSettings extends FilamentPage
 {
+    use AuthorizesSynapsePage;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_SETTINGS;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-swatch';
 
     protected string $view = 'ai-page-builder::filament.pages.settings';

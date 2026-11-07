@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Pages;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapsePage;
 use Andre\AiPageBuilder\Services\AppExporter;
 use Andre\AiPageBuilder\Services\AppImporter;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -21,6 +23,8 @@ use Throwable;
  */
 class AppPortability extends FilamentPage
 {
+    use AuthorizesSynapsePage;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrows-right-left';
 
     protected string $view = 'ai-page-builder::filament.pages.app-portability';
@@ -55,12 +59,16 @@ class AppPortability extends FilamentPage
             Action::make('download')
                 ->label('Download export')
                 ->icon('heroicon-o-arrow-down-tray')
+                // The export carries the whole app (states, settings, flows).
+                ->authorize(fn (): bool => SynapseAccess::check(SynapseAccess::MANAGE_SETTINGS))
                 ->action(fn (): StreamedResponse => $this->downloadExport()),
 
             Action::make('import')
                 ->label('Import')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('gray')
+                // An import can bring functions, including PHP-runtime ones.
+                ->authorize(fn (): bool => SynapseAccess::check(SynapseAccess::MANAGE_CODE))
                 ->modalSubmitActionLabel('Import')
                 ->schema([
                     Forms\Components\Textarea::make('json')

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Forms\Components\FlowCanvasField;
 use Andre\AiPageBuilder\Filament\Resources\FlowResource\Pages;
 use Andre\AiPageBuilder\Flow\FlowManager;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class FlowResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-bolt';
 
     public static function getModel(): string

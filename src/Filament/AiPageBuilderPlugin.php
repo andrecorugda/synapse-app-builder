@@ -23,6 +23,7 @@ use Andre\AiPageBuilder\Filament\Resources\RecordRevisionResource;
 use Andre\AiPageBuilder\Filament\Resources\ScheduleResource;
 use Andre\AiPageBuilder\Filament\Resources\VariableResource;
 use Andre\AiPageBuilder\Filament\Resources\WatcherResource;
+use Closure;
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 
@@ -34,12 +35,40 @@ use Filament\Panel;
  *     use Andre\AiPageBuilder\Filament\AiPageBuilderPlugin;
  *
  *     $panel->plugin(AiPageBuilderPlugin::make());
+ *
+ * Every Synapse screen is DENIED until the host grants access, either with the
+ * `synapse.admin` Gate ability or with a callback on the plugin:
+ *
+ *     $panel->plugin(AiPageBuilderPlugin::make()->authorize(fn ($user) => $user->is_admin));
+ *
+ * See Support\SynapseAccess and docs/authentication-and-permissions.md.
  */
 class AiPageBuilderPlugin implements Plugin
 {
+    public const ID = 'ai-page-builder';
+
+    private ?Closure $authorizeUsing = null;
+
     public function getId(): string
     {
-        return 'ai-page-builder';
+        return self::ID;
+    }
+
+    /**
+     * Decide who may use Synapse on this panel, instead of the `synapse.admin`
+     * Gate ability. The callback receives the panel user and returns a bool.
+     * Finer abilities (synapse.manage-*) still narrow access when defined.
+     */
+    public function authorize(?Closure $callback): static
+    {
+        $this->authorizeUsing = $callback;
+
+        return $this;
+    }
+
+    public function getAuthorizeUsing(): ?Closure
+    {
+        return $this->authorizeUsing;
     }
 
     public static function make(): static

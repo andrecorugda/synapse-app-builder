@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers;
 
 use Andre\AiPageBuilder\Enums\FieldType;
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseRelationManager;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
@@ -48,6 +49,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class RecordsRelationManager extends RelationManager
 {
+    use AuthorizesSynapseRelationManager;
+
     protected static ?string $title = 'Records';
 
     /**
