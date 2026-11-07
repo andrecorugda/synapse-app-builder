@@ -9,6 +9,12 @@ use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
+beforeEach(function (): void {
+    // External collections are off until the host lists what may be mapped.
+    config()->set('ai-page-builder.data.external.connections', ['testing']);
+    config()->set('ai-page-builder.data.external.tables', ['legacy_widgets']);
+});
+
 /**
  * Create a raw table the package does NOT manage and seed it directly, then map
  * an EXTERNAL, read-only PbModel onto it. The table lives on the same (default)

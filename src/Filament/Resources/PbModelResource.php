@@ -11,6 +11,8 @@ use Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers\Reco
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\PbUser;
 use Andre\AiPageBuilder\Services\Data\SchemaSynchronizer;
+use Andre\AiPageBuilder\Support\DataSourceGuard;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -47,6 +49,12 @@ class PbModelResource extends Resource
     public static function getNavigationSort(): ?int
     {
         return (int) config('ai-page-builder.filament.navigation_sort', 10) + 3;
+    }
+
+    /** May the current user create or change an external (existing-table) source? */
+    public static function canManageDataSources(): bool
+    {
+        return SynapseAccess::check(SynapseAccess::MANAGE_DATA_SOURCES);
     }
 
     /** The key is the route key (defined in PbModel::getRouteKeyName). */
@@ -112,17 +120,31 @@ class PbModelResource extends Resource
 
                         // Source: a managed collection owns its table (pb_ + key,
                         // auto-derived); an external collection maps an existing
-                        // table on another connection — read only, never altered.
+                        // table on another connection — never altered. Mapping one
+                        // needs synapse.manage-data-sources AND a connection/table
+                        // the host listed in data.external (DataSourceGuard also
+                        // enforces the list at the data layer).
                         Forms\Components\Select::make('source_type')
                             ->label('Source')
-                            ->options([
-                                PbModel::SOURCE_MANAGED => 'Managed (this app owns the table)',
-                                PbModel::SOURCE_EXTERNAL => 'External database table (read an existing table)',
-                            ])
+                            ->options(fn (?PbModel $record): array => static::canManageDataSources() || $record?->isExternal()
+                                ? [
+                                    PbModel::SOURCE_MANAGED => 'Managed (this app owns the table)',
+                                    PbModel::SOURCE_EXTERNAL => 'External database table (read an existing table)',
+                                ]
+                                : [PbModel::SOURCE_MANAGED => 'Managed (this app owns the table)'])
                             ->default(PbModel::SOURCE_MANAGED)
                             ->required()
                             ->native(false)
                             ->live()
+                            ->disabled(fn (string $operation): bool => $operation === 'edit' && ! static::canManageDataSources())
+                            ->rule(fn (?PbModel $record): \Closure => static function (string $attribute, mixed $value, \Closure $fail) use ($record): void {
+                                // Turning a collection INTO an external one needs the ability
+                                // (an existing external one keeps its source; see EditPbModel).
+                                if ($value === PbModel::SOURCE_EXTERNAL && $record?->isExternal() !== true
+                                    && ! static::canManageDataSources()) {
+                                    $fail('You are not allowed to map external tables.');
+                                }
+                            })
                             // External tables are read by default; when switching to
                             // external, default the read-only toggle on (writing is
                             // opt-in). Managed collections leave it untouched.
@@ -135,31 +157,49 @@ class PbModelResource extends Resource
 
                         Forms\Components\Select::make('source_connection')
                             ->label('Connection')
-                            ->options(
-                                collect(array_keys(config('database.connections', [])))
-                                    ->mapWithKeys(fn (string $c): array => [$c => $c])
-                                    ->all()
-                            )
+                            ->options(fn (?PbModel $record): array => collect(DataSourceGuard::allowedConnections())
+                                ->when(
+                                    is_string($record?->source_connection) && $record->source_connection !== '',
+                                    fn ($c) => $c->push((string) $record?->source_connection),
+                                )
+                                ->unique()
+                                ->mapWithKeys(fn (string $c): array => [$c => $c])
+                                ->all())
                             ->native(false)
                             ->searchable()
+                            ->disabled(fn (string $operation): bool => $operation === 'edit' && ! static::canManageDataSources())
                             ->required(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
                             ->visible(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
-                            ->helperText('The Laravel DB connection where the existing table lives.')
+                            ->helperText('Only connections listed in ai-page-builder.data.external.connections are offered.')
                             ->columnSpan(2),
 
                         Forms\Components\TextInput::make('table_name')
                             ->label('Existing table')
                             ->maxLength(255)
+                            ->disabled(fn (string $operation): bool => $operation === 'edit' && ! static::canManageDataSources())
                             ->required(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
                             ->visible(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL)
-                            ->helperText('The existing table name to map (this app will read it, never alter it).')
+                            ->rule(fn (Get $get): \Closure => static function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                if ($get('source_type') !== PbModel::SOURCE_EXTERNAL) {
+                                    return;
+                                }
+                                $reason = DataSourceGuard::externalRefusal($get('source_connection'), is_string($value) ? $value : '');
+                                if ($reason !== null) {
+                                    $fail($reason);
+                                }
+                            })
+                            ->helperText('An existing table the host listed in ai-page-builder.data.external.tables. Synapse never alters it.')
                             ->columnSpan(2),
 
                         Forms\Components\Toggle::make('is_read_only')
                             ->label('Read-only')
                             ->inline(false)
                             ->default(false)
-                            ->helperText('Block writes through the API/flows.')
+                            ->disabled(fn (Get $get): bool => $get('source_type') === PbModel::SOURCE_EXTERNAL
+                                && ! static::canManageDataSources())
+                            ->helperText(fn (Get $get): string => $get('source_type') === PbModel::SOURCE_EXTERNAL && ! DataSourceGuard::externalWritesEnabled()
+                                ? 'External collections stay read-only: the host has not enabled ai-page-builder.data.external.writable.'
+                                : 'Block writes through the API/flows.')
                             ->columnSpan(2),
 
                         Forms\Components\Placeholder::make('external_fields_note')
