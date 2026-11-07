@@ -31,7 +31,7 @@ final class AppContextBuilder
     /**
      * @return array{
      *   collections: list<array{key:string,name:string,fields:list<array{key:string,label:string,type:string}>}>,
-     *   states: list<array{key:string,type:string}>,
+     *   states: list<array{key:string,type:string,public:bool}>,
      *   pages: list<array{slug:string,title:string,status:string}>,
      *   functions: list<array{slug:string,name:string,runtime:string}>,
      *   flows: list<array{slug:string,name:string,trigger_type:string}>,
@@ -82,7 +82,7 @@ final class AppContextBuilder
             $lines[] = '(none yet)';
         } else {
             foreach ($ctx['states'] as $state) {
-                $lines[] = "- `{$state['key']}` ({$state['type']})";
+                $lines[] = "- `{$state['key']}` ({$state['type']}".($state['public'] ? ', public' : ', server-only').')';
             }
         }
 
@@ -161,7 +161,7 @@ final class AppContextBuilder
     }
 
     /**
-     * @return list<array{key:string,type:string}>
+     * @return list<array{key:string,type:string,public:bool}>
      */
     private function states(): array
     {
@@ -175,6 +175,7 @@ final class AppContextBuilder
                 $out[] = [
                     'key' => (string) $variable->key,
                     'type' => (string) $variable->type,
+                    'public' => (bool) $variable->getAttribute('is_public'),
                 ];
             }
 

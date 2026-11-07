@@ -68,7 +68,7 @@ final class ResultActionCatalog
                         'help' => 'Optional. Fills the dialog body with a designed Partial (interpolated). Overrides the modal\'s own content.',
                         'show_if' => ['action' => ['open']]],
                     ['key' => 'html', 'label' => 'Or raw HTML', 'type' => 'text', 'show_if' => ['action' => ['open']],
-                        'help' => 'Optional. Raw markup for the dialog body (use a Partial above for designed content).'],
+                        'help' => 'Optional. Markup for the dialog body (use a Partial above for designed content). {{ tokens }} are HTML-escaped; {{{ token }}} inserts trusted HTML as-is.'],
                 ],
             ],
 
@@ -87,7 +87,7 @@ final class ResultActionCatalog
                 'label' => 'Set HTML',
                 'fields' => [
                     ['key' => 'target', 'label' => 'Target selector', 'type' => 'string', 'required' => true],
-                    ['key' => 'html', 'label' => 'HTML', 'type' => 'text', 'required' => true],
+                    ['key' => 'html', 'label' => 'HTML', 'type' => 'text', 'required' => true, 'help' => '{{ tokens }} are HTML-escaped; {{{ token }}} inserts trusted HTML as-is.'],
                 ],
             ],
 

@@ -119,6 +119,13 @@ return [
         // snapshotted (the package doesn't own their writes). Turn off to skip
         // history entirely. A revision-write failure never blocks the real write.
         'record_history' => (bool) env('AI_PAGE_BUILDER_RECORD_HISTORY', true),
+        // Columns of an app user that the data API may return when a record's
+        // user relation is expanded (`?expand=author`). Anything not listed is
+        // left out — never add credentials or two-factor columns here.
+        'user_expand_fields' => ['id', 'name'],
+        // Requests per minute each client (IP address, or signed-in host user)
+        // may make to the data API before getting HTTP 429. 0 turns it off.
+        'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_DATA_RATE', 120),
     ],
 
     /*
@@ -130,6 +137,14 @@ return [
     */
     'flow' => [
         'run_route_enabled' => env('AI_PAGE_BUILDER_FLOW_ROUTE', true),
+        // Middleware of the flow-run endpoint. Cookies + session let a private
+        // flow see the signed-in app user (private flows need one); public
+        // flows ignore it.
+        'middleware' => [
+            EncryptCookies::class,
+            StartSession::class,
+            'api',
+        ],
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_FLOW_RATE', 30),
         // Global executed-node budget for a single flow run, shared across nested
         // loop/transaction bodies — bounds runaway loops. The default comfortably
@@ -199,6 +214,21 @@ return [
 
         // Public flow-run endpoint prefix (stateless, rate-limited).
         'flow_prefix' => env('AI_PAGE_BUILDER_FLOW_PREFIX', 'pb-flow'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rendered pages
+    |--------------------------------------------------------------------------
+    | content_security_policy — sent as the Content-Security-Policy header on
+    | every rendered page (live, preview, 404 and maintenance). The default
+    | only blocks plugins and <base> hijacking, which never affects a page the
+    | builder produces. A stricter script-src policy is possible but must allow
+    | the page's inline runtime and Alpine ('unsafe-inline' 'unsafe-eval') plus
+    | any CDN you load assets from. Set to null or '' to send no header.
+    */
+    'render' => [
+        'content_security_policy' => env('AI_PAGE_BUILDER_CSP', "base-uri 'self'; object-src 'none'"),
     ],
 
     /*

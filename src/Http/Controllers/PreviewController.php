@@ -19,6 +19,11 @@ class PreviewController
      * and reflect the latest edits. Access is gated entirely by the `signed`
      * middleware on the route: a valid temporary signed link is the share
      * mechanism, and it expires on its own.
+     *
+     * The signed link does NOT bypass the page's own gates: a page that
+     * requires login or is restricted to roles with `view` is previewed only by
+     * a signed-in end-user allowed to see it (guests go to login, others 404),
+     * exactly as on the live route.
      */
     public function __invoke(string $slug, PageRenderer $renderer): SymfonyResponse
     {
@@ -31,6 +36,10 @@ class PreviewController
             abort(SymfonyResponse::HTTP_NOT_FOUND);
         }
 
-        return new Response($renderer->render($page)->render());
+        if ($denied = RenderPageController::denyAccess($page, static fn () => abort(SymfonyResponse::HTTP_NOT_FOUND))) {
+            return $denied;
+        }
+
+        return RenderPageController::withSecurityHeaders(new Response($renderer->render($page)->render()));
     }
 }

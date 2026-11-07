@@ -23,6 +23,7 @@ use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Console\SeedSystemPagesCommand;
+use Andre\AiPageBuilder\Console\StatesVisibilityCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
@@ -72,6 +73,9 @@ use Andre\AiPageBuilder\Services\Settings;
 use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -124,6 +128,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'backfill_collection_flows_into_watchers',
                 'add_watcher_id_to_page_builder_flow_runs_table',
                 'backfill_cron_flows_into_schedules',
+                'add_is_public_to_page_builder_variables_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -134,7 +139,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->hasCommand(ExportAppCommand::class)
             ->hasCommand(ImportAppCommand::class)
             ->hasCommand(MigrateMediaCommand::class)
-            ->hasCommand(CapabilitiesCommand::class);
+            ->hasCommand(CapabilitiesCommand::class)
+            ->hasCommand(StatesVisibilityCommand::class);
     }
 
     public function packageRegistered(): void
@@ -372,20 +378,31 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             return;
         }
 
+        $middleware = (array) config('ai-page-builder.data.api_middleware', ['api']);
+
+        // A per-visitor (or per-user) request budget, on top of whatever the
+        // host's middleware does. Configurable; 0 turns it off.
+        $perMinute = (int) config('ai-page-builder.data.rate_limit_per_minute', 120);
+        if ($perMinute > 0) {
+            $middleware[] = ThrottleRequests::with($perMinute, 1, 'pb-data');
+        }
+
         Route::group([
             'prefix' => $prefix,
             // ResolveApiToken runs last: a Bearer token authenticates the `pb`
             // guard for programmatic callers (AccessControl then scopes them);
             // no token → session auth still applies.
-            'middleware' => array_merge((array) config('ai-page-builder.data.api_middleware', ['api']), [ResolveApiToken::class]),
+            'middleware' => array_merge($middleware, [ResolveApiToken::class]),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
         });
     }
 
     /**
-     * Public, stateless flow-run endpoint (opt-in per flow, rate-limited in the
-     * controller). No web/CSRF middleware — it's called from rendered pages.
+     * Flow-run endpoint (rate-limited in the controller). Public flows are open;
+     * private flows need the app user's session, so the default middleware
+     * starts the session (cookies + StartSession) without Laravel's CSRF token —
+     * the controller checks Origin for private flows instead.
      */
     private function registerFlowRoutes(): void
     {
@@ -395,7 +412,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
         Route::group([
             'prefix' => (string) config('ai-page-builder.routes.flow_prefix', 'pb-flow'),
-            'middleware' => ['api'],
+            'middleware' => (array) config('ai-page-builder.flow.middleware', [EncryptCookies::class, StartSession::class, 'api']),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/flow.php');
         });

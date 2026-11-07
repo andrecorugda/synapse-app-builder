@@ -53,7 +53,9 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 |---|---|---|---|
 | `data.table_prefix` | `AI_PAGE_BUILDER_DATA_PREFIX` | `pb_` | Prefix for generated collection tables (`pb_<key>`) |
 | `data.api_prefix` | `AI_PAGE_BUILDER_DATA_API_PREFIX` | `api/pb` | Auto REST API prefix; empty string disables the API |
-| `data.api_middleware` | — | `[EncryptCookies, StartSession, api]` | API middleware — cookie+session so the `pb` end-user is recognised; no CSRF so stateless writes work |
+| `data.api_middleware` | — | `[EncryptCookies, StartSession, EnsureDataApiSameOrigin, api]` | API middleware — cookie+session so the `pb` end-user is recognised; cookie-authenticated writes must come from your own site (Bearer-token calls are exempt) |
+| `data.rate_limit_per_minute` | `AI_PAGE_BUILDER_DATA_RATE` | `120` | Requests per minute each client may make to the data API before getting `429`. `0` turns the limit off |
+| `data.user_expand_fields` | — | `['id', 'name']` | The only columns of an app user returned when a user relation is expanded (`?expand=author`). Never add credentials or two-factor columns |
 | `data.allow_destructive_sync` | `AI_PAGE_BUILDER_DATA_DESTRUCTIVE` | `false` | Drop real columns when a field is removed. Off so a mis-edit can't destroy data |
 | `data.default_per_page` | `AI_PAGE_BUILDER_DATA_PER_PAGE` | `25` | Default API page size |
 | `data.max_per_page` | `AI_PAGE_BUILDER_DATA_MAX_PER_PAGE` | `200` | Max API page size (clamp) |
@@ -62,12 +64,16 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 
 | Key | Env | Default | Meaning |
 |---|---|---|---|
-| `flow.run_route_enabled` | `AI_PAGE_BUILDER_FLOW_ROUTE` | `true` | Register the public `POST /{flow_prefix}/{slug}` endpoint |
+| `flow.run_route_enabled` | `AI_PAGE_BUILDER_FLOW_ROUTE` | `true` | Register the `POST /{flow_prefix}/{slug}` run endpoint (public flows: anyone; private flows: signed-in users allowed to run them) |
+| `flow.middleware` | — | `[EncryptCookies, StartSession, api]` | Middleware of the run endpoint. The session lets a private flow see who is signed in — keep cookies + session if you change it |
 | `flow.rate_limit_per_minute` | `AI_PAGE_BUILDER_FLOW_RATE` | `30` | Global per-flow-per-IP rate limit (a flow can override) |
 | `flow.max_steps` | — | `200` | Max node steps per run (loop guard) |
 | `flow.drawflow_js` | `AI_PAGE_BUILDER_DRAWFLOW_JS` | jsDelivr CDN | Flow-editor JS URL |
 | `flow.drawflow_css` | `AI_PAGE_BUILDER_DRAWFLOW_CSS` | jsDelivr CDN | Flow-editor CSS URL |
 | `flow.allow_php_functions` | `AI_PAGE_BUILDER_ALLOW_PHP` | `true` | Allow `php`-runtime Functions to execute raw PHP. Set `false` for less-trusted authors — see [security note](functions-and-states.md#php-runtime--and-the-security-flag) |
+| `flow.http_block_private_hosts` | `AI_PAGE_BUILDER_HTTP_BLOCK_PRIVATE` | `true` | HTTP Request node safety check: refuse non-http(s) URLs, host names that don't resolve, and hosts that resolve to internal addresses (private, loopback, link-local, 100.64.0.0/10, NAT64, IPv4-mapped IPv6); the connection is pinned to the checked addresses. See [Flows → http_request](flows.md#http_request) |
+| `flow.http_allowed_hosts` | `AI_PAGE_BUILDER_HTTP_ALLOWED_HOSTS` | empty (any public host) | Comma-separated list of the only hosts the HTTP Request node may call |
+| `flow.http_timeout` | `AI_PAGE_BUILDER_HTTP_TIMEOUT` | `15` | HTTP Request node timeout (seconds) |
 
 ## `routes`
 
@@ -79,7 +85,13 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 | `routes.home_at_root` | `AI_PAGE_BUILDER_HOME_AT_ROOT` | `false` | Also serve the home page at `/` (only if the host has no `/` route) |
 | `routes.panel_prefix` | `AI_PAGE_BUILDER_PANEL_PREFIX` | `ai-page-builder` | Authenticated in-panel endpoints (media, lint, ai-chat) |
 | `routes.panel_middleware` | — | `['web', 'auth']` | Middleware for panel endpoints |
-| `routes.flow_prefix` | `AI_PAGE_BUILDER_FLOW_PREFIX` | `pb-flow` | Public flow-run prefix (`/pb-flow/{slug}`) |
+| `routes.flow_prefix` | `AI_PAGE_BUILDER_FLOW_PREFIX` | `pb-flow` | Flow-run prefix (`/pb-flow/{slug}`) |
+
+## `render` — rendered pages
+
+| Key | Env | Default | Meaning |
+|---|---|---|---|
+| `render.content_security_policy` | `AI_PAGE_BUILDER_CSP` | `base-uri 'self'; object-src 'none'` | `Content-Security-Policy` header sent with every rendered page (live, preview, 404, maintenance). The default never affects builder output. A stricter `script-src` must allow `'unsafe-inline' 'unsafe-eval'` (page runtime, Alpine) and your asset CDNs. Empty = no header |
 
 ## `auth` — the built app's own auth
 
@@ -96,7 +108,7 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 |---|---|---|---|
 | `media.disk` | `AI_PAGE_BUILDER_MEDIA_DISK` | `public` | Filesystem disk (must be publicly accessible) |
 | `media.directory` | `AI_PAGE_BUILDER_MEDIA_DIR` | `page-builder` | Directory within the disk |
-| `media.accept` | — | `[png, jpeg, gif, webp, svg+xml]` | Accepted MIME types |
+| `media.accept` | — | `[png, jpeg, gif, webp]` | Accepted MIME types, checked against the file's real content. The stored extension always follows that content type; types outside the built-in safe list (images, PDF, MP4/WebM, MP3/OGG/WAV) are refused even if listed here. SVG is left out on purpose — an SVG can carry script |
 | `media.max_kb` | `AI_PAGE_BUILDER_MEDIA_MAX_KB` | `8192` | Max upload size (KB) |
 
 > `media.disk` is the **fallback** disk. When a cloud driver is configured on the Settings → Storage tab (S3 / Azure Blob / GCS), media goes to the runtime `pb-cloud` disk instead — see [Cloud media storage](cloud-storage.md).

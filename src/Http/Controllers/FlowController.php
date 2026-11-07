@@ -6,6 +6,8 @@ namespace Andre\AiPageBuilder\Http\Controllers;
 
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Models\Flow;
+use Andre\AiPageBuilder\Services\AccessControl;
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +16,7 @@ use Illuminate\Support\Facades\RateLimiter;
 class FlowController
 {
     /**
-     * Run a public flow by slug and return its result actions as JSON.
+     * Run a flow by slug and return its result actions as JSON.
      */
     public function run(Request $request, string $slug): JsonResponse
     {
@@ -23,10 +25,11 @@ class FlowController
 
         // Any active flow is runnable here — how a flow was authored to be
         // triggered (manual/component/…) does not gate access; the Public flag does:
-        //   • Public  → callable from ANY origin (external / webhook / API).
-        //   • Private → callable only SAME-ORIGIN (the app's own pages).
-        // A cross-origin hit on a private flow is 404 (not 403) so the endpoint
-        // never leaks that the flow exists.
+        //   • Public  → callable by anyone, from ANY origin (external / webhook / API).
+        //   • Private → callable only by a signed-in app user (pb session) whose
+        //     role may `run` the flow, from the app's own pages (same origin).
+        // A refused hit on a private flow is 404 (not 403) so the endpoint never
+        // leaks that the flow exists.
         /** @var Flow|null $flow */
         $flow = $model::query()
             ->active()
@@ -37,7 +40,7 @@ class FlowController
             abort(404);
         }
 
-        if (! $flow->is_public && ! $this->isSameOrigin($request)) {
+        if (! $flow->is_public && ! $this->mayRunPrivate($request, $flow)) {
             abort(404);
         }
 
@@ -57,8 +60,11 @@ class FlowController
             // This is the page/API trigger path: the request payload IS the page's
             // live $store.app state, so overlay it onto `states.*` (so a node's
             // {{ states.email }} resolves to what the visitor typed, not the empty
-            // persisted Variable). Non-page triggers (cron/collection/admin) pass none.
-            $ctx = app(FlowManager::class)->run($flow, $input, $input);
+            // persisted Variable). Only client-visible States and page-local keys
+            // may be overlaid — a server-only State keeps its persisted value
+            // whatever the caller sends. Non-page triggers (cron/collection/admin)
+            // pass none.
+            $ctx = app(FlowManager::class)->run($flow, $input, app(VariableStore::class)->clientOverlay($input));
 
             return response()->json(['actions' => $ctx->actions]);
         } catch (\Throwable $e) {
@@ -69,6 +75,27 @@ class FlowController
 
             return response()->json(['error' => 'Flow failed'], 500);
         }
+    }
+
+    /**
+     * A private flow runs only for a signed-in app user whose role may `run` it
+     * (permission rows with resource_type `flow`; a flow nobody has a row for is
+     * open to every signed-in user, an admin role passes always). The Origin /
+     * Referer check is CSRF protection for that session cookie only — it is
+     * trivially forged outside a browser, so it never grants access on its own.
+     * With app auth disabled there is no signed-in user, so private flows are
+     * not reachable over HTTP at all.
+     */
+    private function mayRunPrivate(Request $request, Flow $flow): bool
+    {
+        if (! (bool) config('ai-page-builder.auth.enabled', true) || ! $this->isSameOrigin($request)) {
+            return false;
+        }
+
+        $access = app(AccessControl::class);
+        $user = $access->currentUser();
+
+        return $user !== null && $access->can($user, 'run', 'flow', (string) $flow->slug);
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Http\Controllers;
 
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Services\AccessControl;
 use Andre\AiPageBuilder\Services\Settings;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -69,18 +70,24 @@ class SitemapController
     }
 
     /**
-     * Published `kind=page` pages whose meta.noindex is NOT set.
+     * Published `kind=page` pages whose meta.noindex is NOT set and that any
+     * visitor may open: login-only pages and pages restricted to roles are
+     * left out, so the sitemap never advertises them.
      *
      * @return Collection<int, Page>
      */
     private function indexablePages(): Collection
     {
+        $access = app(AccessControl::class);
+
         return $this->pageModel()::query()
             ->published()
             ->pages()
             ->orderBy('slug')
             ->get()
-            ->reject(fn (Page $page): bool => $this->isNoindex($page))
+            ->reject(fn (Page $page): bool => $this->isNoindex($page)
+                || (bool) $page->requires_auth
+                || $access->isRestricted('page', (string) $page->slug))
             ->values();
     }
 

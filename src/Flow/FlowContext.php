@@ -52,18 +52,22 @@ class FlowContext
     /**
      * @param  array<string,mixed>  $input  The trigger payload.
      * @param  array<string,mixed>  $stateOverlay  Per-run values that shadow the
-     *                                             persisted States for `{{ states.* }}` resolution. Used for component
+     *                                             persisted States for `states.*` / `state()` resolution. Used for component
      *                                             (page-button) triggers, where the page's live $store.app state IS the
-     *                                             authoritative state at trigger time (never persisted server-side).
+     *                                             authoritative state at trigger time (never persisted server-side). The
+     *                                             HTTP endpoint passes only client-visible / page-local keys
+     *                                             ({@see VariableStore::clientOverlay()}).
      */
     public function __construct(public array $input = [], public array $stateOverlay = []) {}
 
     /**
-     * Persisted app-wide States, with any per-run overlay applied on top.
+     * Persisted app-wide States, with any per-run overlay applied on top. The
+     * one view of States every flow surface uses — `{{ states.x }}`, a dynamic
+     * value, `state('x')` and a Function's `states` — so they always agree.
      *
      * @return array<string,mixed>
      */
-    private function states(): array
+    public function states(): array
     {
         $persisted = app(VariableStore::class)->all();
 
@@ -73,6 +77,25 @@ class FlowContext
     public function set(string $key, mixed $value): void
     {
         $this->vars[$key] = $value;
+    }
+
+    /**
+     * True when a `{{ path }}` token resolves to a value the visitor controls:
+     * the trigger `input`, or a State the page overlaid for this run.
+     */
+    public function isVisitorControlled(string $path): bool
+    {
+        [$root, $rest] = array_pad(explode('.', $path, 2), 2, null);
+
+        if ($root === 'input') {
+            return true;
+        }
+
+        if (($root === 'states' || $root === 'globals') && $rest !== null) {
+            return array_key_exists(explode('.', $rest, 2)[0], $this->stateOverlay);
+        }
+
+        return false;
     }
 
     /** Resolve a dotted path like `input.brief`, `vars.ai`, or `states.tax_rate`. */
@@ -96,14 +119,41 @@ class FlowContext
         return data_get($base, $rest);
     }
 
+    /**
+     * `{{ path }}` and `{{{ path }}}` tokens. The triple form marks a value the
+     * author wants inserted as raw HTML; outside an HTML field it is the same
+     * as the double form.
+     */
+    private const TOKEN = '/\{\{(\{)?\s*([a-zA-Z0-9_.]+)\s*\}\}(?(1)\})/';
+
     /** Replace every `{{ path }}` token in a string with its resolved value. */
     public function interpolate(string $template): string
     {
-        return (string) preg_replace_callback('/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/', function (array $m): string {
-            $v = $this->get($m[1]);
+        return (string) preg_replace_callback(self::TOKEN, fn (array $m): string => $this->stringValue($m[2]), $template);
+    }
 
-            return is_scalar($v) ? (string) $v : (is_array($v) ? json_encode($v) : '');
+    /**
+     * Interpolate a template that is HTML (a setHtml / modal body, an email
+     * body). Every `{{ path }}` value is HTML-escaped, so visitor input, an AI
+     * reply or an HTTP response can never inject markup or script. The explicit
+     * `{{{ path }}}` form inserts the value unescaped — only for HTML the flow
+     * itself produced and trusts.
+     */
+    public function interpolateHtml(string $template): string
+    {
+        return (string) preg_replace_callback(self::TOKEN, function (array $m): string {
+            $value = $this->stringValue($m[2]);
+
+            return $m[1] === '{' ? $value : htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
         }, $template);
+    }
+
+    /** The string a token resolves to (scalars as-is, arrays as JSON, else ''). */
+    public function stringValue(string $path): string
+    {
+        $v = $this->get($path);
+
+        return is_scalar($v) ? (string) $v : (is_array($v) ? (string) json_encode($v) : '');
     }
 
     /** Deep-interpolate every string in a config array. */

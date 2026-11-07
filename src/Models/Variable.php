@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Models;
 
+use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Model;
 
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $value
  * @property string|null $description
  * @property bool $is_protected
+ * @property bool $is_public Client-visible: sent to rendered pages and overridable by a page's live value
  */
 class Variable extends Model
 {
@@ -28,9 +30,30 @@ class Variable extends Model
 
     protected $casts = [
         'is_protected' => 'boolean',
+        'is_public' => 'boolean',
         // Nested typed schema for an Object state: [{name,type,fields?/ref?}, …].
         'shape' => 'array',
     ];
+
+    /**
+     * Rendered pages are cached with the client-visible States embedded, so a
+     * visibility change must drop every cached render at once — otherwise a
+     * State just made server-only would stay in cached HTML until the TTL.
+     */
+    protected static function booted(): void
+    {
+        static::saved(static function (self $variable): void {
+            if (! $variable->wasChanged('is_public')) {
+                return;
+            }
+
+            try {
+                app(PageRenderer::class)->flushAll();
+            } catch (\Throwable) {
+                // Cache flush is best-effort (no pages table during install).
+            }
+        });
+    }
 
     public function getConnectionName(): ?string
     {

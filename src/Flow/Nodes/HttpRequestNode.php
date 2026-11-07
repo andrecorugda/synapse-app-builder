@@ -81,7 +81,9 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         $body = $context->interpolateDeep((array) ($config['body'] ?? []));
         $output = (string) ($config['output'] ?? 'http');
 
-        if ($url === '' || $this->urlIsBlocked($url)) {
+        $pin = $url === '' ? false : $this->vetUrl($url);
+
+        if ($pin === false) {
             if ($url !== '') {
                 Log::warning('[ai-page-builder] http node blocked a request to a disallowed/internal URL.');
             }
@@ -98,7 +100,16 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
             $headers = array_merge($headers, app(CredentialStore::class)->headers($credentialKey));
         }
 
-        $response = Http::withHeaders($headers)
+        $request = Http::withHeaders($headers);
+
+        // Pin the connection to the addresses that were just vetted, so a second
+        // DNS answer (DNS rebinding) can't swap in an internal one between the
+        // check and the connect.
+        if ($pin !== [] && defined('CURLOPT_RESOLVE')) {
+            $request = $request->withOptions(['curl' => [CURLOPT_RESOLVE => $pin]]);
+        }
+
+        $response = $request
             ->withoutRedirecting() // don't let a public host 302 into an internal one
             ->timeout(max(1, (int) config('ai-page-builder.flow.http_timeout', 15))) // bound a slow host tying up a worker
             ->{$method}($url, $body);
@@ -110,13 +121,19 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
     }
 
     /**
-     * SSRF guard: reject non-http(s) schemes, hosts off an optional allow-list,
-     * and any host that resolves to a private/reserved/loopback/link-local IP.
+     * SSRF guard. Returns false when the URL must not be called: a non-http(s)
+     * scheme, a host off the optional allow-list, a host that does not resolve,
+     * or one that resolves to ANY private / reserved / loopback / link-local /
+     * shared (100.64.0.0/10) / NAT64 / IPv4-mapped address. Otherwise returns
+     * the CURLOPT_RESOLVE pin (`host:port:addr,…`) for the vetted addresses —
+     * empty when the host is an IP literal or the guard is off.
+     *
+     * @return list<string>|false
      */
-    private function urlIsBlocked(string $url): bool
+    private function vetUrl(string $url): array|false
     {
         if (! (bool) config('ai-page-builder.flow.http_block_private_hosts', true)) {
-            return false;
+            return [];
         }
 
         $parts = parse_url($url);
@@ -124,7 +141,7 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         $host = strtolower((string) ($parts['host'] ?? ''));
 
         if (! in_array($scheme, ['http', 'https'], true) || $host === '') {
-            return true;
+            return false;
         }
 
         // Normalize the host to the form the transport actually dials: strip the
@@ -132,46 +149,68 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         // expand a dotless/decimal IPv4 (`2130706433` → `127.0.0.1`) — cURL
         // accepts these numeric spellings, so the raw string alone would slip
         // past the IP check.
+        $rawHost = $host;
         $host = $this->normalizeHost($host);
 
         $allowed = array_map('strtolower', (array) config('ai-page-builder.flow.http_allowed_hosts', []));
         if ($allowed !== [] && ! in_array($host, $allowed, true)) {
-            return true;
+            return false;
         }
 
         // `localhost` (and any *.localhost) never leaves the box; dns_get_record
         // ignores /etc/hosts so it would otherwise resolve to nothing and slip
         // through.
         if ($host === 'localhost' || str_ends_with($host, '.localhost')) {
-            return true;
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return $this->isInternalIp($host) ? false : [];
         }
 
         // Resolve the host; reject if ANY resolved address is internal.
+        $ips = $this->resolveHost($host);
+
+        // A name that resolves to nothing here is refused: otherwise the
+        // transport would resolve it again on its own, and a rebinding DNS
+        // server could answer the second lookup with an internal address.
+        if ($ips === []) {
+            return false;
+        }
+
+        foreach ($ips as $ip) {
+            if ($this->isInternalIp($ip)) {
+                return false;
+            }
+        }
+
+        $port = (int) ($parts['port'] ?? ($scheme === 'https' ? 443 : 80));
+        $addresses = implode(',', array_map(
+            static fn (string $ip): string => str_contains($ip, ':') ? '['.$ip.']' : $ip,
+            $ips,
+        ));
+
+        return [$rawHost.':'.$port.':'.$addresses];
+    }
+
+    /**
+     * Every address a host name resolves to. gethostbynamel() uses the libc
+     * resolver (consults /etc/hosts, matching what cURL dials, so a name mapped
+     * to loopback there is caught); dns_get_record() adds AAAA.
+     *
+     * @return list<string>
+     */
+    protected function resolveHost(string $host): array
+    {
         $ips = [];
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            $ips[] = $host;
-        } else {
-            // gethostbynamel() uses the libc resolver (consults /etc/hosts,
-            // matching what cURL dials, so a name mapped to loopback there is
-            // caught); dns_get_record() adds AAAA. A name that resolves to
-            // NOTHING is left to connect and fail on its own — an unresolvable
-            // host can't reach an internal target, and refusing it here would
-            // break legitimate hosts PHP's resolver happens not to see.
-            foreach ((array) (@gethostbynamel($host) ?: []) as $ip) {
-                $ips[] = $ip;
-            }
-            foreach (@dns_get_record($host, DNS_A + DNS_AAAA) ?: [] as $rec) {
-                $ips[] = $rec['ip'] ?? $rec['ipv6'] ?? null;
-            }
+        foreach ((array) (@gethostbynamel($host) ?: []) as $ip) {
+            $ips[] = (string) $ip;
+        }
+        foreach (@dns_get_record($host, DNS_A + DNS_AAAA) ?: [] as $rec) {
+            $ips[] = (string) ($rec['ip'] ?? $rec['ipv6'] ?? '');
         }
 
-        foreach (array_filter($ips) as $ip) {
-            if ($this->isInternalIp((string) $ip)) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_values(array_unique(array_filter($ips)));
     }
 
     /**
@@ -198,13 +237,58 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         return $host;
     }
 
-    /** True for private / reserved / loopback / link-local (incl. 169.254.169.254). */
+    /**
+     * Ranges PHP's FILTER_FLAG_NO_PRIV_RANGE / NO_RES_RANGE don't cover but that
+     * still reach internal hosts: carrier-grade NAT / shared address space, and
+     * IPv6 forms that embed an IPv4 address (NAT64, IPv4-mapped/-compatible).
+     */
+    private const EXTRA_BLOCKED = [
+        '100.64.0.0/10',   // shared address space (RFC 6598), cloud-internal on several providers
+        '64:ff9b::/96',    // NAT64 well-known prefix → maps onto any IPv4, incl. 127.0.0.1
+        '64:ff9b:1::/48',  // local-use NAT64 (RFC 8215)
+        '::ffff:0:0/96',   // IPv4-mapped IPv6
+        '::/96',           // IPv4-compatible IPv6 (deprecated)
+    ];
+
+    /** True for private / reserved / loopback / link-local (incl. 169.254.169.254) and EXTRA_BLOCKED. */
     private function isInternalIp(string $ip): bool
     {
-        return filter_var(
-            $ip,
-            FILTER_VALIDATE_IP,
-            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
-        ) === false;
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return true;
+        }
+
+        foreach (self::EXTRA_BLOCKED as $cidr) {
+            if ($this->inCidr($ip, $cidr)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function inCidr(string $ip, string $cidr): bool
+    {
+        [$subnet, $bits] = explode('/', $cidr);
+        $ipBin = @inet_pton($ip);
+        $subnetBin = @inet_pton($subnet);
+
+        if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {
+            return false;
+        }
+
+        $bits = (int) $bits;
+        $bytes = intdiv($bits, 8);
+        if (substr($ipBin, 0, $bytes) !== substr($subnetBin, 0, $bytes)) {
+            return false;
+        }
+
+        $rest = $bits % 8;
+        if ($rest === 0) {
+            return true;
+        }
+
+        $mask = (0xFF << (8 - $rest)) & 0xFF;
+
+        return (ord($ipBin[$bytes]) & $mask) === (ord($subnetBin[$bytes]) & $mask);
     }
 }

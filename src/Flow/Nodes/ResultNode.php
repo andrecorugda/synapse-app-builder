@@ -13,6 +13,7 @@ use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\ResultActionCatalog;
 use Andre\AiPageBuilder\Models\Partial;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Appends result actions returned to the page runtime.
@@ -85,12 +86,49 @@ class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
             }
             unset($action['partial']);
 
+            // HTML fields are escaped per token ({{{ }}} opts out); every
+            // other field is plain text the runtime never parses as HTML.
+            $html = $action['html'] ?? null;
+            unset($action['html']);
+
             /** @var array<string,mixed> $resolved */
             $resolved = $context->interpolateDeep($action);
+            if (is_string($html)) {
+                $resolved['html'] = $context->interpolateHtml($html);
+            }
+
+            // Navigation targets: only http(s) or same-site relative URLs. A
+            // `javascript:` / `data:` URL would run script on the app's origin.
+            if (($type === 'redirect' || $type === 'logout') && isset($resolved['url']) && $resolved['url'] !== '') {
+                if (! self::isSafeUrl((string) $resolved['url'])) {
+                    Log::warning('[ai-page-builder] result action dropped an unsafe URL.', ['type' => $type]);
+                    if ($type === 'redirect') {
+                        continue;
+                    }
+                    unset($resolved['url']); // logout still signs out, to the login page
+                }
+            }
+
             $context->addAction($resolved);
         }
 
         return (array) ($node['next'] ?? []);
+    }
+
+    /**
+     * True for an absolute http(s) URL or a relative one (path, query, hash).
+     * Control characters and whitespace are stripped first, as browsers do when
+     * they parse a URL, so `java\tscript:` can't slip past the scheme check.
+     */
+    public static function isSafeUrl(string $url): bool
+    {
+        $normalized = (string) preg_replace('/[\x00-\x20\x7F]+/', '', $url);
+
+        if (preg_match('/^([a-zA-Z][a-zA-Z0-9+.\-]*):/', $normalized, $m) !== 1) {
+            return true; // no scheme: relative
+        }
+
+        return in_array(strtolower($m[1]), ['http', 'https'], true);
     }
 
     /**

