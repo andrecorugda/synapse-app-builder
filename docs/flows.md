@@ -296,7 +296,8 @@ Send an email via the [isolated mailer](email.md).
 
 `to` accepts a string (comma-separated) or array. `template` is the slug of a `kind=email` page whose HTML is interpolated against the flow context (mustache, not Alpine); use inline `body` instead if no template. Writes `{ "sent": true }` or `{ "sent": false, "error": "..." }` to `vars[output]` (default `email`).
 
-- **Visitor-supplied addresses count as one.** When `to`, `cc`, `bcc` or `reply_to` uses a value the visitor typed (`{{ input.* }}`, or a State the page sent with the request), that value adds **one** address — the first one in it — and must be a valid address, otherwise nothing is sent (`"sent": false`). A visitor can't turn your "thank you" mail into a mailing to a list of strangers. Addresses you write yourself (`"owner@shop.test, sales@shop.test"`) are unaffected.
+- **Every token counts as one address.** When `to`, `cc`, `bcc` or `reply_to` uses a `{{ token }}` — `{{ input.* }}`, a State, or a `{{ vars.* }}` value an earlier step may have copied from the visitor — that token adds **one** address — the first one in it — and must be a valid address, otherwise nothing is sent (`"sent": false`). A visitor can't turn your "thank you" mail into a mailing to a list of strangers, even through a `set_variable` copy. Addresses you write yourself (`"owner@shop.test, sales@shop.test"`) still form a list.
+- **The final list is checked.** Each address must be a single valid address (no `;`, line breaks, spaces or `<…>`), and To + CC + BCC together may not exceed `flow.email_max_recipients` (default 10); otherwise nothing is sent.
 - **Values in the body are escaped.** `{{ token }}` values in the template or `body` are HTML-escaped, so a visitor who types a link or markup into a form field sees it as plain text in the mail, not as a clickable link. Use `{{{ token }}}` only for HTML your own flow built.
 
 ### `result`

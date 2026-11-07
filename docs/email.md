@@ -55,9 +55,10 @@ Mark a page as an email template by setting `kind` to `email` in the Pages form 
 } }
 ```
 
-- `to` — required; string (comma-separated) or array; interpolated. A token filled from the visitor (`{{ input.email }}`, or a State the page sent with the request) adds **one** address — the first in its value, which must be valid, or nothing is sent — so a visitor can't make one form submission mail a whole list.
+- `to` — required; string (comma-separated) or array; interpolated. Only a list **you type** adds several addresses (`"owner@shop.test, sales@shop.test"`, or several array entries). Every `{{ token }}` adds **one** address — the first in its value, which must be valid, or nothing is sent — whatever the token reads: `{{ input.email }}`, a State, or a `{{ vars.* }}` value an earlier step copied from the visitor. So a visitor can't make one form submission mail a whole list. To mail a list kept in a State, type the addresses into the node instead.
 - `template` — slug of a `kind=email` page used as the body. If omitted/not found, falls back to the inline `body`.
-- `cc` / `bcc` / `reply_to` — optional; interpolated; cc/bcc accept lists (the same one-address rule applies to visitor-filled tokens).
+- `cc` / `bcc` / `reply_to` — optional; interpolated; cc/bcc accept lists (the same one-address-per-token rule applies).
+- Every final address must be a single valid address: an entry with `;`, a line break, spaces or `<…>` refuses the send. To + CC + BCC together are capped by `flow.email_max_recipients` (default 10, env `AI_PAGE_BUILDER_EMAIL_MAX_RECIPIENTS`); a larger list refuses the send with `"error": "Too many recipients …"`.
 - `output` — context var that receives the result (default `email`).
 
 **Non-fatal by design:** a missing recipient, empty body, or unconfigured transport records `{ "sent": false, "error": "..." }` in the output var and the flow continues; a successful send records `{ "sent": true }`.

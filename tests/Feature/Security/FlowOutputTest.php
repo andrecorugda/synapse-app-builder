@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 
 use Andre\AiPageBuilder\Flow\FlowRunner;
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Andre\AiPageBuilder\Services\PageBuilderMailer;
 use Andre\AiPageBuilder\Services\Settings;
 
@@ -147,6 +148,52 @@ it('sends to one valid visitor address and to author-written lists', function ()
     runSendEmail(['to' => '{{ input.email }}, owner@shop.test, sales@shop.test', 'subject' => 'Thanks', 'body' => '<p>Hi</p>'], ['email' => 'buyer@x.test']);
 
     expect($mailer->sent[0]['to'])->toBe(['buyer@x.test', 'owner@shop.test', 'sales@shop.test']);
+});
+
+it('limits a visitor list to one address even after it passes through a vars step', function (): void {
+    $mailer = recordingMailer();
+
+    app(FlowRunner::class)->run(['start' => 'v', 'nodes' => [
+        'v' => ['type' => 'set_variable', 'config' => ['key' => '', 'value' => '{{ input.email }}', 'output' => 'recipient'], 'next' => ['e']],
+        'e' => ['type' => 'send_email', 'config' => ['to' => '{{ vars.recipient }}', 'subject' => 'Thanks', 'body' => '<p>Hi</p>', 'output' => 'email']],
+    ]], ['email' => 'a@victim.test,b@victim.test,c@victim.test']);
+
+    expect($mailer->sent)->toHaveCount(1)
+        ->and($mailer->sent[0]['to'])->toBe(['a@victim.test']);
+});
+
+it('limits a server-side State token to one address too', function (): void {
+    $mailer = recordingMailer();
+    app(VariableStore::class)->set('ops', 'a@x.test,b@x.test');
+
+    runSendEmail(['to' => '{{ states.ops }}', 'subject' => 'S', 'body' => '<p>x</p>']);
+
+    expect($mailer->sent[0]['to'])->toBe(['a@x.test']);
+});
+
+it('refuses an author-written entry that is not a single valid address', function (string $to): void {
+    $mailer = recordingMailer();
+
+    $result = runSendEmail(['to' => $to, 'subject' => 'S', 'body' => '<p>x</p>']);
+
+    expect($mailer->sent)->toBe([])->and($result['sent'])->toBeFalse();
+})->with([
+    'semicolon list' => ['a@x.test;b@x.test'],
+    'CRLF' => ["a@x.test\r\nBcc: b@x.test"],
+    'not an address' => ['owner at shop'],
+]);
+
+it('refuses a send above the recipient limit', function (): void {
+    $mailer = recordingMailer();
+    config(['ai-page-builder.flow.email_max_recipients' => 3]);
+
+    $result = runSendEmail(['to' => 'a@x.test, b@x.test', 'cc' => 'c@x.test', 'bcc' => 'd@x.test', 'subject' => 'S', 'body' => '<p>x</p>']);
+
+    expect($mailer->sent)->toBe([])->and($result['sent'])->toBeFalse()
+        ->and($result['error'])->toContain('Too many recipients');
+
+    runSendEmail(['to' => 'a@x.test, b@x.test', 'cc' => 'c@x.test', 'subject' => 'S', 'body' => '<p>x</p>']);
+    expect($mailer->sent)->toHaveCount(1);
 });
 
 it('HTML-escapes interpolated values in the email body', function (): void {
