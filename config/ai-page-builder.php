@@ -471,7 +471,15 @@ return [
             'manage-users' => 'synapse.manage-users',       // app users, roles, invites
             'manage-code' => 'synapse.manage-code',         // functions, app import, PHP in AI plans
             'manage-settings' => 'synapse.manage-settings', // settings, theme, app export
+            'manage-data-sources' => 'synapse.manage-data-sources', // external (existing-table) collections
         ],
+
+        // What a finer ability you did NOT define with Gate::define() does:
+        // 'admin' = follow the admin decision above; 'deny' = refuse.
+        // Even on 'admin' it refuses when spatie/laravel-permission has a
+        // permission of that name, or when synapse.admin itself is granted by
+        // a Gate::before hook (a permission system) rather than Gate::define().
+        'fine_abilities_fallback' => env('AI_PAGE_BUILDER_FINE_ABILITIES_FALLBACK', 'admin'),
 
         // Panel id the in-panel endpoints check against. null = every panel
         // that registers AiPageBuilderPlugin.
