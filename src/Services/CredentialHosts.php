@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Services;
 
+use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
 use Andre\AiPageBuilder\Models\Credential;
 use Andre\AiPageBuilder\Models\Flow;
 use Illuminate\Database\Eloquent\Model;
@@ -93,6 +94,12 @@ class CredentialHosts
     /** The host of a URL as compared against the list ('' when it has none). */
     public static function hostOf(string $url): string
     {
+        // A URI-template brace would be expanded by the HTTP client before it
+        // dials, so the parsed host is not the host contacted: match nothing.
+        if (HttpRequestNode::hasTemplateSyntax($url)) {
+            return '';
+        }
+
         return self::canonicalHost((string) (parse_url($url, PHP_URL_HOST) ?? ''));
     }
 

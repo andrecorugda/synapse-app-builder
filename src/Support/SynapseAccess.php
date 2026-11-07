@@ -131,16 +131,17 @@ final class SynapseAccess
 
         $panel = self::$deciding ?? self::currentPanel();
 
+        // Checked first, whatever admitted the user: the host manages this
+        // ability as a permission (spatie/laravel-permission), and a user who
+        // held it was already allowed by the package's Gate::before hook, so
+        // reaching here means they do not hold it.
+        if (self::hostHasPermissionNamed($ability)) {
+            return false;
+        }
+
         // Admitted by the plugin's ->authorize() callback: follow that callback.
         if (self::pluginCallback($panel) !== null) {
             return self::allowsAdmin($user, $panel);
-        }
-
-        if (self::hostHasPermissionNamed($ability)) {
-            // The host manages this ability as a permission (spatie/laravel-permission):
-            // a user who held it was already allowed by the package's Gate::before hook,
-            // so reaching here means they do not hold it.
-            return false;
         }
 
         if (self::adminComesFromBeforeHook()) {

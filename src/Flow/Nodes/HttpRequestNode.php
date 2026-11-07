@@ -82,7 +82,13 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         $body = $context->interpolateDeep((array) ($config['body'] ?? []));
         $output = (string) ($config['output'] ?? 'http');
 
-        $pin = $url === '' ? false : $this->vetUrl($url);
+        // Laravel's HTTP client expands RFC 6570 URI templates before sending:
+        // an unknown `{…}` expression is deleted, so the host that is dialled
+        // can differ from the one every check below reads with parse_url()
+        // (`https://evil.example{x@api.allowed.com/y}` checks as
+        // api.allowed.com, connects to evil.example). Braces are never valid in
+        // a URL we send, so refuse them outright.
+        $pin = $url === '' || self::hasTemplateSyntax($url) ? false : $this->vetUrl($url);
 
         if ($pin === false) {
             if ($url !== '') {
@@ -145,6 +151,12 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
      *
      * @return list<string>|false
      */
+    /** True when the URL holds `{` or `}` — the HTTP client would expand them as a URI template. */
+    public static function hasTemplateSyntax(string $url): bool
+    {
+        return strpbrk($url, '{}') !== false;
+    }
+
     private function vetUrl(string $url): array|false
     {
         if (! (bool) config('ai-page-builder.flow.http_block_private_hosts', true)) {

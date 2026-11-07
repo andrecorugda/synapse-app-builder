@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `set_variable` no longer returns a server-only State's value to the visitor; `send_email` validates and caps the final recipient list (`flow.email_max_recipients`).
 - `setHtml` and modal HTML are sanitised after tokens are filled in, so `javascript:` links and event-handler or Alpine breakouts are refused.
 - Renaming a role-restricted page keeps it restricted.
+- HTTP Request URLs containing `{` or `}` are refused: the HTTP client expands them as URI templates, which let a URL pass the host checks and connect elsewhere.
+- Flow HTML drops `<style>`, `<svg>`, `<math>` and other tags browsers parse differently from the sanitiser; `ui_modal` html and `ui_redirect` URLs follow the flow output rules.
+- Queue and cache tables can never be mapped as collections; `tables => '*'` never reaches another schema or database.
 - The data API is rate-limited by default; the HTTP Request node pins connections to checked addresses and blocks more private ranges; rendered pages send a baseline `Content-Security-Policy`.
 
 ### Security — sign-in

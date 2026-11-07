@@ -51,6 +51,24 @@ final class HtmlSanitizer
      *
      * @var array<int,string>
      */
+    /**
+     * Extra tags removed in strict mode (flow output a visitor may influence).
+     * libxml parses these differently from a browser's HTML5 parser — e.g. a
+     * <style> inside <svg>/<math> is plain text to libxml but markup to the
+     * browser, so `<svg><style><img onerror=…>` would pass the checks and run
+     * once inserted with innerHTML (mutation XSS). Flow HTML has no need for
+     * any of them.
+     *
+     * @var array<int,string>
+     */
+    private const STRICT_FORBIDDEN_TAGS = [
+        'style', 'svg', 'math', 'template', 'xmp', 'noembed', 'noframes',
+        'plaintext', 'listing', 'textarea', 'title', 'select', 'option',
+    ];
+
+    /** Foreign-content roots where a nested <style> is parsed as markup by browsers. */
+    private const FOREIGN_CONTENT = ['svg', 'math'];
+
     private const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'background', 'poster'];
 
     /** Strict URL mode for the current call: see {@see sanitize()}. */
@@ -127,7 +145,9 @@ final class HtmlSanitizer
 
             $tag = strtolower($child->nodeName);
 
-            if (in_array($tag, self::FORBIDDEN_TAGS, true)) {
+            if (in_array($tag, self::FORBIDDEN_TAGS, true)
+                || ($this->strictUrls && in_array($tag, self::STRICT_FORBIDDEN_TAGS, true))
+                || ($tag === 'style' && $this->insideForeignContent($element))) {
                 $element->removeChild($child);
 
                 continue;
@@ -154,6 +174,18 @@ final class HtmlSanitizer
             $this->cleanAttributes($child);
             $this->cleanNode($child);
         }
+    }
+
+    /** True when $element is, or sits inside, an <svg> or <math> element. */
+    private function insideForeignContent(DOMElement $element): bool
+    {
+        for ($node = $element; $node instanceof DOMElement; $node = $node->parentNode) {
+            if (in_array(strtolower($node->nodeName), self::FOREIGN_CONTENT, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
