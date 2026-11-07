@@ -74,11 +74,17 @@ Every collection is exposed under `{data.api_prefix}/{model}` (default `api/pb`)
 | `PUT`/`PATCH` | `/api/pb/{model}/{id}` | Update |
 | `DELETE` | `/api/pb/{model}/{id}` | Delete |
 
-The API middleware (`data.api_middleware`) is `EncryptCookies`, `StartSession`, `api` — so the built app's logged-in end-user (the `pb` guard) is recognised on same-origin XHR and permission + row-level rules apply. No CSRF is added, so stateless writes to *unrestricted* collections keep working. Permission enforcement happens in `RecordApiController` via `AccessControl` — see [Authentication & permissions](authentication-and-permissions.md).
+The API middleware (`data.api_middleware`) is `EncryptCookies`, `StartSession`, `EnsureDataApiSameOrigin`, `api` — so the built app's logged-in end-user (the `pb` guard) is recognised on same-origin XHR and permission + row-level rules apply. Cookie-authenticated writes must come from your own site (Origin check); Bearer-token calls and reads are not affected. Permission enforcement happens in `RecordApiController` via `AccessControl` — see [Authentication & permissions](authentication-and-permissions.md).
+
+**Rate limit.** Each client (IP address, or signed-in host user) may make `data.rate_limit_per_minute` requests per minute (default **120**, env `AI_PAGE_BUILDER_DATA_RATE`); beyond that the API answers `429 Too Many Requests` until the minute is up. Set it to `0` to turn the limit off, for example when your own gateway already limits traffic.
+
+**API tokens** (`Authorization: Bearer …`) act as the user they belong to. A token only works while that user may sign in: suspending, deactivating or deleting the user revokes their tokens at once, and a token whose owner can't sign in (for any reason) is answered with `401`.
 
 ### Query syntax (`RecordQuery`)
 
 Directus-style query parameters, parsed by `src/Services/Data/RecordQuery.php`.
+
+> **Hidden fields stay hidden in every parameter.** When a role may read only some fields of a collection (a field list on its *read* permission), those are the only fields it can use in `filter`, `search`, `sort`, `fields` and in the aggregate endpoint's `field` and `group_by`. A parameter naming any other field is ignored, exactly as if the field didn't exist — so a hidden column (a salary, an ID number) can't be guessed by filtering, sorting or grouping on it.
 
 **Filter** — `filter[field][op]=value`:
 
@@ -136,6 +142,10 @@ A response row with a `customer_id` relation field becomes:
 { "id": 42, "customer_id": 7, "customer": { "id": 7, "name": "Acme Corp" }, "total": 199.0 }
 ```
 
+Expanding a relation to another collection applies *that* collection's permissions: no read access → the expand is left out; a row rule or field list → only the rows and fields the caller may see.
+
+Expanding a relation to **app users** (author, assignee, …) returns only the user's `id` and `name` — never their email, role, sign-in details or two-factor data. To show more (say, a `status`), list the columns in `data.user_expand_fields`; never add credentials or two-factor columns there.
+
 ### Response envelope
 
 `list()` returns Laravel's paginator JSON:
@@ -157,6 +167,12 @@ Single-record verbs return `{ "data": { ... } }`. `store` returns `201`; `destro
 - **Pages** — the [`data_table` block / `pbTable`](pages-and-components.md#data-tables-with-pbtable) fetches the list endpoint; a `data-pb-record="<collection>"` form POSTs a create; a management page pairs the form with per-row Edit/Delete (see [Management pages](pages-and-components.md#management-pages)).
 
 Every one of these paths funnels through `RecordQuery`, so validation, column mapping (field key ↔ `_id`), and the row-level permission filter are applied consistently.
+
+### Row rules
+
+A row rule on a role's permission — e.g. `{"owner": "$CURRENT_USER"}` — limits that role to matching rows. Name a relation either by its field key (`owner`, as the Roles screen shows it) or by its column (`owner_id`); both work on every endpoint: list, read one, aggregate, update, delete and expands. On create and update the rule's value is written into the row whatever the caller sends (under either name), so a user can't create or move a row into someone else's name.
+
+A rule that names a field or column the collection doesn't have **fails closed**: the role sees no rows and can't create any, instead of the rule being silently skipped. If a role suddenly sees an empty list after you rename a field, check its row rules.
 
 ## Validation
 
