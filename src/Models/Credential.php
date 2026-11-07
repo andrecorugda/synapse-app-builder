@@ -32,6 +32,9 @@ class Credential extends Model
 {
     protected $guarded = [];
 
+    /** Never serialise the decrypted secret (toArray / JSON / Filament fill). */
+    protected $hidden = ['secret'];
+
     protected $casts = [
         'meta' => 'array',
     ];

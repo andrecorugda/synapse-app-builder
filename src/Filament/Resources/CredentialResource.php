@@ -107,6 +107,10 @@ class CredentialResource extends Resource
                             ->password()
                             ->revealable()
                             ->autocomplete('new-password')
+                            // Never send the stored (decrypted) secret to the
+                            // browser: the field always starts empty, and a
+                            // blank value keeps the current secret on save.
+                            ->formatStateUsing(fn (): ?string => null)
                             ->required(fn (?Model $record): bool => $record === null)
                             ->dehydrated(fn (?string $state): bool => filled($state))
                             ->placeholder(fn (?Model $record): string => $record !== null ? '•••••• (leave blank to keep)' : '')
