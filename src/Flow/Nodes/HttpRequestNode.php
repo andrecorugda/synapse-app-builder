@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Models\Credential;
+use Andre\AiPageBuilder\Services\CredentialHosts;
 use Andre\AiPageBuilder\Services\CredentialStore;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -60,7 +61,7 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
                 new CapabilityInput('url', 'URL', 'string', required: true, help: 'Full http(s) URL to call (interpolated). Private/internal hosts are rejected.'),
                 new CapabilityInput('headers', 'Headers', 'keyvalue', help: 'Request headers as key/value pairs (interpolated).'),
                 new CapabilityInput('body', 'Body', 'json', help: 'Request body for write verbs (interpolated).'),
-                new CapabilityInput('credential', 'Credential', 'string', help: 'Optional stored credential key; its auth headers are merged in and take precedence over inline headers.'),
+                new CapabilityInput('credential', 'Credential', 'string', help: 'Optional stored credential key; its auth headers are merged in and take precedence over inline headers. The URL\'s host must be one of the credential\'s allowed hosts, or the request is not made.'),
                 new CapabilityInput('output', 'Output variable', 'string', default: 'http', help: 'Context variable for the response body; the status is written to <output>_status (default "http").'),
             ],
             outputHandles: ['next'],
@@ -94,10 +95,24 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         }
 
         // Attach the credential only AFTER the URL passed the SSRF guard, so a
-        // crafted internal URL can never receive a decrypted secret.
+        // crafted internal URL can never receive a decrypted secret — and only
+        // to a host on the credential's own allow-list (kept by whoever may
+        // manage secrets), so a flow builder can't send it to a host they own.
+        // A request the credential may not go to is not made at all.
         $credentialKey = trim((string) ($config['credential'] ?? ''));
         if ($credentialKey !== '') {
-            $headers = array_merge($headers, app(CredentialStore::class)->headers($credentialKey));
+            $credentialHeaders = app(CredentialStore::class)->headersForHost($credentialKey, CredentialHosts::hostOf($url));
+            if ($credentialHeaders === null) {
+                Log::warning('[ai-page-builder] http node refused to send a credential to a host outside its allowed hosts.', [
+                    'credential' => $credentialKey,
+                    'host' => CredentialHosts::hostOf($url),
+                ]);
+                $context->set($output, null);
+                $context->set($output.'_status', 0);
+
+                return (array) ($node['next'] ?? []);
+            }
+            $headers = array_merge($headers, $credentialHeaders);
         }
 
         $request = Http::withHeaders($headers);
@@ -238,19 +253,39 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
     }
 
     /**
-     * Ranges PHP's FILTER_FLAG_NO_PRIV_RANGE / NO_RES_RANGE don't cover but that
-     * still reach internal hosts: carrier-grade NAT / shared address space, and
-     * IPv6 forms that embed an IPv4 address (NAT64, IPv4-mapped/-compatible).
+     * Ranges PHP's FILTER_FLAG_NO_PRIV_RANGE / NO_RES_RANGE don't cover (on every
+     * supported PHP version) but that are not the public internet, or reach
+     * internal hosts: shared/benchmark/protocol space, documentation and
+     * multicast ranges, and IPv6 forms that embed an IPv4 address.
      */
     private const EXTRA_BLOCKED = [
+        '0.0.0.0/8',       // "this network"; 0.0.0.0 reaches the local host
         '100.64.0.0/10',   // shared address space (RFC 6598), cloud-internal on several providers
+        '192.0.0.0/24',    // IETF protocol assignments (RFC 6890)
+        '192.0.2.0/24',    // TEST-NET-1
+        '198.18.0.0/15',   // benchmarking (RFC 2544), used inside some networks
+        '198.51.100.0/24', // TEST-NET-2
+        '203.0.113.0/24',  // TEST-NET-3
+        '224.0.0.0/4',     // multicast
+        '240.0.0.0/4',     // reserved, incl. 255.255.255.255 broadcast
         '64:ff9b::/96',    // NAT64 well-known prefix → maps onto any IPv4, incl. 127.0.0.1
         '64:ff9b:1::/48',  // local-use NAT64 (RFC 8215)
         '::ffff:0:0/96',   // IPv4-mapped IPv6
         '::/96',           // IPv4-compatible IPv6 (deprecated)
+        '100::/64',        // discard-only
+        '2001::/32',       // Teredo: embeds an (obfuscated) IPv4 address
+        '2001:db8::/32',   // documentation
+        'fc00::/7',        // unique local
+        'fec0::/10',       // site-local (deprecated, still routed internally on some networks)
+        'fe80::/10',       // link-local
+        'ff00::/8',        // multicast
     ];
 
-    /** True for private / reserved / loopback / link-local (incl. 169.254.169.254) and EXTRA_BLOCKED. */
+    /**
+     * True for private / reserved / loopback / link-local (incl. 169.254.169.254)
+     * and EXTRA_BLOCKED addresses. A 6to4 address (2002::/16) is judged by the
+     * IPv4 address it embeds, so 2002:7f00:1:: (→ 127.0.0.1) is internal.
+     */
     private function isInternalIp(string $ip): bool
     {
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
@@ -261,6 +296,13 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
             if ($this->inCidr($ip, $cidr)) {
                 return true;
             }
+        }
+
+        if ($this->inCidr($ip, '2002::/16')) {
+            $bin = (string) inet_pton($ip);
+            $embedded = inet_ntop(substr($bin, 2, 4));
+
+            return $embedded === false || $this->isInternalIp($embedded);
         }
 
         return false;

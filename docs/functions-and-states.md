@@ -151,6 +151,8 @@ Every State is either **server-only** (the default) or **client-visible** (`is_p
 
 Keys a page holds that are not stored States at all (a cart, the selected tab, form values) are page-only; a flow run triggered by the page sees the page's values for them, exactly as before.
 
+When a flow's [`set_variable`](flows.md#set_variable) node writes a State, the page that ran the flow gets the new value live (`setState`) **only if the State is client-visible**. A server-only State's new value stays on the server; a State the node creates starts server-only, so mark it visible if the page should show it.
+
 **Choosing.** From the command line:
 
 ```bash

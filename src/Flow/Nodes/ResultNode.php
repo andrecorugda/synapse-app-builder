@@ -10,8 +10,10 @@ use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
+use Andre\AiPageBuilder\Flow\FlowHtml;
 use Andre\AiPageBuilder\Flow\ResultActionCatalog;
 use Andre\AiPageBuilder\Models\Partial;
+use Andre\AiPageBuilder\Support\SafeUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 
@@ -94,7 +96,10 @@ class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
             /** @var array<string,mixed> $resolved */
             $resolved = $context->interpolateDeep($action);
             if (is_string($html)) {
-                $resolved['html'] = $context->interpolateHtml($html);
+                // Escaped per token, then sanitised as a whole: tokens in
+                // event-handler / Alpine attributes are dropped, links and
+                // sources must be http(s), relative, mailto: or tel:.
+                $resolved['html'] = app(FlowHtml::class)->render($html, $context);
             }
 
             // Navigation targets: only http(s) or same-site relative URLs. A
@@ -117,18 +122,11 @@ class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
 
     /**
      * True for an absolute http(s) URL or a relative one (path, query, hash).
-     * Control characters and whitespace are stripped first, as browsers do when
-     * they parse a URL, so `java\tscript:` can't slip past the scheme check.
+     * Kept for callers of 2.0; see {@see SafeUrl::isNavigable()}.
      */
     public static function isSafeUrl(string $url): bool
     {
-        $normalized = (string) preg_replace('/[\x00-\x20\x7F]+/', '', $url);
-
-        if (preg_match('/^([a-zA-Z][a-zA-Z0-9+.\-]*):/', $normalized, $m) !== 1) {
-            return true; // no scheme: relative
-        }
-
-        return in_array(strtolower($m[1]), ['http', 'https'], true);
+        return SafeUrl::isNavigable($url);
     }
 
     /**

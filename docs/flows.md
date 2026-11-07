@@ -162,6 +162,8 @@ Persist an app [State](functions-and-states.md) (global) and/or a context var. S
 
 `type` (optional cast): `string` \| `number` \| `boolean` \| `json`. Persists to `VariableStore` when `key` is set; also writes `vars[output]` when `output` is set.
 
+When the State is [visible to visitors](functions-and-states.md#who-can-see-a-state), the node also returns a `setState` action so the page that ran the flow updates `$store.app.<key>` live. A server-only State (including one this node just created) is **never** sent back to the browser: its new value stays on the server. To show a value to the visitor, mark the State visible, or return it explicitly from a `result` action.
+
 ### `condition`
 
 Branch on a comparison; routes to `next_true` / `next_false`.
@@ -230,7 +232,9 @@ Writes the parsed JSON (or raw body) to `vars[output]` (default `http`) and the 
 
 **Keep API keys in Credentials, never in a State.** `credential` names a stored Credential (admin → Developer → Credentials); its secret is kept encrypted and its auth headers are added to the request only after the URL has passed the safety check below. A State is the wrong place for a secret: anything a page can see, a visitor can see.
 
-**Safety check (on by default, `flow.http_block_private_hosts`).** Only `http`/`https` URLs are called. The host name is looked up once and the call is refused if it doesn't resolve or if *any* address it resolves to is internal — loopback, private networks, link-local (incl. the cloud metadata address 169.254.169.254), shared address space (100.64.0.0/10), NAT64 (64:ff9b::/96) and IPv4-mapped IPv6. The connection is then pinned to the addresses that were checked, so a second DNS answer can't redirect it inside your network. Redirects are not followed. Optionally restrict calls to `flow.http_allowed_hosts`.
+**A credential goes only to its allowed hosts.** Each Credential lists the hosts it may be sent to (**Allowed hosts** on the Credentials screen): an exact host such as `api.stripe.com`, or `*.example.com` for any subdomain of `example.com` (not `example.com` itself). Case, a trailing dot and the port are ignored. When the URL's host is not on the list — or the list is empty — the request is **not made**: the output var is `null`, `<output>_status` is `0` and a warning is logged. This stops someone who may edit flows, but not secrets, from pointing a node at a server they control and receiving the secret. Only list hosts you trust with that secret; a wildcard on a shared hosting domain (`*.herokuapp.com`, `*.ngrok.io` …) lets anyone with a site there receive it. Check the hosts from the console with `php artisan ai-page-builder:credential-hosts` (add `--from-flows` to allow the hosts your flows already call, or `<key> --add=host` / `--remove=host`).
+
+**Safety check (on by default, `flow.http_block_private_hosts`).** Only `http`/`https` URLs are called. The host name is looked up once and the call is refused if it doesn't resolve or if *any* address it resolves to is internal — loopback, private networks, link-local (incl. the cloud metadata address 169.254.169.254), shared address space (100.64.0.0/10), benchmarking (198.18.0.0/15), IETF protocol space (192.0.0.0/24), documentation, multicast and reserved ranges (0.0.0.0/8, 240.0.0.0/4), IPv6 unique-local and site-local (fc00::/7, fec0::/10), Teredo (2001::/32), NAT64 (64:ff9b::/96) and IPv4-mapped IPv6. A 6to4 address (2002::/16) is judged by the IPv4 address inside it. The connection is then pinned to the addresses that were checked, so a second DNS answer can't redirect it inside your network. Redirects are not followed. Optionally restrict calls to `flow.http_allowed_hosts`.
 
 ### `ai_invoke`
 
@@ -294,7 +298,8 @@ Send an email via the [isolated mailer](email.md).
 
 `to` accepts a string (comma-separated) or array. `template` is the slug of a `kind=email` page whose HTML is interpolated against the flow context (mustache, not Alpine); use inline `body` instead if no template. Writes `{ "sent": true }` or `{ "sent": false, "error": "..." }` to `vars[output]` (default `email`).
 
-- **Visitor-supplied addresses count as one.** When `to`, `cc`, `bcc` or `reply_to` uses a value the visitor typed (`{{ input.* }}`, or a State the page sent with the request), that value adds **one** address — the first one in it — and must be a valid address, otherwise nothing is sent (`"sent": false`). A visitor can't turn your "thank you" mail into a mailing to a list of strangers. Addresses you write yourself (`"owner@shop.test, sales@shop.test"`) are unaffected.
+- **Every token counts as one address.** When `to`, `cc`, `bcc` or `reply_to` uses a `{{ token }}` — `{{ input.* }}`, a State, or a `{{ vars.* }}` value an earlier step may have copied from the visitor — that token adds **one** address — the first one in it — and must be a valid address, otherwise nothing is sent (`"sent": false`). A visitor can't turn your "thank you" mail into a mailing to a list of strangers, even through a `set_variable` copy. Addresses you write yourself (`"owner@shop.test, sales@shop.test"`) still form a list.
+- **The final list is checked.** Each address must be a single valid address (no `;`, line breaks, spaces or `<…>`), and To + CC + BCC together may not exceed `flow.email_max_recipients` (default 10); otherwise nothing is sent.
 - **Values in the body are escaped.** `{{ token }}` values in the template or `body` are HTML-escaped, so a visitor who types a link or markup into a form field sees it as plain text in the mail, not as a clickable link. Use `{{{ token }}}` only for HTML your own flow built.
 
 ### `result`
@@ -302,6 +307,11 @@ Send an email via the [isolated mailer](email.md).
 Append actions returned to the page runtime. **All action fields are interpolated.**
 
 - **HTML is escaped.** In `setHtml` and `modal` `html`, every `{{ token }}` value is HTML-escaped: a visitor's input, an AI reply or an HTTP response shows as text and can't inject markup or script into your page. When a value *is* HTML you trust — markup your own flow assembled — write it with three braces, `{{{ vars.snippet }}}`, to insert it as-is. Never use `{{{ }}}` for anything a visitor or an outside service controls (AI replies included: a visitor can steer them).
+- **The finished HTML is sanitised.** Escaping alone can't protect a value placed *inside* a link or a script attribute, so after the tokens are filled in, `setHtml` and `modal` HTML (including a modal [Partial](pages-and-components.md)) goes through the same sanitiser as pages:
+  - `<script>`, event handlers (`onclick` …), `x-on:` / `@…` / `x-init` / `x-html`, and `srcdoc` are removed — also when you typed them yourself in the action;
+  - `href`, `src`, `action` and other URL attributes keep only `https://…`, `http://…`, a path on your site, `mailto:`, `tel:` or an inline image (`data:image/png|jpeg|gif|webp`); anything else (`javascript:` …) loses the attribute, the element stays;
+  - a `{{ token }}` inside an attribute that runs code — an event handler or any Alpine directive (`x-text="'Hi {{ input.name }}'"`, `:class="…"`) — removes that attribute. Put the value between tags instead (`<span>{{ input.name }}</span>`), or in a plain attribute (`class`, `title`, `data-*`). Alpine directives you write *without* tokens still work;
+  - a `{{{ raw }}}` value is sanitised on its own first and loses every Alpine directive, so trusted HTML can carry markup but not behaviour.
 - **Only safe links.** `redirect` (and `logout`'s optional `url`) accept `https://…`, `http://…` or a path on your site (`/p/thanks`, `thanks`, `#done`). Any other kind of URL — `javascript:`, `data:` … — is dropped: the redirect doesn't happen, and logout returns to the login page.
 
 The `result` node uses a **low-code actions builder** in the editor: a type dropdown selects the action type and the relevant fields for that type appear automatically. Supported types:

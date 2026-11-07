@@ -124,7 +124,7 @@ class FlowContext
      * author wants inserted as raw HTML; outside an HTML field it is the same
      * as the double form.
      */
-    private const TOKEN = '/\{\{(\{)?\s*([a-zA-Z0-9_.]+)\s*\}\}(?(1)\})/';
+    public const TOKEN = '/\{\{(\{)?\s*([a-zA-Z0-9_.]+)\s*\}\}(?(1)\})/';
 
     /** Replace every `{{ path }}` token in a string with its resolved value. */
     public function interpolate(string $template): string

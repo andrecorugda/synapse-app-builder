@@ -80,7 +80,7 @@ When `routes.render_enabled` is on (default), the package serves:
 `RenderPageController` resolves the page via the `published()` scope, returns 404 for unknown/unpublished slugs, and — when `auth.enabled` is true — applies two gates before anything is served (see [Authentication & permissions](authentication-and-permissions.md)):
 
 - **Login required** (`requires_auth`): visitors who aren't signed in are sent to the login page and come back afterwards.
-- **Role permissions** (resource type **page**, action **view**): as soon as any role has a permission row for a page, only roles granted **view** on it (or on `*`) — and admin roles — can open it. A visitor who isn't signed in is sent to the login page; a signed-in user without the permission gets the 404 page, so the page's existence isn't revealed. A page no role has a permission for stays open to everyone.
+- **Role permissions** (resource type **page**, action **view**): as soon as any role has a permission row for a page, only roles granted **view** on it (or on `*`) — and admin roles — can open it. A visitor who isn't signed in is sent to the login page; a signed-in user without the permission gets the 404 page, so the page's existence isn't revealed. A page no role has a permission for stays open to everyone. Permission rows follow the page: changing a page's slug moves them to the new slug (so a restricted page stays restricted under its new address), a page in the trash keeps them (restoring it keeps it restricted), and deleting a page for good removes them.
 
 The same gates apply to **preview links** (a signed preview link does not get around them — preview a restricted page while signed in as a user who may see it) and to the pages chosen as the **404** and **maintenance** pages (a visitor who may not see the chosen page gets the built-in one instead). Restricted and login-only pages are left out of `sitemap.xml`.
 
@@ -170,7 +170,7 @@ The bundled `flow-runtime.blade.php` wires up these attributes on the published 
 Flow runs `POST` to `/{flow_prefix}/{slug}` with `{ "input": {...} }` and apply the returned `actions[]` (`setHtml`, `setText`, `notify`, `redirect`, `addClass`, `removeClass`, `setState`, `setStates`). See [Flows](flows.md).
 
 - A button anonymous visitors use must call a **public** flow; a private flow only runs for a signed-in user whose role may run it ([Flows → the run endpoint](flows.md#the-run-endpoint)).
-- Values a flow puts into `setHtml` / modal HTML are escaped (shown as text) unless the flow uses `{{{ }}}`; `redirect` and `data-pb-redirect` only follow `http(s)` links or paths on your site.
+- Values a flow puts into `setHtml` / modal HTML are escaped (shown as text) unless the flow uses `{{{ }}}`, and the finished HTML is sanitised: no scripts or event handlers, links and images only `http(s)`, site paths, `mailto:` / `tel:` or inline images, and a token inside an event-handler or Alpine attribute removes that attribute ([details](flows.md#result)). `redirect` and `data-pb-redirect` only follow `http(s)` links or paths on your site.
 
 ## Data tables with `pbTable`
 

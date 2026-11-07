@@ -197,6 +197,11 @@ return [
         // Per-request timeout (seconds) for the HTTP Request node, so a slow or
         // hung host can't tie up a worker indefinitely.
         'http_timeout' => (int) env('AI_PAGE_BUILDER_HTTP_TIMEOUT', 15),
+
+        // Most recipients (To + CC + BCC together) one Send Email node may mail
+        // at once. A larger list refuses the send, so a flow can't be turned
+        // into a mass-mailer.
+        'email_max_recipients' => (int) env('AI_PAGE_BUILDER_EMAIL_MAX_RECIPIENTS', 10),
     ],
 
     /*

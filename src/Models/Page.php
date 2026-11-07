@@ -200,5 +200,32 @@ class Page extends Model
 
         static::saved($bust);
         static::deleted($bust);
+
+        // Page view permissions are keyed by slug. Renaming a restricted page
+        // must carry its permission rows to the new slug, otherwise the page
+        // silently becomes public under its new address (and the old slug
+        // keeps rules for a page that no longer lives there).
+        static::updated(static function (Page $page): void {
+            $original = $page->getOriginal('slug');
+            if (! $page->wasChanged('slug') || ! is_string($original) || $original === '') {
+                return;
+            }
+
+            PbPermission::query()
+                ->where('resource_type', 'page')
+                ->where('resource_key', $original)
+                ->update(['resource_key' => (string) $page->slug]);
+        });
+
+        // A soft-deleted page keeps its permission rows, so restoring it keeps
+        // it restricted (the unique slug index stops another page from taking
+        // the slug meanwhile). A page deleted for good takes its rows with it,
+        // so a future page reusing the slug does not inherit stale grants.
+        static::forceDeleted(static function (Page $page): void {
+            PbPermission::query()
+                ->where('resource_type', 'page')
+                ->where('resource_key', (string) $page->slug)
+                ->delete();
+        });
     }
 }

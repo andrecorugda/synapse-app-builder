@@ -8,6 +8,7 @@ use Andre\AiPageBuilder\Enums\FieldType;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Models\Record;
 use Andre\AiPageBuilder\Services\AccessControl;
 use Andre\AiPageBuilder\Services\Data\RecordQuery;
 use Illuminate\Http\JsonResponse;
@@ -54,7 +55,8 @@ class RecordApiController extends Controller
 
         $data = $paginator->toArray();
         if ($allowed !== null) {
-            $data['data'] = array_map(fn ($row) => $this->project((array) $row, $allowed), $data['data']);
+            $keys = $this->projectionKeys($this->resolve($model), $allowed);
+            $data['data'] = array_map(fn ($row) => $this->project((array) $row, $keys), $data['data']);
         }
 
         return response()->json($data);
@@ -76,7 +78,7 @@ class RecordApiController extends Controller
         $allowed = $this->access->allowedFields($this->access->currentUser(), $model, 'read');
         $arr = $record->toArray();
 
-        return response()->json(['data' => $allowed === null ? $arr : $this->project($arr, $allowed)]);
+        return response()->json(['data' => $allowed === null ? $arr : $this->project($arr, $this->projectionKeys($pbModel, $allowed))]);
     }
 
     public function store(Request $request, string $model): JsonResponse
@@ -104,7 +106,7 @@ class RecordApiController extends Controller
 
         $record = $this->records->create($pbModel, $data);
 
-        return response()->json(['data' => $record], 201);
+        return response()->json(['data' => $this->writeReply($pbModel, $record)], 201);
     }
 
     public function update(Request $request, string $model, int|string $id): JsonResponse
@@ -137,8 +139,11 @@ class RecordApiController extends Controller
         $input = $this->stamp($pbModel, $input, array_merge($createRule, $updateRule));
 
         $record = $this->records->update($pbModel, $id, $input);
+        if ($record === null) {
+            return response()->json(['message' => 'Record not found.'], 404);
+        }
 
-        return response()->json(['data' => $record]);
+        return response()->json(['data' => $this->writeReply($pbModel, $record)]);
     }
 
     public function destroy(string $model, int|string $id): JsonResponse
@@ -273,23 +278,65 @@ class RecordApiController extends Controller
     }
 
     /**
-     * Keep only the field-level-allowed keys of a record row (id is always kept
-     * so rows stay addressable).
+     * What a create/update reply may show: the saved row as the acting user
+     * would READ it. Write permission is not read permission, so the reply is
+     * projected to the role's read field list, and a row the role may not read
+     * at all (no read permission, or outside the read row rule — e.g. an empty
+     * PATCH on someone else's ticket) comes back as its id only.
      *
-     * @param  array<string,mixed>  $row
-     * @param  array<int,string>  $allowed
      * @return array<string,mixed>
      */
-    private function project(array $row, array $allowed): array
+    private function writeReply(PbModel $model, Record $record): array
+    {
+        $row = $record->toArray();
+        $idOnly = ['id' => $record->getKey()];
+
+        $user = $this->access->currentUser();
+        if (! $this->access->can($user, 'read', 'collection', $model->key)) {
+            return $idOnly;
+        }
+        if (! $this->matchesRule($row, $model, 'read')) {
+            return $idOnly;
+        }
+
+        $allowed = $this->access->allowedFields($user, $model->key, 'read');
+
+        return $allowed === null ? $row : $this->project($row, $this->projectionKeys($model, $allowed));
+    }
+
+    /**
+     * The row keys a role with a read field list may see: `id`, each readable
+     * field key and the physical column behind it. Only a RELATION field adds a
+     * different column (`owner` → `owner_id`); a plain field whose key happens
+     * to be another field's key plus `_id` stays hidden unless itself readable.
+     * Same key → column mapping as {@see RecordQuery::columnFor()}.
+     *
+     * @param  array<int,string>  $allowed
+     * @return array<int,string>
+     */
+    private function projectionKeys(PbModel $model, array $allowed): array
     {
         $keys = ['id', ...$allowed];
 
-        // A readable relation field `owner` lives in the `owner_id` column: keep
-        // the column next to the (expanded) field key.
-        foreach ($allowed as $key) {
-            $keys[] = FieldType::Relation->columnName($key);
+        foreach ($model->fields as $field) {
+            if (in_array($field->key, $allowed, true) || in_array($field->columnName(), $allowed, true)) {
+                $keys[] = $field->key;
+                $keys[] = $field->columnName();
+            }
         }
 
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * Keep only the given keys of a record row.
+     *
+     * @param  array<string,mixed>  $row
+     * @param  array<int,string>  $keys  from {@see projectionKeys()}
+     * @return array<string,mixed>
+     */
+    private function project(array $row, array $keys): array
+    {
         return array_intersect_key($row, array_flip($keys));
     }
 

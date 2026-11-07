@@ -90,3 +90,37 @@ it('still calls a public IP literal without a pin', function (): void {
 
     expect($ctx->get('vars.res_status'))->toBe(200);
 });
+
+it('treats non-public ranges as internal', function (string $ip): void {
+    $node = (new ReflectionClass(HttpRequestNode::class))->newInstanceWithoutConstructor();
+    $m = new ReflectionMethod($node, 'isInternalIp');
+
+    expect($m->invoke($node, $ip))->toBeTrue();
+})->with([
+    'benchmark 198.18/15' => ['198.18.0.1'],
+    'benchmark 198.19' => ['198.19.255.254'],
+    'IETF 192.0.0/24' => ['192.0.0.1'],
+    'this network 0/8' => ['0.0.0.0'],
+    'reserved 240/4' => ['240.0.0.1'],
+    'broadcast' => ['255.255.255.255'],
+    'multicast' => ['224.0.0.1'],
+    'IPv6 site-local fec0::/10' => ['fec0::1'],
+    'IPv6 unique local' => ['fd00::1'],
+    'IPv6 multicast' => ['ff02::1'],
+    'Teredo' => ['2001:0:4136:e378:8000:63bf:3fff:fdd2'],
+    '6to4 embedding 127.0.0.1' => ['2002:7f00:1::1'],
+    '6to4 embedding 10.0.0.1' => ['2002:a00:1::'],
+    '6to4 embedding 169.254.169.254' => ['2002:a9fe:a9fe::1'],
+]);
+
+it('allows public addresses, including 6to4 around a public IPv4', function (string $ip): void {
+    $node = (new ReflectionClass(HttpRequestNode::class))->newInstanceWithoutConstructor();
+    $m = new ReflectionMethod($node, 'isInternalIp');
+
+    expect($m->invoke($node, $ip))->toBeFalse();
+})->with([
+    'public v4' => ['93.184.216.34'],
+    'just above 198.19' => ['198.20.0.1'],
+    'public v6' => ['2606:4700:4700::1111'],
+    '6to4 embedding 8.8.8.8' => ['2002:808:808::1'],
+]);

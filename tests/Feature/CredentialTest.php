@@ -79,6 +79,7 @@ it('merges a credential\'s headers into the HTTP request, taking precedence over
 
     Credential::query()->create([
         'name' => 'Bearer', 'key' => 'svc', 'type' => 'bearer', 'secret' => 'tok999',
+        'allowed_hosts' => ['93.184.215.14'], // a credential is sent only to its allowed hosts
     ]);
 
     $def = [

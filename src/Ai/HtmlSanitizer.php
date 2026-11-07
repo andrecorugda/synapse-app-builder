@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Ai;
 
+use Andre\AiPageBuilder\Support\SafeUrl;
 use DOMAttr;
 use DOMDocument;
 use DOMElement;
@@ -52,7 +53,33 @@ final class HtmlSanitizer
      */
     private const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'background', 'poster'];
 
-    public function sanitize(string $html): string
+    /** Strict URL mode for the current call: see {@see sanitize()}. */
+    private bool $strictUrls = false;
+
+    /** Whether declarative Alpine directives survive the current call. */
+    private bool $allowAlpine = true;
+
+    /**
+     * @param  bool  $strictUrls  Only http(s), relative, mailto:, tel: and raster
+     *                            data:image URLs survive in URL attributes (flow HTML output).
+     * @param  bool  $allowAlpine  False strips EVERY Alpine directive, declarative
+     *                             ones included — their values are JavaScript expressions (used for
+     *                             HTML a flow inserts from a value, never author-written markup).
+     */
+    public function sanitize(string $html, bool $strictUrls = false, bool $allowAlpine = true): string
+    {
+        $this->strictUrls = $strictUrls;
+        $this->allowAlpine = $allowAlpine;
+
+        try {
+            return $this->clean($html);
+        } finally {
+            $this->strictUrls = false;
+            $this->allowAlpine = true;
+        }
+    }
+
+    private function clean(string $html): string
     {
         if (trim($html) === '') {
             return '';
@@ -186,6 +213,16 @@ final class HtmlSanitizer
             return false;
         }
 
+        // Without Alpine, every directive goes: their values are expressions.
+        if (! $this->allowAlpine && (str_starts_with($lower, 'x-') || str_starts_with($name, ':'))) {
+            return false;
+        }
+
+        // `srcdoc` is an inline HTML document: never kept.
+        if ($lower === 'srcdoc') {
+            return false;
+        }
+
         // Declarative Alpine bindings are allowed: x-bind:* and the `:` shorthand
         // (e.g. :style, :aria-selected). These set attributes, not handlers.
         if (str_starts_with($lower, 'x-bind:') || str_starts_with($name, ':')) {
@@ -240,6 +277,10 @@ final class HtmlSanitizer
      */
     private function urlAllowed(string $value): bool
     {
+        if ($this->strictUrls) {
+            return SafeUrl::isSafeAttributeUrl($value);
+        }
+
         $trimmed = strtolower(trim($value));
 
         // Strip leading control/whitespace chars browsers ignore when parsing.
