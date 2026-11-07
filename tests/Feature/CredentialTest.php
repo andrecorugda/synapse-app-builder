@@ -79,6 +79,7 @@ it('merges a credential\'s headers into the HTTP request, taking precedence over
 
     Credential::query()->create([
         'name' => 'Bearer', 'key' => 'svc', 'type' => 'bearer', 'secret' => 'tok999',
+        'allowed_hosts' => ['93.184.215.14'], // a credential is sent only to its allowed hosts
     ]);
 
     $def = [
@@ -86,7 +87,7 @@ it('merges a credential\'s headers into the HTTP request, taking precedence over
         'nodes' => [
             'h' => ['type' => 'http_request', 'config' => [
                 'method' => 'get',
-                'url' => 'https://api.example.com/thing',
+                'url' => 'https://93.184.215.14/thing',
                 'headers' => ['Authorization' => 'Bearer inline-should-lose', 'X-Trace' => '1'],
                 'credential' => 'svc',
                 'output' => 'res',
@@ -110,7 +111,7 @@ it('leaves the request unchanged when no credential is configured', function ():
         'nodes' => [
             'h' => ['type' => 'http_request', 'config' => [
                 'method' => 'get',
-                'url' => 'https://api.example.com/thing',
+                'url' => 'https://93.184.215.14/thing',
                 'headers' => ['X-Trace' => '1'],
                 'output' => 'res',
             ]],

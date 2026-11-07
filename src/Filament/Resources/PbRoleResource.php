@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\PbRoleResource\Pages;
 use Andre\AiPageBuilder\Filament\Resources\PbRoleResource\RelationManagers\PermissionsRelationManager;
 use Andre\AiPageBuilder\Models\PbRole;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -21,6 +23,13 @@ use Illuminate\Support\Str;
 
 class PbRoleResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_USERS;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shield-check';
 
     public static function getModel(): string

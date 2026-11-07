@@ -62,6 +62,36 @@ A field's `options` (JSON) tune the column and validation:
 
 **Destructive sync is off by default.** Removing a field does **not** drop its column unless `data.allow_destructive_sync` is true (`AI_PAGE_BUILDER_DATA_DESTRUCTIVE=true`) — a guard so a mis-edit can't destroy data. The system columns `id`, `created_at`, `updated_at`, `deleted_at` are never dropped.
 
+## External collections
+
+An **external** collection maps a table Synapse does not own (an existing table, possibly on another database connection). Its fields only *describe* the existing columns (projection, casts, display); Synapse never creates, alters or drops the table, and never records history for it.
+
+External collections are **off until you open them**, because a mapped table is a direct way into your database:
+
+```php
+// config/ai-page-builder.php
+'data' => [
+    'external' => [
+        'connections' => ['reporting'],          // connections from config/database.php
+        'tables' => [
+            'orders',                             // on every listed connection
+            'reporting' => ['customers'],         // only on `reporting`
+            // '*' allows any table (protected tables are still refused)
+        ],
+        'protected_tables' => [],                 // extra tables to always refuse
+        'writable' => false,                      // AI_PAGE_BUILDER_EXTERNAL_WRITABLE
+    ],
+],
+```
+
+- **Who may map one.** Creating an external collection, or changing its connection, table or Read-only toggle, needs the `synapse.manage-data-sources` ability on top of `synapse.admin` (see [Authentication & permissions](authentication-and-permissions.md#finer-abilities-for-sensitive-areas)). The Connection list only offers the connections you listed.
+- **What may be mapped.** Only a listed connection and table. A plain name (`orders`) matches an unqualified table; list `schema.table` to allow a schema-qualified one.
+- **What is never mapped.** Synapse's own tables (pages, flows, collections, app users, roles, API tokens, credentials, settings, …) and your sign-in tables are always refused, whatever you list: the table of every `auth.providers` model or `table`, the `auth.passwords` broker tables, `password_reset_tokens`, `password_resets`, `sessions` (`session.table`), `personal_access_tokens`, `migrations`, Laravel Passport's `oauth_*` tables and spatie/laravel-permission's tables (`permission.table_names`). Names are compared case-insensitively, without quotes or a `schema.` prefix, and with each connection's table prefix. The same rule stops a **managed** collection from landing on one of these tables (for example with an empty `data.table_prefix`).
+- **Enforced on the data layer.** The check runs when a collection is saved (`PbModel`), every time its records are opened (`Record::for`) and before schema sync, so an imported app, an AI plan or a row written straight into the collections table cannot get around it. A refused table answers `403` (`DataSourceRefusedException`).
+- **Read-only by default.** An external collection cannot be written — not through the REST API, flows, functions, CSV import or the records screen — unless `data.external.writable` is `true` **and** the collection's own Read-only toggle is off.
+
+If you used external collections before 2.0, list their connection and table under `data.external`; until you do, opening them answers `403`.
+
 ## The auto REST API
 
 Every collection is exposed under `{data.api_prefix}/{model}` (default `api/pb`), resolved by collection key:
@@ -74,11 +104,17 @@ Every collection is exposed under `{data.api_prefix}/{model}` (default `api/pb`)
 | `PUT`/`PATCH` | `/api/pb/{model}/{id}` | Update |
 | `DELETE` | `/api/pb/{model}/{id}` | Delete |
 
-The API middleware (`data.api_middleware`) is `EncryptCookies`, `StartSession`, `api` — so the built app's logged-in end-user (the `pb` guard) is recognised on same-origin XHR and permission + row-level rules apply. No CSRF is added, so stateless writes to *unrestricted* collections keep working. Permission enforcement happens in `RecordApiController` via `AccessControl` — see [Authentication & permissions](authentication-and-permissions.md).
+The API middleware (`data.api_middleware`) is `EncryptCookies`, `StartSession`, `EnsureDataApiSameOrigin`, `api` — so the built app's logged-in end-user (the `pb` guard) is recognised on same-origin XHR and permission + row-level rules apply. Cookie-authenticated writes must come from your own site (Origin check); Bearer-token calls and reads are not affected. Permission enforcement happens in `RecordApiController` via `AccessControl` — see [Authentication & permissions](authentication-and-permissions.md).
+
+**Rate limit.** Each client (IP address, or signed-in host user) may make `data.rate_limit_per_minute` requests per minute (default **120**, env `AI_PAGE_BUILDER_DATA_RATE`); beyond that the API answers `429 Too Many Requests` until the minute is up. Set it to `0` to turn the limit off, for example when your own gateway already limits traffic.
+
+**API tokens** (`Authorization: Bearer …`) act as the user they belong to. A token only works while that user may sign in: suspending, deactivating or deleting the user revokes their tokens at once, and a token whose owner can't sign in (for any reason) is answered with `401`.
 
 ### Query syntax (`RecordQuery`)
 
 Directus-style query parameters, parsed by `src/Services/Data/RecordQuery.php`.
+
+> **Hidden fields stay hidden in every parameter.** When a role may read only some fields of a collection (a field list on its *read* permission), those are the only fields it can use in `filter`, `search`, `sort`, `fields` and in the aggregate endpoint's `field` and `group_by`. A parameter naming any other field is ignored, exactly as if the field didn't exist — so a hidden column (a salary, an ID number) can't be guessed by filtering, sorting or grouping on it.
 
 **Filter** — `filter[field][op]=value`:
 
@@ -136,6 +172,10 @@ A response row with a `customer_id` relation field becomes:
 { "id": 42, "customer_id": 7, "customer": { "id": 7, "name": "Acme Corp" }, "total": 199.0 }
 ```
 
+Expanding a relation to another collection applies *that* collection's permissions: no read access → the expand is left out; a row rule or field list → only the rows and fields the caller may see.
+
+Expanding a relation to **app users** (author, assignee, …) returns only the user's `id` and `name` — never their email, role, sign-in details or two-factor data. To show more (say, a `status`), list the columns in `data.user_expand_fields`; never add credentials or two-factor columns there.
+
 ### Response envelope
 
 `list()` returns Laravel's paginator JSON:
@@ -150,6 +190,10 @@ A response row with a `customer_id` relation field becomes:
 
 Single-record verbs return `{ "data": { ... } }`. `store` returns `201`; `destroy` returns `204`. A failed validation returns `422` with Laravel's error bag; a denied permission returns `403`.
 
+> **A write reply shows only what you may read.** The record returned by `store` (`POST`) and `update` (`PUT`/`PATCH`) is the saved row *as the caller's role would read it*: limited to the fields on its **read** permission, and — when the role may not read the collection, or the saved row falls outside its read row rule (say, a triage role that may update the status of any ticket but read only its own) — just `{ "id": … }`. Write permission is not read permission, so an empty `PATCH` can't be used to read a row. A page that needs the full row after saving it must be allowed to read it.
+>
+> A role limited to some fields gets each readable field's own value, plus the `{key}_id` column for a readable **relation** field. Any other column stays hidden, even one whose name is a readable key plus `_id` (an `account_id` text field next to a readable `account`).
+
 ## Reading/writing from Flows, Functions and pages
 
 - **Flows** — the [`record` node](flows.md#record) does `list`/`get`/`create`/`update`/`delete` against a collection, going through `RecordQuery`.
@@ -157,6 +201,12 @@ Single-record verbs return `{ "data": { ... } }`. `store` returns `201`; `destro
 - **Pages** — the [`data_table` block / `pbTable`](pages-and-components.md#data-tables-with-pbtable) fetches the list endpoint; a `data-pb-record="<collection>"` form POSTs a create; a management page pairs the form with per-row Edit/Delete (see [Management pages](pages-and-components.md#management-pages)).
 
 Every one of these paths funnels through `RecordQuery`, so validation, column mapping (field key ↔ `_id`), and the row-level permission filter are applied consistently.
+
+### Row rules
+
+A row rule on a role's permission — e.g. `{"owner": "$CURRENT_USER"}` — limits that role to matching rows. Name a relation either by its field key (`owner`, as the Roles screen shows it) or by its column (`owner_id`); both work on every endpoint: list, read one, aggregate, update, delete and expands. On create and update the rule's value is written into the row whatever the caller sends (under either name), so a user can't create or move a row into someone else's name.
+
+A rule that names a field or column the collection doesn't have **fails closed**: the role sees no rows and can't create any, instead of the rule being silently skipped. If a role suddenly sees an empty list after you rename a field, check its row rules.
 
 ## Validation
 

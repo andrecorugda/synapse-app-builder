@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources\PbModelResource\RelationManagers;
 
 use Andre\AiPageBuilder\Enums\FieldType;
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseRelationManager;
 use Andre\AiPageBuilder\Models\PbField;
 use Andre\AiPageBuilder\Models\PbModel;
 use Andre\AiPageBuilder\Models\Record;
@@ -48,6 +49,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class RecordsRelationManager extends RelationManager
 {
+    use AuthorizesSynapseRelationManager;
+
     protected static ?string $title = 'Records';
 
     /**
@@ -91,6 +94,8 @@ class RecordsRelationManager extends RelationManager
     {
         /** @var PbModel $owner */
         $owner = $this->getOwnerRecord();
+        // A read-only external table offers no write actions (Record refuses them anyway).
+        $writable = ! $owner->externalWritesBlocked();
 
         return $table
             // Records have no Eloquent relationship. The base relation-table wires
@@ -115,6 +120,7 @@ class RecordsRelationManager extends RelationManager
             ->headerActions([
                 Actions\CreateAction::make()
                     ->label('Add record')
+                    ->visible($writable)
                     ->using(fn (array $data): Record => app(RecordQuery::class)->create($owner, $data)),
 
                 Actions\Action::make('exportCsv')
@@ -125,6 +131,7 @@ class RecordsRelationManager extends RelationManager
 
                 Actions\Action::make('importCsv')
                     ->label('Import CSV')
+                    ->visible($writable)
                     ->icon('heroicon-m-arrow-up-tray')
                     ->color('gray')
                     ->modalSubmitActionLabel('Import')
@@ -140,15 +147,18 @@ class RecordsRelationManager extends RelationManager
             ])
             ->recordActions([
                 Actions\EditAction::make()
+                    ->visible($writable)
                     ->fillForm(fn (Record $record): array => $record->attributesToArray())
                     ->using(fn (Record $record, array $data): Record => app(RecordQuery::class)
                         ->update($owner, $record->getKey(), $data) ?? $record),
                 Actions\DeleteAction::make()
+                    ->visible($writable)
                     ->using(fn (Record $record): bool => app(RecordQuery::class)->delete($owner, $record->getKey())),
             ])
             ->toolbarActions([
                 Actions\BulkActionGroup::make([
                     Actions\DeleteBulkAction::make()
+                        ->visible($writable)
                         ->action(function ($records) use ($owner): void {
                             $query = app(RecordQuery::class);
                             foreach ($records as $record) {

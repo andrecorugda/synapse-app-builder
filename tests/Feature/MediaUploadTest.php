@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Services\MediaLibrary;
-use Andre\AiPageBuilder\Tests\Fixtures\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,7 +12,7 @@ beforeEach(function (): void {
 });
 
 it('stores an upload and returns GrapesJS asset-manager JSON', function (): void {
-    $this->actingAs(new User);
+    $this->actingAs(synapseAdmin());
 
     $res = $this->postJson('/ai-page-builder/media/upload', [
         'files' => [UploadedFile::fake()->image('hero.png', 800, 600)],

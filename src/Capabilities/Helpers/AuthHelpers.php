@@ -29,7 +29,7 @@ class AuthHelpers implements HelperProvider
                 usage: "db_create('orders', {customer_id: auth_id(), total: vars.total})",
                 inputs: [],
             ),
-            static fn (): ?array => self::user()?->toArray(),
+            static fn (): ?array => self::userArray(),
         );
 
         $registry->register(
@@ -57,6 +57,28 @@ class AuthHelpers implements HelperProvider
             ),
             static fn (): bool => self::user() !== null,
         );
+    }
+
+    /**
+     * The signed-in user's own record for server-side code: the model's safe
+     * toArray() plus their own email and role id (hidden from serialization so
+     * they never leak to OTHER callers, but a flow emailing the current user
+     * needs them). Credentials and two-factor state stay out.
+     *
+     * @return array<string,mixed>|null
+     */
+    private static function userArray(): ?array
+    {
+        $user = self::user();
+
+        if ($user === null) {
+            return null;
+        }
+
+        return array_merge($user->toArray(), [
+            'email' => $user->getAttribute('email'),
+            'role_id' => $user->getAttribute('role_id'),
+        ]);
     }
 
     private static function user(): ?PbUser

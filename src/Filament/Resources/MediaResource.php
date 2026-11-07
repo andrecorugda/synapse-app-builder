@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\MediaResource\Pages;
 use Andre\AiPageBuilder\Models\MediaItem;
 use Andre\AiPageBuilder\Services\MediaLibrary;
 use Andre\AiPageBuilder\Services\MediaStorage;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -17,9 +19,12 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\HtmlString;
+use Illuminate\Validation\ValidationException;
 
 class MediaResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-photo';
 
     public static function getModel(): string
@@ -110,8 +115,18 @@ class MediaResource extends Resource
                         $userId = is_int($userId) ? $userId : (is_numeric($userId) ? (int) $userId : null);
 
                         foreach ((array) ($data['files'] ?? []) as $file) {
-                            if ($file instanceof UploadedFile) {
+                            if (! $file instanceof UploadedFile) {
+                                continue;
+                            }
+
+                            try {
                                 $library->store($file, $userId);
+                            } catch (ValidationException $e) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('Upload refused')
+                                    ->body($file->getClientOriginalName().': '.collect($e->errors())->flatten()->implode(' '))
+                                    ->send();
                             }
                         }
                     }),

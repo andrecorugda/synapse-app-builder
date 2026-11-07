@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources\PbRoleResource\RelationManagers;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseRelationManager;
+use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\Page;
 use Andre\AiPageBuilder\Models\PbModel;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -22,6 +25,13 @@ use Filament\Tables\Table;
  */
 class PermissionsRelationManager extends RelationManager
 {
+    use AuthorizesSynapseRelationManager;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_USERS;
+    }
+
     protected static string $relationship = 'permissions';
 
     protected static ?string $title = 'Permissions';
@@ -35,6 +45,7 @@ class PermissionsRelationManager extends RelationManager
                         ->options([
                             'collection' => 'Collection',
                             'page' => 'Page',
+                            'flow' => 'Flow',
                         ])
                         ->required()
                         ->default('collection')
@@ -46,7 +57,7 @@ class PermissionsRelationManager extends RelationManager
                         ->required()
                         ->default('*')
                         ->live()
-                        ->helperText('Collection / page to grant, or * for all'),
+                        ->helperText('Collection / page / flow to grant, or * for all'),
 
                     Forms\Components\Select::make('action')
                         ->options([
@@ -56,6 +67,7 @@ class PermissionsRelationManager extends RelationManager
                             'update' => 'Update',
                             'delete' => 'Delete',
                             'view' => 'View',
+                            'run' => 'Run (flows)',
                         ])
                         ->required()
                         ->default('read'),
@@ -82,7 +94,7 @@ class PermissionsRelationManager extends RelationManager
 
     /**
      * Options for the resource_key select, scoped to the chosen resource type:
-     * collection names keyed by collection key, page titles keyed by slug, each
+     * collection names keyed by collection key, page titles and flow names keyed by slug, each
      * prefixed with an "All resources" (*) catch-all.
      *
      * @return array<string,string>
@@ -109,6 +121,17 @@ class PermissionsRelationManager extends RelationManager
                 ->orderBy('title')
                 ->pluck('title', 'slug')
                 ->prepend('All resources', '*')
+                ->all();
+        }
+
+        if ($resourceType === 'flow') {
+            /** @var class-string<Flow> $flowClass */
+            $flowClass = config('ai-page-builder.models.flow', Flow::class);
+
+            return $flowClass::query()
+                ->orderBy('name')
+                ->pluck('name', 'slug')
+                ->prepend('All flows', '*')
                 ->all();
         }
 

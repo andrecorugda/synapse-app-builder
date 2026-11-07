@@ -10,6 +10,110 @@ Synapse ships the **built app's own** identity layer — end-users, roles and pe
 | **Builder admins** | People who build apps in Filament | Filament panel guard |
 | **Built-app end-users** | The users of the app you publish | The **`pb`** guard (this page) |
 
+## Builder admins — who can open Synapse
+
+**Nobody, until you say so.** Since 2.0, every Synapse screen in your Filament panel (Pages, Flows, Functions, Collections, App Users, Credentials, API Tokens, Settings, …) and every in-panel endpoint (the AI chat, media upload, PHP lint) is **denied by default**. Being allowed into your Filament panel is not enough on its own: you decide who builds apps.
+
+### Grant access — one line
+
+Define the `synapse.admin` ability in your `AppServiceProvider` (or `AuthServiceProvider`) `boot()` method:
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('synapse.admin', fn ($user) => $user->is_admin);
+```
+
+Use whatever fits your app — a column, a role, a permission:
+
+```php
+Gate::define('synapse.admin', fn ($user) => $user->hasRole('developer'));      // spatie/laravel-permission
+Gate::define('synapse.admin', fn ($user) => in_array($user->email, ['me@acme.test'], true));
+```
+
+A `Gate::before()` callback you already have (for example "super admins can do everything") applies too. If such a hook is what grants `synapse.admin`, see [When an undefined finer ability denies instead](#when-an-undefined-finer-ability-denies-instead).
+
+### Or decide on the plugin
+
+If you prefer to keep it next to the panel, pass a callback to the plugin instead. It replaces the `synapse.admin` check for that panel:
+
+```php
+$panel->plugin(
+    AiPageBuilderPlugin::make()->authorize(fn ($user) => $user->is_admin),
+);
+```
+
+### Finer abilities for sensitive areas
+
+Some areas can hand out secrets, user accounts, server-side code or a way into your database. Each has its own ability. **If you define `synapse.admin` with `Gate::define()` and don't define a finer one, it simply follows `synapse.admin`** — so the one line above is all most apps need. Define one when only some of your builders should have it:
+
+| Ability | Covers |
+|---|---|
+| `synapse.manage-secrets` | Credentials, API tokens |
+| `synapse.manage-users` | App users, roles and permissions, invites, and the sign-up settings (self-registration, registration mode, default role, allowed email domains) on the Settings page and in AI-chat plans |
+| `synapse.manage-code` | Functions, app import, AI-chat plans that add a **PHP** function |
+| `synapse.manage-settings` | Settings, Theme, app export, AI-chat plans with a `settings` section |
+| `synapse.manage-data-sources` | Creating or changing an **external** collection (one that maps an existing table, see [Collections](collections-and-data.md#external-collections)) |
+
+```php
+Gate::define('synapse.admin', fn ($user) => $user->is_staff);
+Gate::define('synapse.manage-secrets', fn ($user) => $user->is_owner);
+```
+
+A finer ability can only **narrow** access: a user still needs `synapse.admin` (or the plugin callback) first. With the plugin callback, an undefined finer ability follows that callback on the same panel.
+
+#### When an undefined finer ability denies instead
+
+An undefined finer ability does **not** follow `synapse.admin` — it denies — when:
+
+- you set `filament.fine_abilities_fallback` to `deny` (or `AI_PAGE_BUILDER_FINE_ABILITIES_FALLBACK=deny`). Any value other than `admin` denies;
+- **spatie/laravel-permission** has a permission with the ability's name (on any guard). Its `Gate::before` hook already allowed everyone who holds it, so whoever reaches Synapse's fallback does not;
+- you grant `synapse.admin` itself through a `Gate::before` hook (a permission system) instead of `Gate::define()`. Grant the finer abilities the same way.
+
+#### Using spatie/laravel-permission
+
+Create the permissions you want and give them to roles; nothing else is needed:
+
+```php
+Permission::create(['name' => 'synapse.admin']);
+Permission::create(['name' => 'synapse.manage-secrets']);   // now narrows: only holders pass
+$builderRole->givePermissionTo('synapse.admin');
+$ownerRole->givePermissionTo(['synapse.admin', 'synapse.manage-secrets']);
+```
+
+If `synapse.admin` comes from such a permission, every finer ability a user does not hold as a permission is denied; create and grant each one you want builders to have. Prefer to keep `Gate::define('synapse.admin', …)`? Then finer abilities follow it unless the permission exists. Set `fine_abilities_fallback` to `deny` if you would rather every finer ability be granted explicitly.
+
+### Your own policies still apply
+
+The Synapse check comes first; then Filament runs your model policies as usual. If you register a policy for a Synapse model (for example `Page`), it can still deny actions for a granted builder.
+
+### Renaming the abilities
+
+Already have permission names you want to reuse? Map them in `config/ai-page-builder.php`:
+
+```php
+'filament' => [
+    'ability' => 'synapse.admin',                 // the main ability
+    'abilities' => [
+        'manage-secrets' => 'synapse.manage-secrets',
+        'manage-users' => 'synapse.manage-users',
+        'manage-code' => 'synapse.manage-code',
+        'manage-settings' => 'synapse.manage-settings',
+        'manage-data-sources' => 'synapse.manage-data-sources',
+    ],
+    'fine_abilities_fallback' => 'admin',         // or 'deny'
+    'panel' => null,                              // see below
+],
+```
+
+### The in-panel endpoints
+
+The AI chat (`/ai-page-builder/ai-chat`, `/ai-chat/apply`), media upload and PHP lint routes run behind the `EnsureSynapseAdmin` middleware. It answers **403** unless the signed-in user is a Filament user that your panel lets in (`FilamentUser::canAccessPanel()`) **and** passes `synapse.admin` (or the plugin callback). It checks the panel(s) that register `AiPageBuilderPlugin`; set `filament.panel` (or `AI_PAGE_BUILDER_PANEL`) to a panel id to pin one. Without Filament installed, these endpoints are always refused.
+
+The middleware is always added, even if your published config still lists only `['web', 'auth']` under `routes.panel_middleware`. The AI chat routes are also rate-limited (30 requests a minute).
+
+The floating **Build with AI** dock is rendered only on a panel that registers `AiPageBuilderPlugin`, and only for a user who passes `synapse.admin` (or the plugin callback) there. Applying a chat plan answers **403** when the plan adds a PHP function without `manage-code`, has a `settings` section without `manage-settings`, or touches sign-up settings without `manage-users`.
+
 ## The `pb` guard
 
 When `auth.enabled` is true (default), the package registers — without disturbing host auth — a session guard named `pb` (configurable via `auth.guard`) backed by an Eloquent provider on `PbUser` (`page_builder_users`). It is registered idempotently: an existing guard/provider of the same name is left untouched (`registerAuthGuard()`).

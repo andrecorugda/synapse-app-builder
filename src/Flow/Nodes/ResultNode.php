@@ -10,9 +10,12 @@ use Andre\AiPageBuilder\Capabilities\CapabilityInput;
 use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
+use Andre\AiPageBuilder\Flow\FlowHtml;
 use Andre\AiPageBuilder\Flow\ResultActionCatalog;
 use Andre\AiPageBuilder\Models\Partial;
+use Andre\AiPageBuilder\Support\SafeUrl;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Appends result actions returned to the page runtime.
@@ -85,12 +88,45 @@ class ResultNode implements FlowNodeHandler, ProvidesNodeDefinition
             }
             unset($action['partial']);
 
+            // HTML fields are escaped per token ({{{ }}} opts out); every
+            // other field is plain text the runtime never parses as HTML.
+            $html = $action['html'] ?? null;
+            unset($action['html']);
+
             /** @var array<string,mixed> $resolved */
             $resolved = $context->interpolateDeep($action);
+            if (is_string($html)) {
+                // Escaped per token, then sanitised as a whole: tokens in
+                // event-handler / Alpine attributes are dropped, links and
+                // sources must be http(s), relative, mailto: or tel:.
+                $resolved['html'] = app(FlowHtml::class)->render($html, $context);
+            }
+
+            // Navigation targets: only http(s) or same-site relative URLs. A
+            // `javascript:` / `data:` URL would run script on the app's origin.
+            if (($type === 'redirect' || $type === 'logout') && isset($resolved['url']) && $resolved['url'] !== '') {
+                if (! self::isSafeUrl((string) $resolved['url'])) {
+                    Log::warning('[ai-page-builder] result action dropped an unsafe URL.', ['type' => $type]);
+                    if ($type === 'redirect') {
+                        continue;
+                    }
+                    unset($resolved['url']); // logout still signs out, to the login page
+                }
+            }
+
             $context->addAction($resolved);
         }
 
         return (array) ($node['next'] ?? []);
+    }
+
+    /**
+     * True for an absolute http(s) URL or a relative one (path, query, hash).
+     * Kept for callers of 2.0; see {@see SafeUrl::isNavigable()}.
+     */
+    public static function isSafeUrl(string $url): bool
+    {
+        return SafeUrl::isNavigable($url);
     }
 
     /**

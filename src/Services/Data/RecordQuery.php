@@ -40,21 +40,29 @@ class RecordQuery
     ];
 
     /**
-     * @param  array<string,mixed>  $params
-     */
-    /**
+     * List records. `$readableFields` (field keys, null = every field) limits
+     * which columns the caller-supplied filter / search / sort / fields params
+     * may touch, so a column the caller may not read can't be probed through
+     * them. `$rowRule` (column or field key => value) is the caller's row-level
+     * rule: always applied, whatever the readable fields, and fails CLOSED (no
+     * rows) when a key names no column of the model.
+     *
      * @param  array<string,mixed>  $params
      * @param  (callable(string,bool):(array{rule?:array<string,mixed>,fields?:array<int,string>|null}|false))|null  $authorizeExpand
+     * @param  array<int,string>|null  $readableFields
+     * @param  array<string,mixed>  $rowRule
      */
-    public function list(PbModel $model, array $params = [], ?callable $authorizeExpand = null): LengthAwarePaginator
+    public function list(PbModel $model, array $params = [], ?callable $authorizeExpand = null, ?array $readableFields = null, array $rowRule = []): LengthAwarePaginator
     {
         $query = Record::for($model)->newQuery();
+        $readable = $this->readableColumns($model, $readableFields);
 
-        $this->applyFilters($model, $query, (array) ($params['filter'] ?? []));
-        $this->applySearch($model, $query, (string) ($params['search'] ?? ''));
-        $this->applySort($model, $query, (string) ($params['sort'] ?? ''));
+        $this->applyRowRule($model, $query, $rowRule);
+        $this->applyFilters($model, $query, (array) ($params['filter'] ?? []), $readable);
+        $this->applySearch($model, $query, (string) ($params['search'] ?? ''), $readable);
+        $this->applySort($model, $query, (string) ($params['sort'] ?? ''), $readable);
 
-        $columns = $this->projection($model, (string) ($params['fields'] ?? ''));
+        $columns = $this->projection($model, (string) ($params['fields'] ?? ''), $readable);
 
         $perPage = $this->perPage($params['per_page'] ?? null);
 
@@ -248,9 +256,9 @@ class RecordQuery
             $parentIds = $records->pluck('id')->all();
             try {
                 $childQuery = Record::for($childModel)->newQuery()->whereIn($column, $parentIds);
-                // Scope to the child collection's row rule (scalar => eq) through
-                // applyFilters so it passes the model's column whitelist.
-                $this->applyFilters($childModel, $childQuery, $scope['rule']);
+                // Scope to the child collection's row rule (fails closed when a
+                // rule key names no column of the child model).
+                $this->applyRowRule($childModel, $childQuery, $scope['rule']);
                 $childrenByParent = $childQuery->get()->groupBy($column);
             } catch (\Throwable $e) {
                 // Drop this reverse expand but don't fail the list — log so the
@@ -345,6 +353,11 @@ class RecordQuery
      * `field` and `group_by` must be real columns of the model, so nothing
      * user-supplied reaches the SQL as an identifier.
      *
+     * `$readableFields` / `$rowRule` work as in {@see list()}: `field`,
+     * `group_by`, `filter` and `search` only reach readable columns (anything
+     * else is ignored, exactly like an unknown column), and the row rule always
+     * scopes the rows aggregated over.
+     *
      * @param  array<string,mixed>  $params  {
      *                                       metric: count|sum|avg|min|max (default count),
      *                                       field: <column> (required for sum/avg/min/max),
@@ -353,11 +366,13 @@ class RecordQuery
      *                                       filter: Directus-style, search: term,
      *                                       sort: value|-value|label|-label (default -value), limit: int (<=500)
      *                                       }
+     * @param  array<int,string>|null  $readableFields
+     * @param  array<string,mixed>  $rowRule
      * @return array{metric:string,total:float,rows:list<array{label:?string,value:float}>}
      */
-    public function aggregate(PbModel $model, array $params = []): array
+    public function aggregate(PbModel $model, array $params = [], ?array $readableFields = null, array $rowRule = []): array
     {
-        $columns = $this->columns($model);
+        $columns = $this->readableColumns($model, $readableFields) ?? $this->columns($model);
 
         $metric = strtolower((string) ($params['metric'] ?? 'count'));
         if (! in_array($metric, ['count', 'sum', 'avg', 'min', 'max'], true)) {
@@ -365,8 +380,9 @@ class RecordQuery
         }
 
         $query = Record::for($model)->newQuery();
-        $this->applyFilters($model, $query, (array) ($params['filter'] ?? []));
-        $this->applySearch($model, $query, (string) ($params['search'] ?? ''));
+        $this->applyRowRule($model, $query, $rowRule);
+        $this->applyFilters($model, $query, (array) ($params['filter'] ?? []), $columns);
+        $this->applySearch($model, $query, (string) ($params['search'] ?? ''), $columns);
 
         $grammar = $query->getQuery()->getGrammar();
 
@@ -594,11 +610,74 @@ class RecordQuery
     }
 
     /**
-     * @param  array<string,mixed>  $filters
+     * Apply a row-level rule (field key or column => value, equality). Unlike a
+     * caller filter, an unresolvable key is never skipped: it fails CLOSED so a
+     * mistyped or stale rule hides every row instead of silently showing all.
+     *
+     * @param  array<string,mixed>  $rule
      */
-    private function applyFilters(PbModel $model, Builder $query, array $filters): void
+    public function applyRowRule(PbModel $model, Builder $query, array $rule): void
     {
-        $columns = $this->columns($model);
+        foreach ($rule as $key => $value) {
+            $column = $this->columnFor($model, (string) $key);
+
+            if ($column === null) {
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $value === null ? $query->whereNull($column) : $query->where($column, $value);
+        }
+    }
+
+    /**
+     * The physical column a field key (or column name) refers to, or null when
+     * the model has no such field / column. A relation field `owner` maps to its
+     * `owner_id` column; system columns (id, timestamps) map to themselves.
+     */
+    public function columnFor(PbModel $model, string $key): ?string
+    {
+        foreach ($model->fields()->get() as $field) {
+            if ($field->key === $key || $field->columnName() === $key) {
+                return $field->columnName();
+            }
+        }
+
+        return in_array($key, $this->columns($model), true) ? $key : null;
+    }
+
+    /**
+     * The columns behind a list of readable field keys (always with `id`), or
+     * null when every field is readable.
+     *
+     * @param  array<int,string>|null  $readableFields
+     * @return array<int,string>|null
+     */
+    private function readableColumns(PbModel $model, ?array $readableFields): ?array
+    {
+        if ($readableFields === null) {
+            return null;
+        }
+
+        $columns = ['id'];
+        foreach ($readableFields as $key) {
+            $column = $this->columnFor($model, (string) $key);
+            if ($column !== null) {
+                $columns[] = $column;
+            }
+        }
+
+        return array_values(array_unique($columns));
+    }
+
+    /**
+     * @param  array<string,mixed>  $filters
+     * @param  array<int,string>|null  $allowed  columns the filter may use (null = all)
+     */
+    private function applyFilters(PbModel $model, Builder $query, array $filters, ?array $allowed = null): void
+    {
+        $columns = $allowed ?? $this->columns($model);
 
         foreach ($filters as $column => $spec) {
             if (! in_array($column, $columns, true)) {
@@ -638,7 +717,10 @@ class RecordQuery
         };
     }
 
-    private function applySearch(PbModel $model, Builder $query, string $term): void
+    /**
+     * @param  array<int,string>|null  $allowed  columns the search may use (null = all)
+     */
+    private function applySearch(PbModel $model, Builder $query, string $term, ?array $allowed = null): void
     {
         if ($term === '') {
             return;
@@ -647,6 +729,8 @@ class RecordQuery
         $textColumns = $model->fields()->get()
             ->filter(fn ($f) => in_array($f->type, ['string', 'text', 'select'], true))
             ->map(fn ($f) => $f->columnName())
+            ->filter(fn (string $c): bool => $allowed === null || in_array($c, $allowed, true))
+            ->values()
             ->all();
 
         if ($textColumns === []) {
@@ -660,7 +744,10 @@ class RecordQuery
         });
     }
 
-    private function applySort(PbModel $model, Builder $query, string $sort): void
+    /**
+     * @param  array<int,string>|null  $allowed  columns the sort may use (null = all)
+     */
+    private function applySort(PbModel $model, Builder $query, string $sort, ?array $allowed = null): void
     {
         if ($sort === '') {
             $query->orderBy('id');
@@ -668,7 +755,7 @@ class RecordQuery
             return;
         }
 
-        $columns = $this->columns($model);
+        $columns = $allowed ?? $this->columns($model);
 
         foreach (explode(',', $sort) as $token) {
             $token = trim($token);
@@ -682,15 +769,16 @@ class RecordQuery
     }
 
     /**
+     * @param  array<int,string>|null  $allowed  columns the projection may name (null = all)
      * @return array<int,string>
      */
-    private function projection(PbModel $model, string $fields): array
+    private function projection(PbModel $model, string $fields, ?array $allowed = null): array
     {
         if ($fields === '') {
             return ['*'];
         }
 
-        $columns = $this->columns($model);
+        $columns = $allowed ?? $this->columns($model);
         $selected = array_values(array_filter(
             array_map('trim', explode(',', $fields)),
             fn (string $c) => in_array($c, $columns, true),

@@ -77,7 +77,14 @@ When `routes.render_enabled` is on (default), the package serves:
 - `GET /{render_prefix}/{slug}` → `RenderPageController` (default prefix `p`, so `/p/{slug}`). `slug` matches `[A-Za-z0-9\-_]+`.
 - `GET /{render_prefix}/` → the configured **home page** (`RenderPageController@home`).
 
-`RenderPageController` resolves the page via the `published()` scope, returns 404 for unknown/unpublished slugs, and — if `requires_auth` is true and `auth.enabled` is true — redirects unauthenticated visitors to the login path (with `intended`). See [Authentication & permissions](authentication-and-permissions.md).
+`RenderPageController` resolves the page via the `published()` scope, returns 404 for unknown/unpublished slugs, and — when `auth.enabled` is true — applies two gates before anything is served (see [Authentication & permissions](authentication-and-permissions.md)):
+
+- **Login required** (`requires_auth`): visitors who aren't signed in are sent to the login page and come back afterwards.
+- **Role permissions** (resource type **page**, action **view**): as soon as any role has a permission row for a page, only roles granted **view** on it (or on `*`) — and admin roles — can open it. A visitor who isn't signed in is sent to the login page; a signed-in user without the permission gets the 404 page, so the page's existence isn't revealed. A page no role has a permission for stays open to everyone. Permission rows follow the page: changing a page's slug moves them to the new slug (so a restricted page stays restricted under its new address), a page in the trash keeps them (restoring it keeps it restricted), and deleting a page for good removes them.
+
+The same gates apply to **preview links** (a signed preview link does not get around them — preview a restricted page while signed in as a user who may see it) and to the pages chosen as the **404** and **maintenance** pages (a visitor who may not see the chosen page gets the built-in one instead). Restricted and login-only pages are left out of `sitemap.xml`.
+
+**Security header.** Every rendered page is sent with a `Content-Security-Policy` header from `render.content_security_policy` (default `base-uri 'self'; object-src 'none'`, which never affects a page the builder produces). You can tighten it for your site; a `script-src` policy must allow the page's inline runtime and Alpine (`'unsafe-inline' 'unsafe-eval'`) and any CDN you load assets from. Set it to an empty value to send no header.
 
 ### Home page
 
@@ -92,7 +99,7 @@ Route::get('/', [RenderPageController::class, 'home']);
 
 ### Caching
 
-`PageRenderer` caches the assembled HTML per slug. Cache key prefix `ai-page-builder:rendered:`, TTL `cache.ttl` (default 3600s; `0` disables), store `cache.store`. The cache is busted automatically when a page is saved or deleted.
+`PageRenderer` caches the assembled HTML per slug. Cache key prefix `ai-page-builder:rendered:`, TTL `cache.ttl` (default 3600s; `0` disables), store `cache.store`. The cache is busted automatically when a page is saved or deleted, and when a State is made client-visible or server-only. The access gates above run *before* the cache is read, so a cached page is never handed to someone who may not see it.
 
 ## Per-page CSS / JS
 
@@ -132,7 +139,7 @@ Because `html` is always sanitized, executable behaviour that you'd normally inl
 
 ## Declarative data binding (Alpine)
 
-The rendered page loads Alpine and registers a global store named `app`, seeded from your [States](functions-and-states.md): `Alpine.store('app', { ...window.__pbState })`. Bind page content to state with **declarative** directives over `$store.app.<state>`:
+The rendered page loads Alpine and registers a global store named `app`, seeded from your **client-visible** [States](functions-and-states.md#who-can-see-a-state): `Alpine.store('app', { ...window.__pbState })`. A server-only State is never sent to the page, so a component bound to it stays empty — mark the States your pages show as client-visible. Bind page content to state with **declarative** directives over `$store.app.<state>`:
 
 | Directive | Use |
 |---|---|
@@ -161,6 +168,9 @@ The bundled `flow-runtime.blade.php` wires up these attributes on the published 
 | `data-pb-roles="a,b"` | Hide unless the user has one of those role slugs (admins always pass) |
 
 Flow runs `POST` to `/{flow_prefix}/{slug}` with `{ "input": {...} }` and apply the returned `actions[]` (`setHtml`, `setText`, `notify`, `redirect`, `addClass`, `removeClass`, `setState`, `setStates`). See [Flows](flows.md).
+
+- A button anonymous visitors use must call a **public** flow; a private flow only runs for a signed-in user whose role may run it ([Flows → the run endpoint](flows.md#the-run-endpoint)).
+- Values a flow puts into `setHtml` / modal HTML are escaped (shown as text) unless the flow uses `{{{ }}}`, and the finished HTML is sanitised: no scripts or event handlers, links and images only `http(s)`, site paths, `mailto:` / `tel:` or inline images, and a token inside an event-handler or Alpine attribute removes that attribute ([details](flows.md#result)). `redirect` and `data-pb-redirect` only follow `http(s)` links or paths on your site.
 
 ## Data tables with `pbTable`
 
@@ -215,7 +225,7 @@ An image field in a form is a `<input type="file" accept="image/*">`. On file se
 - **Image-only** — accepts `image/jpeg`, `image/jpg`, `image/png`, `image/gif`, `image/webp`. Any other MIME type returns `422`.
 - **Size cap** — rejects files over `uploads.max_kb` (default 5 120 KB = 5 MB). Returns `413` when exceeded.
 - **Rate-limited** — same rate-limit infrastructure as the flow run endpoint.
-- **Safe filenames** — the stored filename is a UUID + the original extension; the original filename is never used.
+- **Safe filenames** — the stored filename is random, and its extension comes from the file's actual content (a PNG is stored as `.png` whatever it was called), never from the uploaded name — a picture named `page.html` can't become a web page on your site. The same applies to the admin media library, which only stores images, PDF, MP4/WebM video and MP3/OGG/WAV audio, and only types listed in `media.accept`.
 - **Response** — `200 { "url": "https://..." }` on success; standard error codes on failure.
 
 Configuration (see [Configuration → `uploads`](configuration.md#uploads)):

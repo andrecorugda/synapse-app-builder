@@ -4,8 +4,8 @@
 
 | Version | Filament | Supported |
 | --- | --- | --- |
-| 1.x (latest minor) | 4 and 5 | Yes |
-| Older 1.x minors | 4 and 5 | Upgrade to the latest 1.x |
+| 2.x | 4 and 5 | Yes |
+| 1.x | 4 and 5 | No — upgrade to 2.x ([UPGRADE.md](UPGRADE.md)); 1.x is affected by GHSA-hj3q-8gc4-6mpw |
 
 ## Reporting a vulnerability
 

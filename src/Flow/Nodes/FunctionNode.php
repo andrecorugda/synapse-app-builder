@@ -13,7 +13,6 @@ use Andre\AiPageBuilder\Flow\ExpressionEvaluator;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\FunctionRegistry;
 use Andre\AiPageBuilder\Models\FlowFunction;
-use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -95,7 +94,7 @@ class FunctionNode implements FlowNodeHandler, ProvidesNodeDefinition
                     // identical alias for backward compatibility. Errors PROPAGATE
                     // (evaluateOrThrow) so a failing/asserting function surfaces to
                     // the engine — letting a wrapping Transaction roll back.
-                    $states = app(VariableStore::class)->all();
+                    $states = $context->states();
 
                     $result = $this->evaluator->evaluateOrThrow(
                         (string) $fn->body,
@@ -148,7 +147,7 @@ class FunctionNode implements FlowNodeHandler, ProvidesNodeDefinition
 
             // `$states` is the primary name; `$globals` is kept as an identical
             // alias for backward compatibility.
-            $states = app(VariableStore::class)->all();
+            $states = $context->states();
 
             return $exec($args, $context->input, $context->vars, $states, $states);
         } catch (\Throwable $e) {

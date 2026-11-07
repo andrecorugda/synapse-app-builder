@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Ai;
 
+use Andre\AiPageBuilder\Support\SafeUrl;
 use DOMAttr;
 use DOMDocument;
 use DOMElement;
@@ -50,9 +51,53 @@ final class HtmlSanitizer
      *
      * @var array<int,string>
      */
+    /**
+     * Extra tags removed in strict mode (flow output a visitor may influence).
+     * libxml parses these differently from a browser's HTML5 parser — e.g. a
+     * <style> inside <svg>/<math> is plain text to libxml but markup to the
+     * browser, so `<svg><style><img onerror=…>` would pass the checks and run
+     * once inserted with innerHTML (mutation XSS). Flow HTML has no need for
+     * any of them.
+     *
+     * @var array<int,string>
+     */
+    private const STRICT_FORBIDDEN_TAGS = [
+        'style', 'svg', 'math', 'template', 'xmp', 'noembed', 'noframes',
+        'plaintext', 'listing', 'textarea', 'title', 'select', 'option',
+    ];
+
+    /** Foreign-content roots where a nested <style> is parsed as markup by browsers. */
+    private const FOREIGN_CONTENT = ['svg', 'math'];
+
     private const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'background', 'poster'];
 
-    public function sanitize(string $html): string
+    /** Strict URL mode for the current call: see {@see sanitize()}. */
+    private bool $strictUrls = false;
+
+    /** Whether declarative Alpine directives survive the current call. */
+    private bool $allowAlpine = true;
+
+    /**
+     * @param  bool  $strictUrls  Only http(s), relative, mailto:, tel: and raster
+     *                            data:image URLs survive in URL attributes (flow HTML output).
+     * @param  bool  $allowAlpine  False strips EVERY Alpine directive, declarative
+     *                             ones included — their values are JavaScript expressions (used for
+     *                             HTML a flow inserts from a value, never author-written markup).
+     */
+    public function sanitize(string $html, bool $strictUrls = false, bool $allowAlpine = true): string
+    {
+        $this->strictUrls = $strictUrls;
+        $this->allowAlpine = $allowAlpine;
+
+        try {
+            return $this->clean($html);
+        } finally {
+            $this->strictUrls = false;
+            $this->allowAlpine = true;
+        }
+    }
+
+    private function clean(string $html): string
     {
         if (trim($html) === '') {
             return '';
@@ -100,7 +145,9 @@ final class HtmlSanitizer
 
             $tag = strtolower($child->nodeName);
 
-            if (in_array($tag, self::FORBIDDEN_TAGS, true)) {
+            if (in_array($tag, self::FORBIDDEN_TAGS, true)
+                || ($this->strictUrls && in_array($tag, self::STRICT_FORBIDDEN_TAGS, true))
+                || ($tag === 'style' && $this->insideForeignContent($element))) {
                 $element->removeChild($child);
 
                 continue;
@@ -127,6 +174,18 @@ final class HtmlSanitizer
             $this->cleanAttributes($child);
             $this->cleanNode($child);
         }
+    }
+
+    /** True when $element is, or sits inside, an <svg> or <math> element. */
+    private function insideForeignContent(DOMElement $element): bool
+    {
+        for ($node = $element; $node instanceof DOMElement; $node = $node->parentNode) {
+            if (in_array(strtolower($node->nodeName), self::FOREIGN_CONTENT, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -186,6 +245,16 @@ final class HtmlSanitizer
             return false;
         }
 
+        // Without Alpine, every directive goes: their values are expressions.
+        if (! $this->allowAlpine && (str_starts_with($lower, 'x-') || str_starts_with($name, ':'))) {
+            return false;
+        }
+
+        // `srcdoc` is an inline HTML document: never kept.
+        if ($lower === 'srcdoc') {
+            return false;
+        }
+
         // Declarative Alpine bindings are allowed: x-bind:* and the `:` shorthand
         // (e.g. :style, :aria-selected). These set attributes, not handlers.
         if (str_starts_with($lower, 'x-bind:') || str_starts_with($name, ':')) {
@@ -240,6 +309,10 @@ final class HtmlSanitizer
      */
     private function urlAllowed(string $value): bool
     {
+        if ($this->strictUrls) {
+            return SafeUrl::isSafeAttributeUrl($value);
+        }
+
         $trimmed = strtolower(trim($value));
 
         // Strip leading control/whitespace chars browsers ignore when parsing.

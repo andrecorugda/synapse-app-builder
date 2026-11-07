@@ -15,7 +15,7 @@ Two kinds of source:
 
 > Watchers are why `trigger_type` on a flow is now just a **label**. A flow is a
 > reusable graph; *what* fires it lives elsewhere: page interactions and the API
-> use the [public run endpoint](flows.md#the-public-run-endpoint) (governed by
+> use the [run endpoint](flows.md#the-run-endpoint) (governed by
 > Public/Private), collection & state events use watchers, and cron uses
 > [Schedules](configuration.md). See [Flows → triggers](flows.md#triggers).
 
@@ -72,8 +72,10 @@ Fire when a global State changes. Choose **where** it's watched:
   through). Server watchers can target a flow **or** a function.
 - **Browser** — watches the page's **live** `$store.app` on rendered pages as
   the visitor interacts (typing, selections, cart edits) — like a JS-framework
-  watcher. Browser watchers target **flows only** (they fire through the public
-  run endpoint).
+  watcher. Browser watchers target **flows only** (they fire through the
+  [run endpoint](flows.md#the-run-endpoint), so the flow must be public unless
+  only signed-in users with run permission use the page). They only see States
+  that are [client-visible](functions-and-states.md#who-can-see-a-state).
 
 The target receives `{ "event": "changed", "key": "<state>", "old": …, "new": … }`
 (plus the live store for browser watchers).

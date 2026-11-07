@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Models;
 
 use Andre\AiPageBuilder\Enums\FieldType;
+use Andre\AiPageBuilder\Support\DataSourceGuard;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -74,6 +75,11 @@ class PbModel extends Model
                     ."': must match ".self::KEY_PATTERN.' (lowercase letter, then letters/digits/underscore).'
                 );
             }
+
+            // Never bind a collection to Synapse's own / the host's auth tables,
+            // nor an external one to a table the host did not list. Enforced here
+            // (not only in the form) so imports and AI plans cannot bypass it.
+            DataSourceGuard::assertAllowed($model);
         });
     }
 
@@ -88,10 +94,24 @@ class PbModel extends Model
         return $this->getAttribute('source_type') === self::SOURCE_EXTERNAL;
     }
 
-    /** Writes blocked through the API (always true for read-only collections). */
+    /**
+     * Writes blocked through the API: the collection's Read-only toggle, and
+     * every external collection unless the host turned on
+     * `data.external.writable`.
+     */
     public function isReadOnly(): bool
     {
-        return (bool) $this->getAttribute('is_read_only');
+        return (bool) $this->getAttribute('is_read_only') || $this->externalWritesBlocked();
+    }
+
+    /**
+     * An external collection nobody may write — not the API, flows, functions
+     * or the admin screen (Record refuses the write).
+     */
+    public function externalWritesBlocked(): bool
+    {
+        return $this->isExternal()
+            && ((bool) $this->getAttribute('is_read_only') || ! DataSourceGuard::externalWritesEnabled());
     }
 
     /**

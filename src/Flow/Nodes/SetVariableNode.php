@@ -59,10 +59,14 @@ class SetVariableNode implements FlowNodeHandler, ProvidesNodeDefinition
         if ($key !== '') {
             // Persist the app-wide State (server-side) …
             $this->store->set($key, $value, $type);
-            // … and emit a client action so a page that triggered this flow updates
-            // its live reactive store immediately (the runtime applies `setState` to
-            // $store.app.<key>) — without this the bound State never changes on screen.
-            $context->addAction(['type' => 'setState', 'key' => $key, 'value' => $value]);
+            // … and, for a client-visible State only, emit a client action so a
+            // page that triggered this flow updates its live reactive store
+            // immediately (the runtime applies `setState` to $store.app.<key>).
+            // A server-only State never reaches the browser: it is not in the
+            // rendered page either, so there is nothing on screen to update.
+            if ($this->store->isPublic($key)) {
+                $context->addAction(['type' => 'setState', 'key' => $key, 'value' => $value]);
+            }
         }
 
         if ($output !== '') {
@@ -78,7 +82,7 @@ class SetVariableNode implements FlowNodeHandler, ProvidesNodeDefinition
             key: $this->type(),
             label: 'Set Variable',
             category: CapabilityCategory::Data,
-            description: 'Stores a value in an app-wide global variable that survives the run, optionally mirroring it into a context variable for the next nodes. The value is cast to the chosen type.',
+            description: 'Stores a value in an app-wide global variable that survives the run, optionally mirroring it into a context variable for the next nodes. The value is cast to the chosen type. Only a State marked visible to visitors is pushed to the page that ran the flow; a new State is server-only.',
             usage: 'key "tax_rate", value "{{ vars.rate }}", type "number", output "rate" → saves the global and exposes {{ vars.rate }} downstream.',
             icon: 'variable',
             inputs: [

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\WatcherResource\Pages;
 use Andre\AiPageBuilder\Filament\Resources\WatcherResource\RelationManagers;
 use Andre\AiPageBuilder\Models\Flow;
@@ -32,6 +33,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class WatcherResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-eye';
 
     public static function getModel(): string

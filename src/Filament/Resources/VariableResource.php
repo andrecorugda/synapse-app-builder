@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Filament\Resources;
 
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\VariableResource\Pages;
 use Andre\AiPageBuilder\Models\Variable;
 use Andre\AiPageBuilder\Services\State\StateShapeService;
@@ -21,6 +22,8 @@ use Illuminate\Support\Str;
 
 class VariableResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-variable';
 
     public static function getModel(): string
@@ -94,6 +97,12 @@ class VariableResource extends Resource
                             ->label('Protected')
                             ->inline(false)
                             ->helperText('Guard against casual edit/delete.'),
+
+                        Forms\Components\Toggle::make('is_public')
+                            ->label('Visible to visitors')
+                            ->inline(false)
+                            ->default(false)
+                            ->helperText('Only visible States are sent to pages. Never mark a secret visible — use Credentials for secrets.'),
 
                         // Scalar states keep a simple default-value input. Object
                         // states describe their default through the shape builder
@@ -279,6 +288,11 @@ class VariableResource extends Resource
 
                 Tables\Columns\IconColumn::make('is_protected')
                     ->label('Protected')
+                    ->boolean()
+                    ->sortable(),
+
+                Tables\Columns\IconColumn::make('is_public')
+                    ->label('Visible')
                     ->boolean()
                     ->sortable(),
 

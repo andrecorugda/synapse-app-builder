@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources;
 
 use Andre\AiPageBuilder\Enums\PageStatus;
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Forms\Components\CodeField;
 use Andre\AiPageBuilder\Filament\Forms\Components\GrapesJsField;
 use Andre\AiPageBuilder\Filament\Resources\PageResource\Pages;
@@ -23,6 +24,8 @@ use Illuminate\Support\Str;
 
 class PageResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
 
     public static function getModel(): string

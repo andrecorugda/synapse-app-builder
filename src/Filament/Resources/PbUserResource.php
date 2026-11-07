@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Filament\Resources;
 
 use Andre\AiPageBuilder\Auth\TwoFactorService;
+use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\PbUserResource\Pages;
 use Andre\AiPageBuilder\Models\PbRole;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Support\SynapseAccess;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -20,6 +22,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class PbUserResource extends Resource
 {
+    use AuthorizesSynapseResource;
+
+    public static function synapseAbility(): string
+    {
+        return SynapseAccess::MANAGE_USERS;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-users';
 
     public static function getModel(): string

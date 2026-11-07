@@ -7,6 +7,7 @@ namespace Andre\AiPageBuilder\Http\Controllers;
 use Andre\AiPageBuilder\Auth\SocialAuthException;
 use Andre\AiPageBuilder\Auth\SocialProviders;
 use Andre\AiPageBuilder\Auth\SocialUserResolver;
+use Andre\AiPageBuilder\Auth\TwoFactorService;
 use Andre\AiPageBuilder\Models\PbUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -71,6 +72,21 @@ class SocialAuthController
             return redirect($this->loginUrl())->with('status', $user->getAttribute('status') === PbUser::STATUS_PENDING
                 ? 'Thanks for signing in — your account is awaiting approval.'
                 : 'Your account has been suspended.');
+        }
+
+        // Two-factor applies to SSO sign-ins too: an enrolled user goes through
+        // the same challenge as a password sign-in before getting a session.
+        $tfa = app(TwoFactorService::class);
+        if ($tfa->policyEnabled() && $tfa->isEnabled($user)) {
+            request()->session()->regenerate();
+            request()->session()->put(TwoFactorController::PENDING_KEY, $user->getKey());
+            request()->session()->put(TwoFactorController::REMEMBER_KEY, true);
+
+            if ($user->getAttribute('two_factor_method') === TwoFactorService::METHOD_EMAIL) {
+                $tfa->sendEmailCode($user);
+            }
+
+            return redirect($this->loginUrl().'/two-factor');
         }
 
         Auth::guard($this->guard())->login($user, true);

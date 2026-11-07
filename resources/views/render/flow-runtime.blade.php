@@ -189,6 +189,18 @@
         try { ok.focus(); } catch (e) {}
     }
 
+    /**
+     * Only http(s) or relative URLs may be navigated to — a javascript: / data:
+     * URL would run script on this origin. Mirrors ResultNode::isSafeUrl (the
+     * server already drops unsafe URLs; this guards hand-set attributes too).
+     */
+    function pbSafeUrl(url) {
+        if (typeof url !== 'string' || url === '') { return false; }
+        var normalized = url.replace(/[\u0000-\u0020\u007F]+/g, '');
+        var m = normalized.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
+        return !m || /^https?$/i.test(m[1]);
+    }
+
     /** Apply a single result action to the page. */
     function applyAction(action) {
         var type = action.type;
@@ -247,7 +259,7 @@
         }
 
         if (type === 'redirect') {
-            if (action.url) {
+            if (pbSafeUrl(action.url)) {
                 // newTab is truthy ('1') when the author picked "New tab".
                 if (action.newTab) {
                     window.open(action.url, '_blank', 'noopener');
@@ -262,7 +274,7 @@
             // End the pb session, then return to login (or action.url). CSRF from
             // the per-session XSRF-TOKEN cookie — never baked into cached HTML.
             var m = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-            var dest = action.url || '{{ url('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/')) }}';
+            var dest = (pbSafeUrl(action.url) && action.url) || '{{ url('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/')) }}';
             fetch('{{ url('pb-logout') }}', {
                 method: 'POST',
                 headers: { 'X-XSRF-TOKEN': m ? decodeURIComponent(m[1]) : '', 'Accept': 'application/json' },
@@ -452,7 +464,7 @@
                 form.removeAttribute('data-pb-record-id');           // back to create mode
                 form.dispatchEvent(new CustomEvent('pb:record-created', { bubbles: true, detail: result.body }));
                 var redirect = form.getAttribute('data-pb-redirect');
-                if (redirect) { window.location.href = redirect; }
+                if (pbSafeUrl(redirect)) { window.location.href = redirect; }
                 return;
             }
             if (result.status === 422) {
