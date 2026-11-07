@@ -7,8 +7,10 @@ namespace Andre\AiPageBuilder\Capabilities\Helpers;
 use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
 use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
 use Andre\AiPageBuilder\Capabilities\CapabilityInput;
+use Andre\AiPageBuilder\Ai\HtmlSanitizer;
 use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Andre\AiPageBuilder\Flow\FlowRuntime;
+use Andre\AiPageBuilder\Support\SafeUrl;
 
 /**
  * UI feedback helpers — queue a browser action onto the current run's action
@@ -68,7 +70,10 @@ class UiHelpers implements HelperProvider
                     new CapabilityInput('html', 'Inner HTML', 'text'),
                 ],
             ),
-            fn (string $action, string $target, string $html = ''): null => $this->queue(['type' => 'modal', 'action' => $action, 'target' => $target, 'html' => $html]),
+            // The html may carry visitor input (an expression builds it), so it gets
+            // the same strict sanitising as setHtml / modal results in flows.
+            fn (string $action, string $target, string $html = ''): null => $this->queue(['type' => 'modal', 'action' => $action, 'target' => $target,
+                'html' => $html === '' ? '' : app(HtmlSanitizer::class)->sanitize($html, strictUrls: true, allowAlpine: false)]),
         );
 
         $registry->register(
@@ -81,7 +86,8 @@ class UiHelpers implements HelperProvider
                 usage: "ui_redirect('/p/order-confirmation')",
                 inputs: [new CapabilityInput('url', 'URL', 'string', required: true)],
             ),
-            fn (string $url): null => $this->queue(['type' => 'redirect', 'url' => $url]),
+            // Same rule as redirect results: http(s) or a relative path only.
+            fn (string $url): null => SafeUrl::isNavigable($url) ? $this->queue(['type' => 'redirect', 'url' => $url]) : null,
         );
 
         $registry->register(
