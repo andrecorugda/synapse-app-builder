@@ -206,6 +206,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rendered pages
+    |--------------------------------------------------------------------------
+    | content_security_policy — sent as the Content-Security-Policy header on
+    | every rendered page (live, preview, 404 and maintenance). The default
+    | only blocks plugins and <base> hijacking, which never affects a page the
+    | builder produces. A stricter script-src policy is possible but must allow
+    | the page's inline runtime and Alpine ('unsafe-inline' 'unsafe-eval') plus
+    | any CDN you load assets from. Set to null or '' to send no header.
+    */
+    'render' => [
+        'content_security_policy' => env('AI_PAGE_BUILDER_CSP', "base-uri 'self'; object-src 'none'"),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | End-user authentication (the BUILT app's own users)
     |--------------------------------------------------------------------------
     | Synapse ships its OWN identity layer for the app you build — users, roles

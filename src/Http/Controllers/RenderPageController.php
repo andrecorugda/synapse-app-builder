@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Andre\AiPageBuilder\Http\Controllers;
 
 use Andre\AiPageBuilder\Models\Page;
+use Andre\AiPageBuilder\Services\AccessControl;
 use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\Settings;
 use Illuminate\Http\Response;
@@ -67,17 +68,65 @@ class RenderPageController
                 : $this->notFound($renderer, $settings);
         }
 
-        // Page-level gate: a page flagged requires_auth is served only to a
-        // logged-in end-user; guests are sent to the login page (with intended
-        // so they return here after signing in).
-        if ($page->requires_auth && config('ai-page-builder.auth.enabled', true)) {
-            $guard = (string) config('ai-page-builder.auth.guard', 'pb');
-            if (! Auth::guard($guard)->check()) {
-                return redirect()->guest('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/'));
-            }
+        // Both gates run BEFORE the render cache is touched: the cache is keyed
+        // by slug only, so it must never be what decides who sees a page.
+        if ($denied = self::denyAccess($page, fn (): SymfonyResponse => $this->notFound($renderer, $settings))) {
+            return $denied;
         }
 
-        return new Response($renderer->renderCached($page));
+        return self::withSecurityHeaders(new Response($renderer->renderCached($page)));
+    }
+
+    /**
+     * The page-level gates shared by the render and preview routes, or null
+     * when the visitor may see the page:
+     *   - `requires_auth`: guests are sent to the login page (with an intended
+     *     URL so they come back after signing in);
+     *   - role permissions (`resource_type=page`, action `view`): once any role
+     *     has a permission row for the page it is restricted, and only a user
+     *     whose role is granted `view` (or an admin) may see it. Guests go to
+     *     login; a signed-in user without the grant gets $forbidden (the 404
+     *     page), so the response never confirms the page exists.
+     *
+     * @param  callable():SymfonyResponse  $forbidden
+     */
+    public static function denyAccess(Page $page, callable $forbidden): ?SymfonyResponse
+    {
+        if (! config('ai-page-builder.auth.enabled', true)) {
+            return null;
+        }
+
+        $access = app(AccessControl::class);
+        $user = $access->currentUser();
+
+        if ($page->requires_auth && $user === null) {
+            return self::loginRedirect();
+        }
+
+        if ($access->can($user, 'view', 'page', (string) $page->slug)) {
+            return null;
+        }
+
+        return $user === null ? self::loginRedirect() : $forbidden();
+    }
+
+    /**
+     * Response headers for every rendered page. The Content-Security-Policy is
+     * the configurable `render.content_security_policy` (null / '' sends none).
+     */
+    public static function withSecurityHeaders(SymfonyResponse $response): SymfonyResponse
+    {
+        $csp = config('ai-page-builder.render.content_security_policy');
+        if (is_string($csp) && trim($csp) !== '') {
+            $response->headers->set('Content-Security-Policy', trim($csp));
+        }
+
+        return $response;
+    }
+
+    private static function loginRedirect(): SymfonyResponse
+    {
+        return redirect()->guest('/'.trim((string) config('ai-page-builder.auth.login_path', 'login'), '/'));
     }
 
     /**
@@ -123,11 +172,14 @@ class RenderPageController
         $model = config('ai-page-builder.models.page', Page::class);
         $page = $model::query()->published()->where('slug', $slug)->first();
 
-        if ($page !== null) {
-            return new Response($renderer->renderCached($page), $status);
+        // A restricted or login-only page configured as the 404 / maintenance
+        // page is only shown to visitors allowed to see it; everyone else gets
+        // the bundled fallback view.
+        if ($page !== null && self::denyAccess($page, static fn (): SymfonyResponse => new Response('', $status)) === null) {
+            return self::withSecurityHeaders(new Response($renderer->renderCached($page), $status));
         }
 
-        return new Response(view('ai-page-builder::render.system.'.$view)->render(), $status);
+        return self::withSecurityHeaders(new Response(view('ai-page-builder::render.system.'.$view)->render(), $status));
     }
 
     private function isAdminBypass(): bool
