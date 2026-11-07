@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Capabilities\Helpers;
 
+use Andre\AiPageBuilder\Ai\HtmlSanitizer;
 use Andre\AiPageBuilder\Capabilities\CapabilityCategory;
 use Andre\AiPageBuilder\Capabilities\CapabilityDefinition;
 use Andre\AiPageBuilder\Capabilities\CapabilityInput;
-use Andre\AiPageBuilder\Ai\HtmlSanitizer;
 use Andre\AiPageBuilder\Capabilities\HelperRegistry;
 use Andre\AiPageBuilder\Flow\FlowRuntime;
 use Andre\AiPageBuilder\Support\SafeUrl;

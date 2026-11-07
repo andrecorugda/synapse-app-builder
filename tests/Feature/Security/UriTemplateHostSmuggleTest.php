@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
 use Andre\AiPageBuilder\Models\Credential;
-use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 
 function smuggleNode(array $answers): HttpRequestNode

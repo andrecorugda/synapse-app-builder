@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Services;
 
+use Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode;
 use Andre\AiPageBuilder\Models\Credential;
 use Andre\AiPageBuilder\Models\Flow;
 use Illuminate\Database\Eloquent\Model;
@@ -95,7 +96,7 @@ class CredentialHosts
     {
         // A URI-template brace would be expanded by the HTTP client before it
         // dials, so the parsed host is not the host contacted: match nothing.
-        if (\Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode::hasTemplateSyntax($url)) {
+        if (HttpRequestNode::hasTemplateSyntax($url)) {
             return '';
         }
 
