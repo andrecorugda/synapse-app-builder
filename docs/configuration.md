@@ -59,6 +59,10 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 | `data.allow_destructive_sync` | `AI_PAGE_BUILDER_DATA_DESTRUCTIVE` | `false` | Drop real columns when a field is removed. Off so a mis-edit can't destroy data |
 | `data.default_per_page` | `AI_PAGE_BUILDER_DATA_PER_PAGE` | `25` | Default API page size |
 | `data.max_per_page` | `AI_PAGE_BUILDER_DATA_MAX_PER_PAGE` | `200` | Max API page size (clamp) |
+| `data.external.connections` | — | `[]` | Connections builders may map [external collections](collections-and-data.md#external-collections) from. Empty = external collections are off |
+| `data.external.tables` | — | `[]` | Tables they may map: a plain list for every listed connection, keyed by connection to narrow (`['reporting' => ['orders']]`), or `'*'`. Synapse's own and your sign-in tables are always refused |
+| `data.external.protected_tables` | — | `[]` | Extra tables never to map, on top of the built-in list |
+| `data.external.writable` | `AI_PAGE_BUILDER_EXTERNAL_WRITABLE` | `false` | Allow writes to external collections whose Read-only toggle is off. Off = every external collection is read-only |
 
 ## `flow` — the automation engine
 
@@ -153,6 +157,9 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 
 | Key | Default | Meaning |
 |---|---|---|
+| `filament.ability` | `synapse.admin` | The ability that lets a user open Synapse. Denied until you define it — see [Authentication & permissions](authentication-and-permissions.md#builder-admins--who-can-open-synapse) |
+| `filament.abilities.manage-data-sources` | `synapse.manage-data-sources` | Ability to create or change an external collection (alongside `manage-secrets`, `manage-users`, `manage-code`, `manage-settings`) |
+| `filament.fine_abilities_fallback` (env `AI_PAGE_BUILDER_FINE_ABILITIES_FALLBACK`) | `admin` | What a finer ability you did not `Gate::define()` does: `admin` follows `synapse.admin`, `deny` refuses (any other value refuses). Even on `admin` it refuses when spatie/laravel-permission has a permission of that name or `synapse.admin` comes from a `Gate::before` hook |
 | `filament.navigation_group` | `Content` | Navigation group for all resources/pages |
 | `filament.navigation_sort` | `10` | Base navigation sort (resources offset from it) |
 | `filament.max_content_width` | `'full'` | Content width for every Synapse admin page. Accepts any Filament width value (`'xl'`, `'2xl'`, `'full'`, etc.) or `null` to fall back to the host panel's default. |

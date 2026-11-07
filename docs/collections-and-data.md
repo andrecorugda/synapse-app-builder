@@ -62,6 +62,36 @@ A field's `options` (JSON) tune the column and validation:
 
 **Destructive sync is off by default.** Removing a field does **not** drop its column unless `data.allow_destructive_sync` is true (`AI_PAGE_BUILDER_DATA_DESTRUCTIVE=true`) — a guard so a mis-edit can't destroy data. The system columns `id`, `created_at`, `updated_at`, `deleted_at` are never dropped.
 
+## External collections
+
+An **external** collection maps a table Synapse does not own (an existing table, possibly on another database connection). Its fields only *describe* the existing columns (projection, casts, display); Synapse never creates, alters or drops the table, and never records history for it.
+
+External collections are **off until you open them**, because a mapped table is a direct way into your database:
+
+```php
+// config/ai-page-builder.php
+'data' => [
+    'external' => [
+        'connections' => ['reporting'],          // connections from config/database.php
+        'tables' => [
+            'orders',                             // on every listed connection
+            'reporting' => ['customers'],         // only on `reporting`
+            // '*' allows any table (protected tables are still refused)
+        ],
+        'protected_tables' => [],                 // extra tables to always refuse
+        'writable' => false,                      // AI_PAGE_BUILDER_EXTERNAL_WRITABLE
+    ],
+],
+```
+
+- **Who may map one.** Creating an external collection, or changing its connection, table or Read-only toggle, needs the `synapse.manage-data-sources` ability on top of `synapse.admin` (see [Authentication & permissions](authentication-and-permissions.md#finer-abilities-for-sensitive-areas)). The Connection list only offers the connections you listed.
+- **What may be mapped.** Only a listed connection and table. A plain name (`orders`) matches an unqualified table; list `schema.table` to allow a schema-qualified one.
+- **What is never mapped.** Synapse's own tables (pages, flows, collections, app users, roles, API tokens, credentials, settings, …) and your sign-in tables are always refused, whatever you list: the table of every `auth.providers` model or `table`, the `auth.passwords` broker tables, `password_reset_tokens`, `password_resets`, `sessions` (`session.table`), `personal_access_tokens`, `migrations`, Laravel Passport's `oauth_*` tables and spatie/laravel-permission's tables (`permission.table_names`). Names are compared case-insensitively, without quotes or a `schema.` prefix, and with each connection's table prefix. The same rule stops a **managed** collection from landing on one of these tables (for example with an empty `data.table_prefix`).
+- **Enforced on the data layer.** The check runs when a collection is saved (`PbModel`), every time its records are opened (`Record::for`) and before schema sync, so an imported app, an AI plan or a row written straight into the collections table cannot get around it. A refused table answers `403` (`DataSourceRefusedException`).
+- **Read-only by default.** An external collection cannot be written — not through the REST API, flows, functions, CSV import or the records screen — unless `data.external.writable` is `true` **and** the collection's own Read-only toggle is off.
+
+If you used external collections before 2.0, list their connection and table under `data.external`; until you do, opening them answers `403`.
+
 ## The auto REST API
 
 Every collection is exposed under `{data.api_prefix}/{model}` (default `api/pb`), resolved by collection key:
