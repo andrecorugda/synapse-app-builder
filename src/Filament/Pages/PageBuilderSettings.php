@@ -236,14 +236,18 @@ class PageBuilderSettings extends FilamentPage
                                     ]),
 
                                 Section::make('Registration')
-                                    ->description('Self-registration for new end-users and how they are onboarded.')
+                                    ->description(fn (): string => static::canManageSignUp()
+                                        ? 'Self-registration for new end-users and how they are onboarded.'
+                                        : 'Self-registration for new end-users and how they are onboarded. Changing it needs the synapse.manage-users ability.')
                                     ->compact()
                                     ->schema([
                                         Forms\Components\Toggle::make('registration_enabled')
                                             ->label('Enable self-registration')
+                                            ->disabled(fn (): bool => ! static::canManageSignUp())
                                             ->live(),
                                         Forms\Components\Select::make('registration_mode')
                                             ->label('Registration mode')
+                                            ->disabled(fn (): bool => ! static::canManageSignUp())
                                             ->options([
                                                 'open' => 'Open (use immediately)',
                                                 'approval' => 'Approval required',
@@ -253,6 +257,7 @@ class PageBuilderSettings extends FilamentPage
                                             ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
                                         Forms\Components\Select::make('default_role')
                                             ->label('Default role')
+                                            ->disabled(fn (): bool => ! static::canManageSignUp())
                                             ->options(fn (): array => $this->roleOptions())
                                             ->native(false)
                                             ->nullable()
@@ -260,6 +265,7 @@ class PageBuilderSettings extends FilamentPage
                                             ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
                                         Forms\Components\TagsInput::make('allowed_email_domains')
                                             ->label('Allowed email domains')
+                                            ->disabled(fn (): bool => ! static::canManageSignUp())
                                             ->helperText('Leave empty to allow any email domain.')
                                             ->visible(fn (Get $get): bool => (bool) $get('registration_enabled')),
                                         Forms\Components\TextInput::make('reset_token_ttl')
@@ -524,6 +530,12 @@ class PageBuilderSettings extends FilamentPage
         ];
     }
 
+    /** May the current user change self-registration / the default role? */
+    public static function canManageSignUp(): bool
+    {
+        return SynapseAccess::check(SynapseAccess::MANAGE_USERS);
+    }
+
     public function save(): void
     {
         $state = $this->form->getState();
@@ -552,16 +564,20 @@ class PageBuilderSettings extends FilamentPage
 
         // Identity & Auth — end-user auth policy.
         $settings->set('auth.password_login', (bool) ($state['password_login'] ?? false));
-        $settings->set('auth.registration_enabled', (bool) ($state['registration_enabled'] ?? false));
+        // Self-registration and the default role hand out app accounts: they
+        // also need synapse.manage-users (otherwise the stored values stay).
+        if (static::canManageSignUp()) {
+            $settings->set('auth.registration_enabled', (bool) ($state['registration_enabled'] ?? false));
 
-        $mode = $state['registration_mode'] ?? null;
-        $settings->set('auth.registration_mode', is_string($mode) && $mode !== '' ? $mode : 'approval');
+            $mode = $state['registration_mode'] ?? null;
+            $settings->set('auth.registration_mode', is_string($mode) && $mode !== '' ? $mode : 'approval');
 
-        $role = $state['default_role'] ?? null;
-        $settings->set('auth.default_role', is_string($role) && $role !== '' ? $role : null);
+            $role = $state['default_role'] ?? null;
+            $settings->set('auth.default_role', is_string($role) && $role !== '' ? $role : null);
 
-        $domains = $state['allowed_email_domains'] ?? [];
-        $settings->set('auth.allowed_email_domains', is_array($domains) ? array_values($domains) : []);
+            $domains = $state['allowed_email_domains'] ?? [];
+            $settings->set('auth.allowed_email_domains', is_array($domains) ? array_values($domains) : []);
+        }
 
         $settings->set('auth.reset_token_ttl', (int) ($state['reset_token_ttl'] ?? 3600));
 
