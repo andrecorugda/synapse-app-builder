@@ -134,7 +134,11 @@ final class SystemPromptBuilder
             } ],
             "seed": [ { "<field key>": <value> } ]
           } ]
-        - "states": [ { "key": "<lowercase_snake>", "type": "string|number|boolean|json", "value": <any> } ]
+        - "states": [ { "key": "<lowercase_snake>", "type": "string|number|boolean|json", "value": <any>, "public": <bool> } ]
+          `public: true` sends the State to every visitor's browser so pages can show / bind it
+          (`$store.app.<key>`) — set it for every State a page displays. Leave it false (the
+          default) for anything server-side or secret: those are never sent to the browser and a
+          visitor cannot override them. Never put an API key in a State — use a Credential.
         - "functions": [ { "slug": "<lowercase-slug>", "name": "<label>",
                            "runtime": "expression|callable|php", "body": "<string>" } ]
         - "flows": [ {

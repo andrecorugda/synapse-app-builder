@@ -43,7 +43,7 @@ class AppExporter
      * @return array{
      *   version:string,
      *   collections:list<array{key:string,name:string,has_timestamps:bool,has_soft_deletes:bool,fields:list<array{key:string,label:string,type:string,options:array<string,mixed>}>}>,
-     *   states:list<array{key:string,type:string,value:mixed}>,
+     *   states:list<array{key:string,type:string,value:mixed,public:bool}>,
      *   functions:list<array{slug:string,name:string,runtime:string,body:?string}>,
      *   flows:list<array{slug:string,name:string,trigger_type:string,trigger_config:array<string,mixed>,definition:array<string,mixed>}>,
      *   watchers:list<array{name:string,source_type:string,source_key:string,event:?string,config:?array<string,mixed>,target_type:string,target_key:string,is_active:bool}>,
@@ -107,7 +107,7 @@ class AppExporter
      * States carry their decoded native value + declared type, exactly the
      * pair VariableStore::set() expects on re-import.
      *
-     * @return list<array{key:string,type:string,value:mixed}>
+     * @return list<array{key:string,type:string,value:mixed,public:bool}>
      */
     private function states(): array
     {
@@ -122,6 +122,7 @@ class AppExporter
                     'key' => (string) $variable->key,
                     'type' => (string) $variable->type,
                     'value' => $variable->typedValue(),
+                    'public' => (bool) $variable->getAttribute('is_public'),
                 ];
             }
 

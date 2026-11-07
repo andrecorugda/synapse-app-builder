@@ -52,18 +52,22 @@ class FlowContext
     /**
      * @param  array<string,mixed>  $input  The trigger payload.
      * @param  array<string,mixed>  $stateOverlay  Per-run values that shadow the
-     *                                             persisted States for `{{ states.* }}` resolution. Used for component
+     *                                             persisted States for `states.*` / `state()` resolution. Used for component
      *                                             (page-button) triggers, where the page's live $store.app state IS the
-     *                                             authoritative state at trigger time (never persisted server-side).
+     *                                             authoritative state at trigger time (never persisted server-side). The
+     *                                             HTTP endpoint passes only client-visible / page-local keys
+     *                                             ({@see VariableStore::clientOverlay()}).
      */
     public function __construct(public array $input = [], public array $stateOverlay = []) {}
 
     /**
-     * Persisted app-wide States, with any per-run overlay applied on top.
+     * Persisted app-wide States, with any per-run overlay applied on top. The
+     * one view of States every flow surface uses — `{{ states.x }}`, a dynamic
+     * value, `state('x')` and a Function's `states` — so they always agree.
      *
      * @return array<string,mixed>
      */
-    private function states(): array
+    public function states(): array
     {
         $persisted = app(VariableStore::class)->all();
 
@@ -73,6 +77,25 @@ class FlowContext
     public function set(string $key, mixed $value): void
     {
         $this->vars[$key] = $value;
+    }
+
+    /**
+     * True when a `{{ path }}` token resolves to a value the visitor controls:
+     * the trigger `input`, or a State the page overlaid for this run.
+     */
+    public function isVisitorControlled(string $path): bool
+    {
+        [$root, $rest] = array_pad(explode('.', $path, 2), 2, null);
+
+        if ($root === 'input') {
+            return true;
+        }
+
+        if (($root === 'states' || $root === 'globals') && $rest !== null) {
+            return array_key_exists(explode('.', $rest, 2)[0], $this->stateOverlay);
+        }
+
+        return false;
     }
 
     /** Resolve a dotted path like `input.brief`, `vars.ai`, or `states.tax_rate`. */

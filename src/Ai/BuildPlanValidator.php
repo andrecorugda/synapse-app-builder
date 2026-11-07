@@ -182,6 +182,10 @@ class BuildPlanValidator
                     $errors[] = "states[{$i}]: type '".$this->display($type)."' must be one of ".implode(', ', self::STATE_TYPES).'.';
                 }
             }
+
+            if (array_key_exists('public', $state) && ! is_bool($state['public'])) {
+                $errors[] = "states[{$i}]: public must be true or false.";
+            }
         }
     }
 

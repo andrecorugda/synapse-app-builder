@@ -23,6 +23,7 @@ use Andre\AiPageBuilder\Console\RunCronFlowsCommand;
 use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Console\SeedSystemPagesCommand;
+use Andre\AiPageBuilder\Console\StatesVisibilityCommand;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
@@ -122,6 +123,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'backfill_collection_flows_into_watchers',
                 'add_watcher_id_to_page_builder_flow_runs_table',
                 'backfill_cron_flows_into_schedules',
+                'add_is_public_to_page_builder_variables_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -132,7 +134,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->hasCommand(ExportAppCommand::class)
             ->hasCommand(ImportAppCommand::class)
             ->hasCommand(MigrateMediaCommand::class)
-            ->hasCommand(CapabilitiesCommand::class);
+            ->hasCommand(CapabilitiesCommand::class)
+            ->hasCommand(StatesVisibilityCommand::class);
     }
 
     public function packageRegistered(): void

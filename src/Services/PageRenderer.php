@@ -47,8 +47,10 @@ class PageRenderer
             'css' => $css,
             'customCss' => $customCss,
             'customJs' => $customJs,
-            // Seed the published page's reactive Store from persistent States.
-            'state' => app(VariableStore::class)->all(),
+            // Seed the published page's reactive Store from the CLIENT-VISIBLE
+            // States only: a server-only State (an API key, a tax rate) never
+            // reaches the browser.
+            'state' => app(VariableStore::class)->publicAll(),
             'meta' => is_array($page->meta) ? $page->meta : [],
             'title' => $page->title,
             // Static export: omit the live backend calls (the auth/me fetch) so

@@ -6,6 +6,7 @@ namespace Andre\AiPageBuilder\Http\Controllers;
 
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Models\Flow;
+use Andre\AiPageBuilder\Services\Data\VariableStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -57,8 +58,11 @@ class FlowController
             // This is the page/API trigger path: the request payload IS the page's
             // live $store.app state, so overlay it onto `states.*` (so a node's
             // {{ states.email }} resolves to what the visitor typed, not the empty
-            // persisted Variable). Non-page triggers (cron/collection/admin) pass none.
-            $ctx = app(FlowManager::class)->run($flow, $input, $input);
+            // persisted Variable). Only client-visible States and page-local keys
+            // may be overlaid — a server-only State keeps its persisted value
+            // whatever the caller sends. Non-page triggers (cron/collection/admin)
+            // pass none.
+            $ctx = app(FlowManager::class)->run($flow, $input, app(VariableStore::class)->clientOverlay($input));
 
             return response()->json(['actions' => $ctx->actions]);
         } catch (\Throwable $e) {
