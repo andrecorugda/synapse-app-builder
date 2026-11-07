@@ -568,7 +568,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             Route::get($login.'/two-factor/setup', [TwoFactorController::class, 'setup'])->name('ai-page-builder.2fa.setup');
             Route::post($login.'/two-factor/setup', [TwoFactorController::class, 'start'])->middleware('throttle:10,1');
             Route::post($login.'/two-factor/setup/confirm', [TwoFactorController::class, 'confirm'])->middleware('throttle:10,1');
-            Route::post($login.'/two-factor/disable', [TwoFactorController::class, 'disable']);
+            Route::post($login.'/two-factor/disable', [TwoFactorController::class, 'disable'])->middleware('throttle:6,1');
         });
     }
 
