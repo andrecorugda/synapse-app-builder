@@ -57,12 +57,12 @@ it('routes a condition to the true/false branch', function (): void {
 });
 
 it('calls an http endpoint and stores the response', function (): void {
-    Http::fake(['api.test/*' => Http::response(['ok' => true], 200)]);
+    Http::fake(['93.184.215.14/*' => Http::response(['ok' => true], 200)]);
 
     $def = [
         'start' => 'h',
         'nodes' => [
-            'h' => ['type' => 'http_request', 'config' => ['method' => 'get', 'url' => 'https://api.test/ping', 'output' => 'h']],
+            'h' => ['type' => 'http_request', 'config' => ['method' => 'get', 'url' => 'https://93.184.215.14/ping', 'output' => 'h']],
         ],
     ];
 
