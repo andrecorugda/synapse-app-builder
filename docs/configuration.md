@@ -74,9 +74,10 @@ Swap any model for your own subclass (see [Extending](extending.md#swapping-a-mo
 | `flow.max_steps` | — | `200` | Max node steps per run (loop guard) |
 | `flow.drawflow_js` | `AI_PAGE_BUILDER_DRAWFLOW_JS` | jsDelivr CDN | Flow-editor JS URL |
 | `flow.drawflow_css` | `AI_PAGE_BUILDER_DRAWFLOW_CSS` | jsDelivr CDN | Flow-editor CSS URL |
-| `flow.allow_php_functions` | `AI_PAGE_BUILDER_ALLOW_PHP` | `true` | Allow `php`-runtime Functions to execute raw PHP. Set `false` for less-trusted authors — see [security note](functions-and-states.md#php-runtime--and-the-security-flag) |
+| `flow.allow_php_functions` | `AI_PAGE_BUILDER_ALLOW_PHP` | `false` | Allow `php`-runtime Functions to execute raw PHP. Set `false` for less-trusted authors — see [security note](functions-and-states.md#php-runtime--and-the-security-flag) |
 | `flow.http_block_private_hosts` | `AI_PAGE_BUILDER_HTTP_BLOCK_PRIVATE` | `true` | HTTP Request node safety check: refuse non-http(s) URLs, host names that don't resolve, and hosts that resolve to internal addresses (private, loopback, link-local, 100.64.0.0/10, NAT64, IPv4-mapped IPv6); the connection is pinned to the checked addresses. See [Flows → http_request](flows.md#http_request) |
 | `flow.http_allowed_hosts` | `AI_PAGE_BUILDER_HTTP_ALLOWED_HOSTS` | empty (any public host) | Comma-separated list of the only hosts the HTTP Request node may call |
+| `flow.email_max_recipients` | `AI_PAGE_BUILDER_EMAIL_MAX_RECIPIENTS` | `10` | Most recipients (To + CC + BCC together) one Send Email node may mail; a larger list refuses the send with "Too many recipients" |
 | `flow.http_timeout` | `AI_PAGE_BUILDER_HTTP_TIMEOUT` | `15` | HTTP Request node timeout (seconds) |
 
 ## `routes`

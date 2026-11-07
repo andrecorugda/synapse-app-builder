@@ -80,5 +80,27 @@ Run `php artisan migrate`. The new migration also clears the page cache.
 9. **Media:** a stored file's extension comes from its real content type. Only images, PDF, MP4/WebM and MP3/OGG/WAV are stored, and only if they are also in `media.accept`; other files get a validation error.
 10. **HTTP Request node:** host names that don't resolve are refused, the connection is pinned to the checked addresses, and 100.64.0.0/10, NAT64 and IPv4-mapped IPv6 are blocked too.
 11. **New `Content-Security-Policy` header** on rendered pages: `render.content_security_policy`, default `base-uri 'self'; object-src 'none'`.
-12. **If you published the config,** the new keys `data.user_expand_fields`, `data.rate_limit_per_minute`, `flow.middleware` and `render.content_security_policy` use their defaults when missing; add them only to change them.
+12. **Credentials are sent only to their allowed hosts.** After `php artisan migrate`, each credential starts with the hosts your existing flows already call with it. Review them in admin → Developer → Credentials → **Allowed hosts**, or run `php artisan ai-page-builder:credential-hosts`; hosts a flow calls that a credential may not go to are listed, and those requests are no longer made (the node returns `null`, status `0`, and a warning is logged). Add one with `ai-page-builder:credential-hosts <key> --add=api.example.com`. Never allow a shared hosting domain such as `*.herokuapp.com` or `*.ngrok.io`.
+13. **Write replies of the data API** contain only what the role may read; a row outside the role's read rule comes back as just `{id}`. If a page reads fields from a create/update reply, give the role read access to them.
+14. **`set_variable`** updates the page live only for States marked **Visible to visitors**.
+15. **`send_email`:** every `{{ token }}` adds at most one address, wherever its value comes from; only addresses you type into the node make a list. To + CC + BCC is capped at 10 (`AI_PAGE_BUILDER_EMAIL_MAX_RECIPIENTS`).
+16. **Flow HTML** (`setHtml`, modals) loses event handlers, non-http(s) links and any Alpine attribute that contains a token. Move tokens between tags or into plain attributes.
+17. **Renaming a restricted page keeps it restricted;** permanently deleting a page removes its permission rows.
+18. **If you published the config,** the new keys (`data.user_expand_fields`, `data.rate_limit_per_minute`, `data.external.*`, `flow.middleware`, `flow.email_max_recipients`, `render.content_security_policy`, `filament.fine_abilities_fallback`) use their defaults when missing; add them only to change them.
+
+### External collections and finer abilities
+
+- **External collections are off until you allow them.** List what builders may map in `config/ai-page-builder.php`:
+
+  ```php
+  'data' => ['external' => [
+      'connections' => ['reporting'],
+      'tables' => ['orders', 'reporting' => ['customers']],   // or '*'
+      'writable' => false,
+  ]],
+  ```
+
+  Until a collection's connection and table are listed, opening it answers 403. Synapse's own tables and your sign-in tables (users, password resets, sessions, personal access tokens, Passport, spatie permission tables) can never be mapped. External collections are **read-only** everywhere (API, flows, functions, admin screen) unless `data.external.writable` is `true` and the collection's Read-only toggle is off. Creating or changing one needs the new `synapse.manage-data-sources` ability, which follows `synapse.admin` unless you define it.
+- **Finer abilities on permission-system hosts.** If `synapse.admin` comes from spatie/laravel-permission (or any `Gate::before` hook) rather than `Gate::define()`, every finer ability (`manage-secrets`, `-users`, `-code`, `-settings`, `-data-sources`) is **denied** unless granted the same way, so create and grant the permissions your builders need. A spatie permission named after a finer ability also narrows access when `synapse.admin` is `Gate::define`d. To require an explicit grant for every finer ability, set `filament.fine_abilities_fallback` to `deny`.
+- **AI chat.** The Build with AI dock shows only to Synapse admins. Applying a plan with a `settings` section needs `synapse.manage-settings`; settings that open self-registration or set the default role also need `synapse.manage-users`, in the chat and on the Settings page.
 

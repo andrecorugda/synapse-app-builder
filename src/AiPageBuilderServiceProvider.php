@@ -14,6 +14,7 @@ use Andre\AiPageBuilder\Capabilities\Helpers\DbHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\UiHelpers;
 use Andre\AiPageBuilder\Capabilities\Helpers\UtilHelpers;
 use Andre\AiPageBuilder\Console\CapabilitiesCommand;
+use Andre\AiPageBuilder\Console\CredentialHostsCommand;
 use Andre\AiPageBuilder\Console\ExportAppCommand;
 use Andre\AiPageBuilder\Console\ExportSiteCommand;
 use Andre\AiPageBuilder\Console\ImportAppCommand;
@@ -131,6 +132,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
                 'add_watcher_id_to_page_builder_flow_runs_table',
                 'backfill_cron_flows_into_schedules',
                 'add_is_public_to_page_builder_variables_table',
+                'add_allowed_hosts_to_page_builder_credentials_table',
             ])
             ->hasCommand(SeedPageBuilderIntegrationCommand::class)
             ->hasCommand(RunCronFlowsCommand::class)
@@ -142,7 +144,8 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
             ->hasCommand(ImportAppCommand::class)
             ->hasCommand(MigrateMediaCommand::class)
             ->hasCommand(CapabilitiesCommand::class)
-            ->hasCommand(StatesVisibilityCommand::class);
+            ->hasCommand(StatesVisibilityCommand::class)
+            ->hasCommand(CredentialHostsCommand::class);
     }
 
     public function packageRegistered(): void
