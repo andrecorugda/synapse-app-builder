@@ -104,33 +104,41 @@ it('signs out to the login page when a logout URL is unsafe', function (): void 
 
 // --- send_email ----------------------------------------------------------------
 
-it('refuses to fan an interpolated recipient out to many addresses', function (string $to): void {
+it('sends to one address only when a visitor token holds a list', function (string $to): void {
+    $mailer = recordingMailer();
+
+    runSendEmail(['to' => '{{ input.email }}', 'subject' => 'Thanks', 'body' => '<p>Hi</p>'], ['email' => $to]);
+
+    expect($mailer->sent)->toHaveCount(1)->and($mailer->sent[0]['to'])->toBe(['a@victim.test']);
+})->with([
+    'comma list' => ['a@victim.test,b@victim.test,c@victim.test'],
+    'semicolon list' => ['a@victim.test;b@victim.test'],
+    'space list' => ['a@victim.test b@victim.test'],
+    'header injection' => ["a@victim.test\r\nBcc: b@victim.test"],
+]);
+
+it('refuses to send when a visitor token is not an address', function (string $to): void {
     $mailer = recordingMailer();
 
     $result = runSendEmail(['to' => '{{ input.email }}', 'subject' => 'Thanks', 'body' => '<p>Hi</p>'], ['email' => $to]);
 
     expect($mailer->sent)->toBe([])->and($result['sent'])->toBeFalse();
-})->with([
-    'comma list' => ['a@victim.test,b@victim.test,c@victim.test'],
-    'semicolon list' => ['a@victim.test;b@victim.test'],
-    'not an address' => ['nobody'],
-    'header injection' => ["a@victim.test\r\nBcc: b@victim.test"],
-]);
+})->with(['nobody', '', 'not an address, b@victim.test']);
 
-it('refuses a fan-out through cc or bcc as well', function (): void {
+it('limits a visitor token to one address in cc and bcc as well', function (): void {
     $mailer = recordingMailer();
 
     runSendEmail(['to' => 'owner@shop.test', 'bcc' => '{{ input.email }}', 'subject' => 'S', 'body' => '<p>x</p>'], ['email' => 'a@x.test,b@x.test']);
 
-    expect($mailer->sent)->toBe([]);
+    expect($mailer->sent[0]['opts']['bcc'])->toBe(['a@x.test']);
 });
 
-it('refuses a fan-out through a State the page sent for this run', function (): void {
+it('limits a State the page sent for this run to one address', function (): void {
     $mailer = recordingMailer();
 
     runSendEmail(['to' => '{{ states.contact }}', 'subject' => 'S', 'body' => '<p>x</p>'], [], ['contact' => 'a@x.test,b@x.test']);
 
-    expect($mailer->sent)->toBe([]);
+    expect($mailer->sent[0]['to'])->toBe(['a@x.test']);
 });
 
 it('sends to one valid visitor address and to author-written lists', function (): void {

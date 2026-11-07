@@ -58,7 +58,7 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
             usage: 'to "{{ input.email }}", subject "Welcome {{ input.name }}", template "welcome-email", output "email" → sends, then {{ vars.email.sent }} is true on success.',
             icon: 'envelope',
             inputs: [
-                new CapabilityInput('to', 'To', 'string', required: true, help: 'Recipient(s) — a single address, a comma-separated list, or an array (interpolated). A token filled from the visitor ({{ input.email }}) must be exactly one valid address, or nothing is sent.'),
+                new CapabilityInput('to', 'To', 'string', required: true, help: 'Recipient(s) — a single address, a comma-separated list, or an array (interpolated). A token filled from the visitor ({{ input.email }}) adds one address only (the first, which must be valid, or nothing is sent).'),
                 new CapabilityInput('subject', 'Subject', 'string', help: 'Email subject line (interpolated).'),
                 new CapabilityInput('template', 'Template page', 'string', help: 'Slug of an email-template page used as the HTML body. Takes precedence over the inline body.'),
                 new CapabilityInput('body', 'Inline body', 'text', help: 'Inline HTML body used when no template slug is given. {{ tokens }} are HTML-escaped; {{{ token }}} inserts trusted HTML as-is.'),
@@ -157,10 +157,11 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
      * recipient list, or null to refuse the send.
      *
      * A token the visitor controls (`{{ input.* }}`, or a State the page sent
-     * for this run) must resolve to exactly ONE valid address — otherwise one
-     * request could fan a mail out to any number of recipients (`a@x,b@y,…`).
-     * Author-controlled tokens and literal text may still list several
-     * comma-separated addresses.
+     * for this run) contributes exactly ONE address: the first one in its
+     * value, which must be valid (otherwise nothing is sent). Anything after it
+     * is dropped, so one request can't fan a mail out to any number of
+     * recipients (`a@x,b@y,…`) or smuggle extra headers. Author-written text
+     * and author-controlled tokens may still list several addresses.
      *
      * @return list<string>|null
      */
@@ -177,11 +178,18 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
                 '/\{\{\{?\s*([a-zA-Z0-9_.]+)\s*\}?\}\}/',
                 function (array $m) use ($context, &$invalid): string {
                     $value = $context->stringValue($m[1]);
-                    if ($context->isVisitorControlled($m[1]) && ! $this->isSingleAddress($value)) {
-                        $invalid = true;
+                    if (! $context->isVisitorControlled($m[1])) {
+                        return $value;
                     }
 
-                    return $value;
+                    $single = $this->firstAddress($value);
+                    if ($single === null) {
+                        $invalid = true;
+
+                        return '';
+                    }
+
+                    return $single;
                 },
                 (string) $template,
             );
@@ -196,21 +204,14 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
         return array_values(array_unique($out));
     }
 
-    private function isSingleAddress(string $value): bool
+    /** The first address in a visitor-supplied value, or null when it isn't a valid one. */
+    private function firstAddress(string $value): ?string
     {
-        $value = trim($value);
+        $first = (string) (preg_split('/[\s,;]+/', trim($value), -1, PREG_SPLIT_NO_EMPTY)[0] ?? '');
 
-        return $value !== ''
-            && strpbrk($value, ",; \t\r\n") === false
-            && filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
+        return filter_var($first, FILTER_VALIDATE_EMAIL) !== false ? $first : null;
     }
 
-    /**
-     * Normalise a recipient value (string, comma list, or array) to a clean
-     * list of addresses.
-     *
-     * @return list<string>
-     */
     private function recipients(mixed $value): array
     {
         if (is_array($value)) {
