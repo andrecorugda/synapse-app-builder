@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Andre\AiPageBuilder\Models\Flow;
 use Andre\AiPageBuilder\Models\PbUser;
+use Andre\AiPageBuilder\Models\Variable;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -129,6 +130,8 @@ it('returns 429 on the second request when rate_limit_per_minute is 1', function
 // ---------------------------------------------------------------------------
 
 it('a set_variable node returns a setState action so a page updates its store live', function (): void {
+    Variable::create(['key' => 'message', 'type' => 'string', 'value' => '', 'is_public' => true]); // client-visible
+
     Flow::create([
         'slug' => 'set-state-flow',
         'name' => 'Set State',

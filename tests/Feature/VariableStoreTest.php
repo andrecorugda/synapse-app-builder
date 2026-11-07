@@ -194,6 +194,8 @@ it('exposes states[] in an expression function body', function (): void {
 // ---------------------------------------------------------------------------
 
 it('persists a value through SetVariableNode and reflects it in the store', function (): void {
+    // A client-visible State: only those are pushed to the page via setState.
+    app(VariableStore::class)->set('last_amount', 0, 'number', public: true);
     $ctx = new FlowContext(['amount' => '100']);
 
     $node = [

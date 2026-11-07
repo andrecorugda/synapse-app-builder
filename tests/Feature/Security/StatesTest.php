@@ -100,3 +100,43 @@ it('lists States and marks the ones pages reference as client-visible', function
     $this->artisan('ai-page-builder:states', ['--private' => 'store_name', '--public' => 'api_key'])->assertSuccessful();
     expect(Variable::query()->where('key', 'store_name')->value('is_public'))->toBeFalsy();
 });
+
+/** A public component flow whose Set Variable node writes `$key`. */
+function setStateFlow(string $key, string $value): void
+{
+    Flow::create([
+        'slug' => 'set-'.$key, 'name' => 'Set '.$key, 'trigger_type' => 'component', 'is_active' => true, 'is_public' => true,
+        'definition' => ['start' => 't', 'nodes' => [
+            't' => ['type' => 'trigger', 'next' => ['s']],
+            's' => ['type' => 'set_variable', 'config' => ['key' => $key, 'value' => $value], 'next' => ['r']],
+            'r' => ['type' => 'result', 'config' => ['actions' => [['type' => 'notify', 'message' => 'Thanks!']]]],
+        ]],
+    ]);
+}
+
+it('does not send a server-only State value to the visitor when a flow sets it', function (): void {
+    Variable::create(['key' => 'last_voucher', 'type' => 'string', 'value' => 'old']); // server-only
+    setStateFlow('last_voucher', 'VOUCHER-SECRET-9F3K');
+
+    $res = $this->postJson('/pb-flow/set-last_voucher', ['input' => []])->assertOk();
+
+    expect($res->getContent())->not->toContain('VOUCHER-SECRET-9F3K')
+        ->and(app(VariableStore::class)->get('last_voucher'))->toBe('VOUCHER-SECRET-9F3K');
+});
+
+it('does not send a State a flow creates (server-only by default) to the visitor', function (): void {
+    setStateFlow('fresh_secret', 'FRESH-SECRET-77');
+
+    $res = $this->postJson('/pb-flow/set-fresh_secret', ['input' => []])->assertOk();
+
+    expect($res->getContent())->not->toContain('FRESH-SECRET-77');
+});
+
+it('still pushes a client-visible State to the page when a flow sets it', function (): void {
+    Variable::create(['key' => 'banner', 'type' => 'string', 'value' => 'old', 'is_public' => true]);
+    setStateFlow('banner', 'Sale today');
+
+    $this->postJson('/pb-flow/set-banner', ['input' => []])
+        ->assertOk()
+        ->assertJsonFragment(['type' => 'setState', 'key' => 'banner', 'value' => 'Sale today']);
+});

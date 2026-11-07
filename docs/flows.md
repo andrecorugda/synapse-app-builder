@@ -162,6 +162,8 @@ Persist an app [State](functions-and-states.md) (global) and/or a context var. S
 
 `type` (optional cast): `string` \| `number` \| `boolean` \| `json`. Persists to `VariableStore` when `key` is set; also writes `vars[output]` when `output` is set.
 
+When the State is [visible to visitors](functions-and-states.md#who-can-see-a-state), the node also returns a `setState` action so the page that ran the flow updates `$store.app.<key>` live. A server-only State (including one this node just created) is **never** sent back to the browser: its new value stays on the server. To show a value to the visitor, mark the State visible, or return it explicitly from a `result` action.
+
 ### `condition`
 
 Branch on a comparison; routes to `next_true` / `next_false`.
