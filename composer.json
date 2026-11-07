@@ -52,7 +52,7 @@
         "orchestra/testbench": "^9.0|^10.0|^11.0",
         "pestphp/pest": "^3.0",
         "pestphp/pest-plugin-laravel": "^3.0",
-        "pragmarx/google2fa": "^8.0"
+        "pragmarx/google2fa": "^8.0 || ^9.0"
     },
     "suggest": {
         "filament/filament": "Required to use the bundled Filament admin UI (^4.0 or ^5.0).",
