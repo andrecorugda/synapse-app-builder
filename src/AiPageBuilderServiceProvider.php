@@ -24,6 +24,7 @@ use Andre\AiPageBuilder\Console\RunSchedulesCommand;
 use Andre\AiPageBuilder\Console\SeedPageBuilderIntegrationCommand;
 use Andre\AiPageBuilder\Console\SeedSystemPagesCommand;
 use Andre\AiPageBuilder\Console\StatesVisibilityCommand;
+use Andre\AiPageBuilder\Filament\AiPageBuilderPlugin;
 use Andre\AiPageBuilder\Flow\Contracts\AiInvoker;
 use Andre\AiPageBuilder\Flow\FlowManager;
 use Andre\AiPageBuilder\Flow\FlowRunner;
@@ -71,6 +72,7 @@ use Andre\AiPageBuilder\Services\PageRenderer;
 use Andre\AiPageBuilder\Services\ScheduleRunner;
 use Andre\AiPageBuilder\Services\Settings;
 use Andre\AiPageBuilder\Support\SynapseAccess;
+use Filament\Facades\Filament;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -650,10 +652,27 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
         );
 
         // The dockable AI chat (floating "Build with AI" companion), available
-        // on every panel page so app-building + refinement follow you around.
+        // on every page of a panel that runs Synapse — but only for a user who
+        // passes synapse.admin there (its endpoints refuse everyone else).
         FilamentView::registerRenderHook(
             'panels::body.end',
-            static fn (): string => view('ai-page-builder::filament.ai-chat')->render(),
+            static fn (): string => self::showsAiChatDock()
+                ? view('ai-page-builder::filament.ai-chat')->render()
+                : '',
         );
+    }
+
+    /** The AI chat dock renders only on a Synapse panel, for a Synapse admin there. */
+    private static function showsAiChatDock(): bool
+    {
+        try {
+            $panel = Filament::getCurrentOrDefaultPanel();
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $panel !== null
+            && $panel->hasPlugin(AiPageBuilderPlugin::ID)
+            && SynapseAccess::check();
     }
 }
