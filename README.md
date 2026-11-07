@@ -107,7 +107,17 @@ public function panel(Panel $panel): Panel
 }
 ```
 
+Then say who may build apps — **Synapse is closed to everyone until you do**. In your `AppServiceProvider::boot()`:
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('synapse.admin', fn ($user) => $user->is_admin);
+```
+
 A **Content** group appears with Pages, Media, Flows, Functions, Collections, States, App Users, Roles and Settings. Create a collection, build a page, wire a flow, publish.
+
+> **Access control.** Only users who pass `synapse.admin` see the Synapse screens and can use the AI chat, media upload and lint endpoints. Credentials, users, code and settings have finer abilities that follow `synapse.admin` unless you define them. See [Builder admins — who can open Synapse](docs/authentication-and-permissions.md#builder-admins--who-can-open-synapse). Upgrading from 1.x? Read [UPGRADE.md](UPGRADE.md).
 
 **To unlock AI generation**, install the gateway and add your OpenRouter key — the `app_builder` integration self-seeds:
 
