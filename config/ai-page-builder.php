@@ -118,6 +118,13 @@ return [
         // snapshotted (the package doesn't own their writes). Turn off to skip
         // history entirely. A revision-write failure never blocks the real write.
         'record_history' => (bool) env('AI_PAGE_BUILDER_RECORD_HISTORY', true),
+        // Columns of an app user that the data API may return when a record's
+        // user relation is expanded (`?expand=author`). Anything not listed is
+        // left out — never add credentials or two-factor columns here.
+        'user_expand_fields' => ['id', 'name'],
+        // Requests per minute per visitor (or per signed-in user) on the data
+        // API. 0 turns the limit off.
+        'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_DATA_RATE', 120),
     ],
 
     /*

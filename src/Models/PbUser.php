@@ -50,7 +50,28 @@ class PbUser extends Authenticatable implements AuthenticatableContract
 
     protected $guarded = [];
 
-    protected $hidden = ['password', 'remember_token'];
+    /**
+     * Never serialized. Covers the credentials (password, remember token), the
+     * whole two-factor state (the decrypted TOTP secret and recovery codes would
+     * otherwise appear in plain text), the SSO link, and personal / access data
+     * (email, role) — so a PbUser that reaches JSON by any route (an API expand,
+     * a helper, a flow output) carries none of it. Code that needs one of these
+     * reads the attribute directly.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'two_factor_method',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
+        'provider',
+        'provider_id',
+        'email',
+        'role_id',
+    ];
 
     protected $casts = [
         'is_active' => 'boolean',
