@@ -58,10 +58,10 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
             usage: 'to "{{ input.email }}", subject "Welcome {{ input.name }}", template "welcome-email", output "email" → sends, then {{ vars.email.sent }} is true on success.',
             icon: 'envelope',
             inputs: [
-                new CapabilityInput('to', 'To', 'string', required: true, help: 'Recipient(s) — a single address, a comma-separated list, or an array (interpolated).'),
+                new CapabilityInput('to', 'To', 'string', required: true, help: 'Recipient(s) — a single address, a comma-separated list, or an array (interpolated). A token filled from the visitor ({{ input.email }}) must be exactly one valid address, or nothing is sent.'),
                 new CapabilityInput('subject', 'Subject', 'string', help: 'Email subject line (interpolated).'),
                 new CapabilityInput('template', 'Template page', 'string', help: 'Slug of an email-template page used as the HTML body. Takes precedence over the inline body.'),
-                new CapabilityInput('body', 'Inline body', 'text', help: 'Inline HTML body used when no template slug is given (interpolated).'),
+                new CapabilityInput('body', 'Inline body', 'text', help: 'Inline HTML body used when no template slug is given. {{ tokens }} are HTML-escaped; {{{ token }}} inserts trusted HTML as-is.'),
                 new CapabilityInput('cc', 'CC', 'string', help: 'Optional carbon-copy recipient(s).'),
                 new CapabilityInput('bcc', 'BCC', 'string', help: 'Optional blind carbon-copy recipient(s).'),
                 new CapabilityInput('reply_to', 'Reply-To', 'string', help: 'Optional reply-to address.'),
@@ -80,9 +80,15 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
         $config = (array) ($node['config'] ?? []);
         $output = (string) ($config['output'] ?? 'email');
 
-        $to = $this->recipients($context->interpolateDeep($config['to'] ?? ''));
+        $to = $this->addresses($config['to'] ?? '', $context);
         $subject = (string) $context->interpolate((string) ($config['subject'] ?? ''));
         $html = $this->resolveBody($config, $context);
+
+        if ($to === null) {
+            $context->set($output, ['sent' => false, 'error' => 'Invalid recipient address.']);
+
+            return (array) ($node['next'] ?? []);
+        }
 
         if ($to === [] || $html === '') {
             $context->set($output, ['sent' => false, 'error' => 'Missing recipient or empty body.']);
@@ -98,9 +104,14 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
 
         $opts = [];
         foreach (['cc', 'bcc', 'reply_to'] as $key) {
-            $val = $context->interpolate((string) ($config[$key] ?? ''));
-            if (trim($val) !== '') {
-                $opts[$key] = $key === 'reply_to' ? $val : $this->recipients($val);
+            $list = $this->addresses($config[$key] ?? '', $context);
+            if ($list === null) {
+                $context->set($output, ['sent' => false, 'error' => 'Invalid '.$key.' address.']);
+
+                return (array) ($node['next'] ?? []);
+            }
+            if ($list !== []) {
+                $opts[$key] = $key === 'reply_to' ? $list[0] : $list;
             }
         }
 
@@ -134,11 +145,64 @@ class SendEmailNode implements FlowNodeHandler, ProvidesNodeDefinition
                 $css = is_string($page->css) && $page->css !== '' ? '<style>'.$page->css.'</style>' : '';
                 $html = $css.(is_string($page->html) ? $page->html : '');
 
-                return (string) $context->interpolate($html);
+                return $context->interpolateHtml($html);
             }
         }
 
-        return (string) $context->interpolate((string) ($config['body'] ?? ''));
+        return $context->interpolateHtml((string) ($config['body'] ?? ''));
+    }
+
+    /**
+     * Resolve an address field (a string template, or an array of them) to a
+     * recipient list, or null to refuse the send.
+     *
+     * A token the visitor controls (`{{ input.* }}`, or a State the page sent
+     * for this run) must resolve to exactly ONE valid address — otherwise one
+     * request could fan a mail out to any number of recipients (`a@x,b@y,…`).
+     * Author-controlled tokens and literal text may still list several
+     * comma-separated addresses.
+     *
+     * @return list<string>|null
+     */
+    private function addresses(mixed $raw, FlowContext $context): ?array
+    {
+        $out = [];
+        foreach (is_array($raw) ? $raw : [$raw] as $template) {
+            if (! is_scalar($template)) {
+                continue;
+            }
+
+            $invalid = false;
+            $resolved = (string) preg_replace_callback(
+                '/\{\{\{?\s*([a-zA-Z0-9_.]+)\s*\}?\}\}/',
+                function (array $m) use ($context, &$invalid): string {
+                    $value = $context->stringValue($m[1]);
+                    if ($context->isVisitorControlled($m[1]) && ! $this->isSingleAddress($value)) {
+                        $invalid = true;
+                    }
+
+                    return $value;
+                },
+                (string) $template,
+            );
+
+            if ($invalid) {
+                return null;
+            }
+
+            array_push($out, ...$this->recipients($resolved));
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    private function isSingleAddress(string $value): bool
+    {
+        $value = trim($value);
+
+        return $value !== ''
+            && strpbrk($value, ",; \t\r\n") === false
+            && filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
     }
 
     /**

@@ -119,14 +119,41 @@ class FlowContext
         return data_get($base, $rest);
     }
 
+    /**
+     * `{{ path }}` and `{{{ path }}}` tokens. The triple form marks a value the
+     * author wants inserted as raw HTML; outside an HTML field it is the same
+     * as the double form.
+     */
+    private const TOKEN = '/\{\{(\{)?\s*([a-zA-Z0-9_.]+)\s*\}\}(?(1)\})/';
+
     /** Replace every `{{ path }}` token in a string with its resolved value. */
     public function interpolate(string $template): string
     {
-        return (string) preg_replace_callback('/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/', function (array $m): string {
-            $v = $this->get($m[1]);
+        return (string) preg_replace_callback(self::TOKEN, fn (array $m): string => $this->stringValue($m[2]), $template);
+    }
 
-            return is_scalar($v) ? (string) $v : (is_array($v) ? json_encode($v) : '');
+    /**
+     * Interpolate a template that is HTML (a setHtml / modal body, an email
+     * body). Every `{{ path }}` value is HTML-escaped, so visitor input, an AI
+     * reply or an HTTP response can never inject markup or script. The explicit
+     * `{{{ path }}}` form inserts the value unescaped — only for HTML the flow
+     * itself produced and trusts.
+     */
+    public function interpolateHtml(string $template): string
+    {
+        return (string) preg_replace_callback(self::TOKEN, function (array $m): string {
+            $value = $this->stringValue($m[2]);
+
+            return $m[1] === '{' ? $value : htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
         }, $template);
+    }
+
+    /** The string a token resolves to (scalars as-is, arrays as JSON, else ''). */
+    public function stringValue(string $path): string
+    {
+        $v = $this->get($path);
+
+        return is_scalar($v) ? (string) $v : (is_array($v) ? (string) json_encode($v) : '');
     }
 
     /** Deep-interpolate every string in a config array. */
