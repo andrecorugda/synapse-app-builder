@@ -136,6 +136,14 @@ return [
     */
     'flow' => [
         'run_route_enabled' => env('AI_PAGE_BUILDER_FLOW_ROUTE', true),
+        // Middleware of the flow-run endpoint. Cookies + session let a private
+        // flow see the signed-in app user (private flows need one); public
+        // flows ignore it.
+        'middleware' => [
+            EncryptCookies::class,
+            StartSession::class,
+            'api',
+        ],
         'rate_limit_per_minute' => (int) env('AI_PAGE_BUILDER_FLOW_RATE', 30),
         // Global executed-node budget for a single flow run, shared across nested
         // loop/transaction bodies — bounds runaway loops. The default comfortably

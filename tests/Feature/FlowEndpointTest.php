@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Andre\AiPageBuilder\Models\Flow;
+use Andre\AiPageBuilder\Models\PbUser;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,20 +55,22 @@ it('returns 200 and interpolated actions for a public active flow', function ():
 });
 
 // ---------------------------------------------------------------------------
-// (b) Access model: Public = any origin; Private = same-origin only (cross-origin 404)
+// (b) Access model: Public = anyone, any origin; Private = a signed-in app user,
+//     same-origin only (anything else 404). Full coverage: Security/FlowAccessTest.
 // ---------------------------------------------------------------------------
 
-it('runs a private flow from a same-origin request (trigger type does not gate access)', function (): void {
+it('runs a private flow for a signed-in user from a same-origin request (trigger type does not gate access)', function (): void {
     // Access is gated by Public vs Private, NOT by trigger_type: a private flow is
-    // callable from the app's own pages (same-origin). Even a "manual" flow runs
-    // when the page fetches it same-origin. Laravel's test client sends Origin = host.
+    // callable from the app's own pages by a signed-in app user. Even a "manual"
+    // flow runs. Laravel's test client sends Origin = host.
     makePublicFlow([
         'slug' => 'private-manual-flow',
         'is_public' => false,
         'trigger_type' => 'manual',
     ]);
+    $user = PbUser::create(['name' => 'Sam', 'email' => 'sam@x.test', 'password' => 'x']);
 
-    $this->postJson('/pb-flow/private-manual-flow', ['input' => ['name' => 'Sam']])
+    $this->actingAs($user, 'pb')->postJson('/pb-flow/private-manual-flow', ['input' => ['name' => 'Sam']])
         ->assertOk()
         ->assertJsonStructure(['actions']);
 });
@@ -78,8 +81,9 @@ it('returns 404 for a private flow from a cross-origin request (no existence lea
         'is_public' => false,
         'trigger_type' => 'manual',
     ]);
+    $user = PbUser::create(['name' => 'Sam', 'email' => 'sam@x.test', 'password' => 'x']);
 
-    $this->postJson('/pb-flow/private-xo-flow', ['input' => []], ['Origin' => 'https://evil.example'])
+    $this->actingAs($user, 'pb')->postJson('/pb-flow/private-xo-flow', ['input' => []], ['Origin' => 'https://evil.example'])
         ->assertNotFound();
 });
 

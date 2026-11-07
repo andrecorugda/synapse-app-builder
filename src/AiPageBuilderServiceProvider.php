@@ -71,6 +71,8 @@ use Andre\AiPageBuilder\Services\ScheduleRunner;
 use Andre\AiPageBuilder\Services\Settings;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -384,8 +386,10 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
     }
 
     /**
-     * Public, stateless flow-run endpoint (opt-in per flow, rate-limited in the
-     * controller). No web/CSRF middleware — it's called from rendered pages.
+     * Flow-run endpoint (rate-limited in the controller). Public flows are open;
+     * private flows need the app user's session, so the default middleware
+     * starts the session (cookies + StartSession) without Laravel's CSRF token —
+     * the controller checks Origin for private flows instead.
      */
     private function registerFlowRoutes(): void
     {
@@ -395,7 +399,7 @@ class AiPageBuilderServiceProvider extends PackageServiceProvider
 
         Route::group([
             'prefix' => (string) config('ai-page-builder.routes.flow_prefix', 'pb-flow'),
-            'middleware' => ['api'],
+            'middleware' => (array) config('ai-page-builder.flow.middleware', [EncryptCookies::class, StartSession::class, 'api']),
         ], function (): void {
             $this->loadRoutesFrom(__DIR__.'/../routes/flow.php');
         });
