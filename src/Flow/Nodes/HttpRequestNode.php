@@ -11,6 +11,7 @@ use Andre\AiPageBuilder\Flow\Contracts\FlowNodeHandler;
 use Andre\AiPageBuilder\Flow\Contracts\ProvidesNodeDefinition;
 use Andre\AiPageBuilder\Flow\FlowContext;
 use Andre\AiPageBuilder\Models\Credential;
+use Andre\AiPageBuilder\Services\CredentialHosts;
 use Andre\AiPageBuilder\Services\CredentialStore;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -60,7 +61,7 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
                 new CapabilityInput('url', 'URL', 'string', required: true, help: 'Full http(s) URL to call (interpolated). Private/internal hosts are rejected.'),
                 new CapabilityInput('headers', 'Headers', 'keyvalue', help: 'Request headers as key/value pairs (interpolated).'),
                 new CapabilityInput('body', 'Body', 'json', help: 'Request body for write verbs (interpolated).'),
-                new CapabilityInput('credential', 'Credential', 'string', help: 'Optional stored credential key; its auth headers are merged in and take precedence over inline headers.'),
+                new CapabilityInput('credential', 'Credential', 'string', help: 'Optional stored credential key; its auth headers are merged in and take precedence over inline headers. The URL\'s host must be one of the credential\'s allowed hosts, or the request is not made.'),
                 new CapabilityInput('output', 'Output variable', 'string', default: 'http', help: 'Context variable for the response body; the status is written to <output>_status (default "http").'),
             ],
             outputHandles: ['next'],
@@ -94,10 +95,24 @@ class HttpRequestNode implements FlowNodeHandler, ProvidesNodeDefinition
         }
 
         // Attach the credential only AFTER the URL passed the SSRF guard, so a
-        // crafted internal URL can never receive a decrypted secret.
+        // crafted internal URL can never receive a decrypted secret — and only
+        // to a host on the credential's own allow-list (kept by whoever may
+        // manage secrets), so a flow builder can't send it to a host they own.
+        // A request the credential may not go to is not made at all.
         $credentialKey = trim((string) ($config['credential'] ?? ''));
         if ($credentialKey !== '') {
-            $headers = array_merge($headers, app(CredentialStore::class)->headers($credentialKey));
+            $credentialHeaders = app(CredentialStore::class)->headersForHost($credentialKey, CredentialHosts::hostOf($url));
+            if ($credentialHeaders === null) {
+                Log::warning('[ai-page-builder] http node refused to send a credential to a host outside its allowed hosts.', [
+                    'credential' => $credentialKey,
+                    'host' => CredentialHosts::hostOf($url),
+                ]);
+                $context->set($output, null);
+                $context->set($output.'_status', 0);
+
+                return (array) ($node['next'] ?? []);
+            }
+            $headers = array_merge($headers, $credentialHeaders);
         }
 
         $request = Http::withHeaders($headers);

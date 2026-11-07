@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Andre\AiPageBuilder\Models;
 
+use Andre\AiPageBuilder\Services\CredentialHosts;
 use Andre\AiPageBuilder\Services\Settings;
 use Andre\AiPageBuilder\Support\Schema;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -27,6 +28,8 @@ use Throwable;
  * @property string $type 'bearer'|'api_key'|'basic'
  * @property string|null $secret Plaintext via the accessor; encrypted at rest.
  * @property array<string,mixed>|null $meta {header_name?, username?}
+ * @property list<string> $allowed_hosts Hosts the credential may be sent to
+ *                                       (exact or `*.example.com`); empty = none.
  */
 class Credential extends Model
 {
@@ -38,6 +41,33 @@ class Credential extends Model
     protected $casts = [
         'meta' => 'array',
     ];
+
+    /**
+     * True when this credential may be attached to a request to $host. An
+     * empty allow-list refuses every host (fail closed).
+     */
+    public function allowsHost(string $host): bool
+    {
+        return CredentialHosts::matches($host, $this->allowed_hosts);
+    }
+
+    /**
+     * Hosts are stored as a JSON list, cleaned on the way in (lowercase, one
+     * entry per host or `*.host` pattern, a pasted URL reduced to its host).
+     */
+    protected function allowedHosts(): Attribute
+    {
+        return Attribute::make(
+            get: function (?string $value): array {
+                $decoded = $value === null || $value === '' ? [] : json_decode($value, true);
+
+                return CredentialHosts::normalize(is_array($decoded) ? $decoded : []);
+            },
+            set: fn (mixed $value): ?string => ($hosts = CredentialHosts::normalize($value ?? [])) === []
+                ? null
+                : (string) json_encode($hosts),
+        );
+    }
 
     public function getConnectionName(): ?string
     {

@@ -7,7 +7,9 @@ namespace Andre\AiPageBuilder\Filament\Resources;
 use Andre\AiPageBuilder\Filament\Concerns\AuthorizesSynapseResource;
 use Andre\AiPageBuilder\Filament\Resources\CredentialResource\Pages;
 use Andre\AiPageBuilder\Models\Credential;
+use Andre\AiPageBuilder\Services\CredentialHosts;
 use Andre\AiPageBuilder\Support\SynapseAccess;
+use Closure;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -16,6 +18,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Model;
 
 class CredentialResource extends Resource
@@ -125,6 +128,24 @@ class CredentialResource extends Resource
                             ->placeholder(fn (?Model $record): string => $record !== null ? '•••••• (leave blank to keep)' : '')
                             ->helperText('Leave blank to keep the current secret.')
                             ->columnSpanFull(),
+
+                        Forms\Components\TagsInput::make('allowed_hosts')
+                            ->label('Allowed hosts')
+                            ->placeholder('api.example.com')
+                            ->splitKeys(['Tab', ',', ' '])
+                            ->nestedRecursiveRules([
+                                new class implements ValidationRule
+                                {
+                                    public function validate(string $attribute, mixed $value, Closure $fail): void
+                                    {
+                                        if (! is_string($value) || ! CredentialHosts::isValidPattern($value)) {
+                                            $fail('Enter a host such as api.example.com, or *.example.com for its subdomains.');
+                                        }
+                                    }
+                                },
+                            ])
+                            ->helperText('The secret is sent only to these hosts (exact, or *.example.com for any subdomain). With no host it is never sent: an HTTP Request node using it is refused. Only list hosts you trust with this secret.')
+                            ->columnSpanFull(),
                     ]),
             ])
             ->columns(1);
@@ -155,6 +176,12 @@ class CredentialResource extends Resource
                         'basic' => 'warning',
                         default => 'gray',
                     }),
+
+                Tables\Columns\TextColumn::make('allowed_hosts')
+                    ->label('Allowed hosts')
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('None (never sent)'),
 
                 Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()
