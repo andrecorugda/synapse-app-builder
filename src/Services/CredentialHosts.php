@@ -93,6 +93,12 @@ class CredentialHosts
     /** The host of a URL as compared against the list ('' when it has none). */
     public static function hostOf(string $url): string
     {
+        // A URI-template brace would be expanded by the HTTP client before it
+        // dials, so the parsed host is not the host contacted: match nothing.
+        if (\Andre\AiPageBuilder\Flow\Nodes\HttpRequestNode::hasTemplateSyntax($url)) {
+            return '';
+        }
+
         return self::canonicalHost((string) (parse_url($url, PHP_URL_HOST) ?? ''));
     }
 
